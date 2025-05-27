@@ -60,12 +60,12 @@ make_scripts_executable() {
 main() {
     display_banner
 
-    # Make all scripts executable first
-    make_scripts_executable
-
     # Set timezone first
     set_timezone
     log_info "Set system timezone to ${SERVER_TIMEZONE:-UTC}"
+
+    # Make all scripts executable first
+    make_scripts_executable
     
     # Load user environment variables if they exist (overrides defaults)
     if [ -f "$SCRIPT_DIR/conf/user.env" ]; then
