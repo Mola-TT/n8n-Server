@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Milestone
+
+## Milestone 1 (In Prgress)
+- Created an `init.sh` script that:
+  - Updates the Ubuntu server silently
+  - Sets up timezone directly from configuration
+  - Checks if running as root
+  - Loads environment variables
+  - Provides proper initialization flow
+- Created a `logger.sh` script with logging functions:
+  - Implemented color-coded log levels (DEBUG, INFO, WARNING, ERROR)
+  - Made log message timestamps bold
+  - Made log messages white by default
+  - Applied colors only to log level text
+  - Added file logging capability
+- Created environment configuration:
+  - Added `default.env` with default configuration
+  - Added `user.env.template` for user-specific settings
+  - Implemented environment variable override logic
+- Added utility functions:
+  - Created `utilities.sh` with helper functions
+  - Implemented `execute_silently` for quiet command execution
+  - Added log file management
+- Created general configuration:
+  - Added system update functionality
+  - Added timezone configuration
+
+
+
