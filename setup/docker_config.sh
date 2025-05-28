@@ -26,6 +26,7 @@ create_n8n_directories() {
         "/opt/n8n/logs"
         "/opt/n8n/backups"
         "/opt/n8n/scripts"
+        "/opt/n8n/ssl"
     )
     
     for dir in "${directories[@]}"; do
@@ -114,6 +115,9 @@ services:
       - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
       - GENERIC_TIMEZONE=${TIMEZONE}
       - TZ=${TIMEZONE}
+      # SSL Configuration
+      - N8N_SSL_KEY=${N8N_SSL_KEY}
+      - N8N_SSL_CERT=${N8N_SSL_CERT}
       # PostgreSQL Database Configuration
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=${DB_HOST}
@@ -130,6 +134,7 @@ services:
     volumes:
       - /opt/n8n/files:/data/files
       - /opt/n8n/.n8n:/home/node/.n8n
+      - /opt/n8n/ssl:/opt/ssl:ro
     depends_on:
       - redis
     networks:
@@ -186,6 +191,10 @@ N8N_PROTOCOL=https
 WEBHOOK_URL=https://your-domain.com/webhook
 N8N_EDITOR_BASE_URL=https://your-domain.com
 
+# SSL Configuration
+N8N_SSL_KEY=/opt/ssl/private.key
+N8N_SSL_CERT=/opt/ssl/certificate.crt
+
 # Timezone Configuration
 TIMEZONE=UTC
 
@@ -212,6 +221,213 @@ EOF
         log_error "Failed to create environment file"
         return 1
     fi
+}
+
+# =============================================================================
+# SSL/TLS Configuration
+# =============================================================================
+
+generate_self_signed_certificate() {
+    log_info "Generating self-signed SSL certificate for development..."
+    
+    local ssl_dir="/opt/n8n/ssl"
+    local private_key="$ssl_dir/private.key"
+    local certificate="$ssl_dir/certificate.crt"
+    
+    # Create SSL directory
+    if ! execute_silently "sudo mkdir -p '$ssl_dir'"; then
+        log_error "Failed to create SSL directory"
+        return 1
+    fi
+    
+    # Generate private key
+    if execute_silently "sudo openssl genrsa -out '$private_key' 2048"; then
+        log_info "Generated private key: $private_key"
+    else
+        log_error "Failed to generate private key"
+        return 1
+    fi
+    
+    # Generate self-signed certificate
+    local subject="/C=US/ST=Development/L=Development/O=n8n-dev/OU=IT/CN=localhost"
+    if execute_silently "sudo openssl req -new -x509 -key '$private_key' -out '$certificate' -days 365 -subj '$subject'"; then
+        log_info "Generated self-signed certificate: $certificate"
+    else
+        log_error "Failed to generate self-signed certificate"
+        return 1
+    fi
+    
+    # Set proper permissions
+    execute_silently "sudo chmod 600 '$private_key'"
+    execute_silently "sudo chmod 644 '$certificate'"
+    execute_silently "sudo chown -R root:docker '$ssl_dir'"
+    
+    log_info "Self-signed SSL certificate generated successfully"
+    log_warning "This is a development certificate. Use proper SSL certificates for production."
+    
+    return 0
+}
+
+setup_production_ssl() {
+    log_info "Setting up production SSL configuration..."
+    
+    local ssl_dir="/opt/n8n/ssl"
+    
+    # Create SSL directory
+    if ! execute_silently "sudo mkdir -p '$ssl_dir'"; then
+        log_error "Failed to create SSL directory"
+        return 1
+    fi
+    
+    log_info "SSL directory created: $ssl_dir"
+    log_info "Production SSL setup instructions:"
+    log_info "1. Place your SSL private key at: $ssl_dir/private.key"
+    log_info "2. Place your SSL certificate at: $ssl_dir/certificate.crt"
+    log_info "3. If using Let's Encrypt, consider using certbot with automatic renewal"
+    log_info "4. Ensure proper file permissions: private key (600), certificate (644)"
+    log_info "5. Update WEBHOOK_URL and N8N_EDITOR_BASE_URL in /opt/n8n/docker/.env with your domain"
+    
+    # Create placeholder files with instructions
+    cat > "/tmp/ssl_instructions.txt" << 'EOF'
+# Production SSL Certificate Setup Instructions
+
+## Option 1: Let's Encrypt (Recommended)
+1. Install certbot:
+   sudo apt update && sudo apt install -y certbot
+
+2. Generate certificate (replace your-domain.com):
+   sudo certbot certonly --standalone -d your-domain.com
+
+3. Copy certificates:
+   sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem /opt/n8n/ssl/private.key
+   sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem /opt/n8n/ssl/certificate.crt
+
+4. Set up automatic renewal:
+   sudo crontab -e
+   # Add: 0 3 * * * certbot renew --quiet && docker-compose -f /opt/n8n/docker/docker-compose.yml restart n8n
+
+## Option 2: Custom SSL Certificate
+1. Copy your private key to: /opt/n8n/ssl/private.key
+2. Copy your certificate to: /opt/n8n/ssl/certificate.crt
+
+## Set Permissions
+sudo chmod 600 /opt/n8n/ssl/private.key
+sudo chmod 644 /opt/n8n/ssl/certificate.crt
+sudo chown -R root:docker /opt/n8n/ssl
+
+## Update Environment
+Edit /opt/n8n/docker/.env and update:
+- WEBHOOK_URL=https://your-domain.com/webhook
+- N8N_EDITOR_BASE_URL=https://your-domain.com
+EOF
+
+    if execute_silently "sudo cp /tmp/ssl_instructions.txt '$ssl_dir/README.txt'"; then
+        log_info "SSL setup instructions saved to: $ssl_dir/README.txt"
+    fi
+    
+    execute_silently "rm -f /tmp/ssl_instructions.txt"
+    
+    return 0
+}
+
+configure_ssl_certificates() {
+    log_info "Configuring SSL certificates..."
+    
+    # Load environment to check PRODUCTION setting
+    if [[ -f "$(dirname "$0")/../conf/user.env" ]]; then
+        source "$(dirname "$0")/../conf/user.env"
+    else
+        source "$(dirname "$0")/../conf/default.env"
+    fi
+    
+    local ssl_dir="/opt/n8n/ssl"
+    
+    if [[ "${PRODUCTION,,}" == "true" ]]; then
+        log_info "Production mode detected - setting up production SSL configuration"
+        setup_production_ssl
+    else
+        log_info "Development mode detected - generating self-signed certificate"
+        generate_self_signed_certificate
+    fi
+    
+    return 0
+}
+
+create_ssl_renewal_script() {
+    log_info "Creating SSL certificate renewal script..."
+    
+    local renewal_script="/opt/n8n/scripts/ssl-renew.sh"
+    cat > "$renewal_script" << 'EOF'
+#!/bin/bash
+
+# =============================================================================
+# SSL Certificate Renewal Script
+# =============================================================================
+
+echo "Starting SSL certificate renewal process..."
+
+# Check if we're in production mode
+if [[ "${PRODUCTION,,}" == "true" ]]; then
+    echo "Production mode - attempting Let's Encrypt renewal..."
+    
+    # Attempt certificate renewal
+    if certbot renew --quiet; then
+        echo "Certificate renewal successful"
+        
+        # Copy renewed certificates
+        if [[ -d "/etc/letsencrypt/live" ]]; then
+            for domain_dir in /etc/letsencrypt/live/*/; do
+                if [[ -f "$domain_dir/privkey.pem" && -f "$domain_dir/fullchain.pem" ]]; then
+                    echo "Copying renewed certificates for $(basename "$domain_dir")"
+                    sudo cp "$domain_dir/privkey.pem" /opt/n8n/ssl/private.key
+                    sudo cp "$domain_dir/fullchain.pem" /opt/n8n/ssl/certificate.crt
+                    sudo chmod 600 /opt/n8n/ssl/private.key
+                    sudo chmod 644 /opt/n8n/ssl/certificate.crt
+                    break
+                fi
+            done
+        fi
+        
+        # Restart n8n to use new certificates
+        echo "Restarting n8n service..."
+        cd /opt/n8n/docker && docker-compose restart n8n
+        
+        echo "SSL certificate renewal completed successfully"
+    else
+        echo "Certificate renewal failed or not needed"
+    fi
+else
+    echo "Development mode - regenerating self-signed certificate..."
+    
+    # Regenerate self-signed certificate (valid for another year)
+    cd /opt/n8n/ssl
+    
+    if openssl genrsa -out private.key 2048 && \
+       openssl req -new -x509 -key private.key -out certificate.crt -days 365 \
+       -subj "/C=US/ST=Development/L=Development/O=n8n-dev/OU=IT/CN=localhost"; then
+        
+        chmod 600 private.key
+        chmod 644 certificate.crt
+        chown -R root:docker /opt/n8n/ssl
+        
+        echo "Self-signed certificate regenerated"
+        
+        # Restart n8n
+        cd /opt/n8n/docker && docker-compose restart n8n
+        echo "n8n restarted with new certificate"
+    else
+        echo "Failed to regenerate self-signed certificate"
+        exit 1
+    fi
+fi
+
+echo "SSL renewal process completed"
+EOF
+
+    chmod +x "$renewal_script"
+    log_info "SSL renewal script created: $renewal_script"
+    
+    return 0
 }
 
 # =============================================================================
@@ -326,6 +542,9 @@ EOF
     # Make scripts executable
     chmod +x "$cleanup_script" "$update_script" "$service_script"
     
+    # Create SSL renewal script
+    create_ssl_renewal_script
+    
     log_info "Operational scripts created successfully"
     return 0
 }
@@ -393,6 +612,7 @@ setup_docker_infrastructure() {
     setup_user_permissions || return 1
     create_docker_compose || return 1
     create_environment_file || return 1
+    configure_ssl_certificates || return 1
     create_cleanup_scripts || return 1
     create_systemd_service || return 1
     

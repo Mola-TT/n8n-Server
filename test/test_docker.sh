@@ -375,6 +375,95 @@ test_postgresql_variables() {
     return 0
 }
 
+test_ssl_configuration() {
+    local env_file="/opt/n8n/docker/.env"
+    local compose_file="/opt/n8n/docker/docker-compose.yml"
+    local ssl_dir="/opt/n8n/ssl"
+    
+    # Check SSL environment variables
+    if ! grep -q "N8N_SSL_KEY=" "$env_file"; then
+        log_error "N8N_SSL_KEY variable not found in environment file"
+        return 1
+    fi
+    
+    if ! grep -q "N8N_SSL_CERT=" "$env_file"; then
+        log_error "N8N_SSL_CERT variable not found in environment file"
+        return 1
+    fi
+    
+    # Check SSL volume mount in docker-compose
+    if ! grep -q "/opt/n8n/ssl:/opt/ssl:ro" "$compose_file"; then
+        log_error "SSL volume mount not configured in docker-compose"
+        return 1
+    fi
+    
+    # Check SSL directory exists
+    if [[ ! -d "$ssl_dir" ]]; then
+        log_error "SSL directory does not exist: $ssl_dir"
+        return 1
+    fi
+    
+    # Check for SSL renewal script
+    if [[ ! -f "/opt/n8n/scripts/ssl-renew.sh" ]]; then
+        log_error "SSL renewal script does not exist"
+        return 1
+    fi
+    
+    if [[ ! -x "/opt/n8n/scripts/ssl-renew.sh" ]]; then
+        log_error "SSL renewal script is not executable"
+        return 1
+    fi
+    
+    return 0
+}
+
+test_ssl_certificates() {
+    local ssl_dir="/opt/n8n/ssl"
+    local private_key="$ssl_dir/private.key"
+    local certificate="$ssl_dir/certificate.crt"
+    
+    # Check if SSL files exist (they should after setup)
+    if [[ -f "$private_key" ]]; then
+        # Check private key permissions
+        local key_perms=$(stat -c "%a" "$private_key")
+        if [[ "$key_perms" != "600" ]]; then
+            log_warning "Private key permissions should be 600, found: $key_perms"
+        fi
+        
+        # Validate private key format
+        if ! openssl rsa -in "$private_key" -check -noout &>/dev/null; then
+            log_error "Invalid private key format"
+            return 1
+        fi
+    fi
+    
+    if [[ -f "$certificate" ]]; then
+        # Check certificate permissions
+        local cert_perms=$(stat -c "%a" "$certificate")
+        if [[ "$cert_perms" != "644" ]]; then
+            log_warning "Certificate permissions should be 644, found: $cert_perms"
+        fi
+        
+        # Validate certificate format
+        if ! openssl x509 -in "$certificate" -text -noout &>/dev/null; then
+            log_error "Invalid certificate format"
+            return 1
+        fi
+        
+        # Check certificate expiry
+        local expiry_date=$(openssl x509 -in "$certificate" -noout -enddate | cut -d= -f2)
+        local expiry_epoch=$(date -d "$expiry_date" +%s)
+        local current_epoch=$(date +%s)
+        local days_until_expiry=$(( (expiry_epoch - current_epoch) / 86400 ))
+        
+        if [[ $days_until_expiry -lt 30 ]]; then
+            log_warning "SSL certificate expires in $days_until_expiry days"
+        fi
+    fi
+    
+    return 0
+}
+
 test_timezone_configuration() {
     local compose_file="/opt/n8n/docker/docker-compose.yml"
     local env_file="/opt/n8n/docker/.env"
@@ -432,6 +521,8 @@ run_all_tests() {
     
     # Environment Variable Tests
     run_test "PostgreSQL Variables" test_postgresql_variables
+    run_test "SSL Configuration" test_ssl_configuration
+    run_test "SSL Certificates" test_ssl_certificates
     run_test "Timezone Configuration" test_timezone_configuration
     
     # Test Summary
