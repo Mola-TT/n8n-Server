@@ -138,73 +138,47 @@ wait_for_docker_daemon() {
 install_docker_compose() {
     log_info "Installing Docker Compose..."
     
-    # Check if Docker Compose is already installed
-    if command -v docker-compose &> /dev/null; then
-        log_info "Docker Compose is already installed: $(docker-compose --version)"
-        return 0
-    fi
-    
-    # Check if Docker Compose plugin is available
-    if docker compose version &> /dev/null; then
-        log_info "Docker Compose plugin is available: $(docker compose version)"
+    # Check if docker compose plugin is available (preferred method)
+    if docker compose version >/dev/null 2>&1; then
+        log_info "Docker Compose plugin is already available"
         
-        # Create docker-compose symlink for compatibility
-        if ! execute_silently "ln -sf /usr/bin/docker /usr/local/bin/docker-compose"; then
-            log_warn "Failed to create docker-compose symlink, but plugin is available"
-        fi
-        
-        # Create wrapper script for docker-compose command
-        cat > "/usr/local/bin/docker-compose" << 'EOF'
+        # Create wrapper script for backwards compatibility
+        local compose_wrapper="/usr/local/bin/docker-compose"
+        if [[ ! -f "$compose_wrapper" ]] || [[ ! -x "$compose_wrapper" ]]; then
+            log_info "Creating docker-compose wrapper script..."
+            execute_silently "sudo tee $compose_wrapper > /dev/null" << 'EOF'
 #!/bin/bash
 exec docker compose "$@"
 EOF
-        
-        if ! execute_silently "chmod +x /usr/local/bin/docker-compose"; then
-            log_warn "Failed to make docker-compose wrapper executable"
-            return 1
-        fi
-        
-        # Verify the wrapper works
-        if timeout 10s /usr/local/bin/docker-compose --version &>/dev/null; then
-            log_info "Created docker-compose wrapper script"
+            execute_silently "sudo chmod +x $compose_wrapper"
+            log_info "Created docker-compose wrapper at $compose_wrapper"
         else
-            log_warn "Docker-compose wrapper created but may not be fully functional yet"
+            log_info "Docker-compose wrapper already exists"
         fi
         
         return 0
     fi
     
-    # Install Docker Compose standalone if plugin is not available
-    log_info "Installing Docker Compose standalone..."
+    # If plugin not available, install standalone docker-compose
+    log_info "Docker Compose plugin not found, installing standalone version..."
     
-    # Get latest version
     local compose_version
     compose_version=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
     
     if [[ -z "$compose_version" ]]; then
-        compose_version="v2.21.0"  # Fallback version
-        log_warn "Could not determine latest Docker Compose version, using fallback: $compose_version"
+        log_error "Failed to get latest Docker Compose version"
+        return 1
     fi
     
-    # Download Docker Compose
+    log_info "Installing Docker Compose $compose_version..."
+    
     local compose_url="https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-$(uname -s)-$(uname -m)"
     
-    if ! execute_silently "curl -L '$compose_url' -o /usr/local/bin/docker-compose"; then
-        log_error "Failed to download Docker Compose"
-        return 1
-    fi
-    
-    # Make it executable
-    if ! execute_silently "chmod +x /usr/local/bin/docker-compose"; then
-        log_error "Failed to make Docker Compose executable"
-        return 1
-    fi
-    
-    # Verify installation
-    if docker-compose --version &> /dev/null; then
-        log_info "Docker Compose installed successfully: $(docker-compose --version)"
+    if execute_silently "sudo curl -L $compose_url -o /usr/local/bin/docker-compose"; then
+        execute_silently "sudo chmod +x /usr/local/bin/docker-compose"
+        log_info "Docker Compose $compose_version installed successfully"
     else
-        log_error "Docker Compose installation verification failed"
+        log_error "Failed to install Docker Compose"
         return 1
     fi
     
@@ -259,23 +233,52 @@ setup_user_permissions() {
     log_info "Setting up user permissions and Docker group membership..."
     
     local current_user=$(whoami)
+    local target_user
     
-    # Add user to docker group if not already a member
-    if ! groups "$current_user" | grep -q docker; then
-        if execute_silently "sudo usermod -aG docker $current_user"; then
-            log_info "Added user $current_user to docker group"
-            log_warn "Please log out and log back in for group changes to take effect"
+    # Determine the target user to add to docker group
+    if [[ "$current_user" == "root" ]]; then
+        # If running as root, check if there's a non-root user who should be added
+        # Look for the user who owns the script directory or SUDO_USER
+        if [[ -n "$SUDO_USER" ]]; then
+            target_user="$SUDO_USER"
+            log_info "Running as root via sudo, adding user $target_user to docker group"
         else
-            log_error "Failed to add user to docker group"
+            # Fallback: find the user who owns the script directory
+            target_user=$(stat -c '%U' "$(dirname "${BASH_SOURCE[0]}")/..")
+            if [[ "$target_user" != "root" ]]; then
+                log_info "Adding script owner $target_user to docker group"
+            else
+                # Pure root execution - use root as target
+                target_user="root"
+                log_info "Running as root user, configuring docker group for root"
+            fi
+        fi
+    else
+        target_user="$current_user"
+        log_info "Adding current user $target_user to docker group"
+    fi
+    
+    # Add target user to docker group if not already a member
+    if ! groups "$target_user" | grep -q docker; then
+        if execute_silently "sudo usermod -aG docker $target_user"; then
+            log_info "Added user $target_user to docker group"
+            if [[ "$target_user" != "root" ]]; then
+                log_warn "Please log out and log back in for group changes to take effect"
+                log_warn "Or run: newgrp docker"
+            else
+                log_info "Root user added to docker group - no logout required"
+            fi
+        else
+            log_error "Failed to add user $target_user to docker group"
             return 1
         fi
     else
-        log_info "User $current_user is already in docker group"
+        log_info "User $target_user is already in docker group"
     fi
     
     # Set proper ownership for n8n directories
-    if execute_silently "sudo chown -R $current_user:docker /opt/n8n"; then
-        log_info "Set ownership of /opt/n8n to $current_user:docker"
+    if execute_silently "sudo chown -R $target_user:docker /opt/n8n"; then
+        log_info "Set ownership of /opt/n8n to $target_user:docker"
     else
         log_error "Failed to set ownership of /opt/n8n"
         return 1
