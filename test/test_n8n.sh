@@ -315,7 +315,7 @@ test_n8n_postgresql_connectivity() {
     
     # Check if PostgreSQL client is available
     if ! command -v psql &> /dev/null; then
-        log_warn "PostgreSQL client (psql) not installed - installing for testing..."
+        log_info "PostgreSQL client (psql) not installed - installing for testing..."
         if command -v apt-get &> /dev/null; then
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -qq >/dev/null 2>&1
@@ -460,7 +460,7 @@ test_n8n_web_accessibility() {
     
     # Check if curl is available
     if ! command -v curl &> /dev/null; then
-        log_warn "curl not available - installing for web interface testing..."
+        log_info "curl not available - installing for web interface testing..."
         if command -v apt-get &> /dev/null; then
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -qq >/dev/null 2>&1
