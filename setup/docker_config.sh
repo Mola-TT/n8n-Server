@@ -90,6 +90,25 @@ install_docker() {
         return 1
     fi
     
+    # Ensure Docker group exists (critical for docker.socket to start)
+    log_info "Ensuring Docker group exists..."
+    if ! getent group docker >/dev/null 2>&1; then
+        log_info "Creating Docker group..."
+        if ! execute_silently "groupadd docker"; then
+            log_error "Failed to create Docker group"
+            return 1
+        fi
+        log_info "Docker group created successfully"
+    else
+        log_info "Docker group already exists"
+    fi
+    
+    # Verify group creation
+    if ! getent group docker >/dev/null 2>&1; then
+        log_error "Docker group verification failed after creation"
+        return 1
+    fi
+    
     # Start and enable Docker service
     log_info "Starting Docker service..."
     
