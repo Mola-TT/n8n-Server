@@ -5,6 +5,42 @@ alwaysApply: true
 ---
 # Milestone
 
+## Milestone 2 (In Progress)
+- Create n8n Docker infrastructure:
+  - Create directory structure on host:
+    - `/opt/n8n/docker/` → for config files (e.g., .env, docker-compose.yml)
+    - `/opt/n8n/files/` → mapped as internal /data/files for file storage
+    - `/opt/n8n/.n8n/` → persistent home directory for n8n metadata (workflows, credentials)
+  - Ensure correct permissions for running user or Docker process
+- Create docker-compose.yml file in `/opt/n8n/docker/`:
+  - Define service named `n8n` with image `n8nio/n8n:latest`
+  - Port mapping: `5678:5678`
+  - Map environment file
+  - Mount volumes:
+    - `/opt/n8n/files` → `/data/files`
+    - `/opt/n8n/.n8n` → `/home/node/.n8n`
+  - Restart policy: `unless-stopped`
+  - Depends on: `redis`
+- Configure external PostgreSQL database:
+  - Add PostgreSQL connection variables to environment file
+  - Pass database configuration to n8n container
+- Implement automatic n8n updates:
+  - Configure container to automatically pull latest image
+  - Ensure seamless update process
+- Set up Redis service:
+  - Add Redis container to docker-compose
+  - Configure Redis for n8n queue management
+  - Set up Redis data persistence
+- User management and permissions:
+  - Set up proper user permissions and Docker group membership
+  - Ensure correct file ownership for n8n directories
+- Operational maintenance:
+  - Create automated cleanup scripts for old Docker images and logs
+  - Implement log rotation and cleanup policies
+- Timezone configuration:
+  - Ensure proper timezone configuration for scheduled workflows
+  - Configure timezone environment variables for containers
+
 ## Milestone 1 (Completed)
 - Created an `init.sh` script that:
   - Updates the Ubuntu server silently
