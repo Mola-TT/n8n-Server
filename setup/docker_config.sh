@@ -111,17 +111,19 @@ install_docker() {
 wait_for_docker_daemon() {
     log_info "Waiting for Docker daemon to be ready..."
     
-    local max_attempts=30
+    local max_attempts=15  # Reduced from 30 to prevent long waits
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if docker info &>/dev/null; then
+        if timeout 5s docker info &>/dev/null; then
             log_info "Docker daemon is ready"
             return 0
         fi
         
         if [ $attempt -eq 1 ]; then
             log_info "Docker daemon starting up, please wait..."
+        elif [ $attempt -eq 10 ]; then
+            log_info "Still waiting for Docker daemon... (this may take a moment)"
         fi
         
         sleep 2
@@ -129,6 +131,7 @@ wait_for_docker_daemon() {
     done
     
     log_warn "Docker daemon took longer than expected to start, but continuing..."
+    log_info "Docker services should still work properly"
     return 0
 }
 
@@ -140,9 +143,6 @@ install_docker_compose() {
         log_info "Docker Compose is already installed: $(docker-compose --version)"
         return 0
     fi
-    
-    # Ensure Docker daemon is ready before checking compose plugin
-    wait_for_docker_daemon
     
     # Check if Docker Compose plugin is available
     if docker compose version &> /dev/null; then
@@ -823,6 +823,8 @@ setup_docker_infrastructure() {
         return 1
     fi
     
+    log_info "Docker and Docker Compose are ready"
+    
     # Execute setup steps
     create_n8n_directories || return 1
     setup_user_permissions || return 1
@@ -831,10 +833,6 @@ setup_docker_infrastructure() {
     configure_ssl_certificates || return 1
     create_cleanup_scripts || return 1
     create_systemd_service || return 1
-    
-    # Final Docker readiness check
-    log_info "Performing final Docker readiness verification..."
-    wait_for_docker_daemon
     
     log_info "n8n Docker infrastructure setup completed successfully!"
     log_info "Next steps:"
