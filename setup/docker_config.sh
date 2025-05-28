@@ -501,37 +501,37 @@ create_environment_file() {
 # =============================================================================
 
 # n8n Basic Configuration
-N8N_HOST=0.0.0.0
-N8N_PORT=5678
-N8N_PROTOCOL=https
-WEBHOOK_URL=https://your-domain.com/webhook
-N8N_EDITOR_BASE_URL=https://your-domain.com
+N8N_HOST="0.0.0.0"
+N8N_PORT="5678"
+N8N_PROTOCOL="https"
+WEBHOOK_URL="https://your-domain.com/webhook"
+N8N_EDITOR_BASE_URL="https://your-domain.com"
 
 # Web Interface Authentication
-N8N_BASIC_AUTH_ACTIVE=true
-N8N_BASIC_AUTH_USER=admin
-N8N_BASIC_AUTH_PASSWORD=your_strong_password_here
+N8N_BASIC_AUTH_ACTIVE="true"
+N8N_BASIC_AUTH_USER="admin"
+N8N_BASIC_AUTH_PASSWORD="your_strong_password_here"
 
 # SSL Configuration
-N8N_SSL_KEY=/opt/ssl/private.key
-N8N_SSL_CERT=/opt/ssl/certificate.crt
+N8N_SSL_KEY="/opt/ssl/private.key"
+N8N_SSL_CERT="/opt/ssl/certificate.crt"
 
 # Timezone Configuration
-TIMEZONE=UTC
+TIMEZONE="UTC"
 
 # PostgreSQL Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=n8n
-DB_USER=n8n_user
-DB_PASSWORD=your_secure_password
-DB_SSL_ENABLED=false
+DB_HOST="localhost"
+DB_PORT="5432"
+DB_NAME="n8n"
+DB_USER="n8n_user"
+DB_PASSWORD="your_secure_password"
+DB_SSL_ENABLED="false"
 
 # Redis Configuration
-REDIS_DB=0
+REDIS_DB="0"
 
 # Security
-N8N_ENCRYPTION_KEY=your_encryption_key_here
+N8N_ENCRYPTION_KEY="your_encryption_key_here"
 EOF
 
     if [[ -f "$env_file" ]]; then
