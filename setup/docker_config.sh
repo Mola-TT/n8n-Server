@@ -490,56 +490,109 @@ EOF
     fi
 }
 
+# Function to regenerate Docker environment file from updated configuration
+regenerate_environment_file() {
+    log_info "Regenerating Docker environment file..."
+    
+    if [[ ! -d "/opt/n8n/docker" ]]; then
+        log_error "Docker directory not found. Please run setup first."
+        return 1
+    fi
+    
+    # Call the main environment file creation function
+    create_environment_file
+    
+    if [[ $? -eq 0 ]]; then
+        log_info "Docker environment file regenerated successfully"
+        log_info "Restart n8n services to apply changes: /opt/n8n/scripts/service.sh restart"
+    else
+        log_error "Failed to regenerate Docker environment file"
+        return 1
+    fi
+}
+
 create_environment_file() {
-    log_info "Creating Docker environment file..."
+    log_info "Creating Docker environment file from configuration..."
     
     local env_file="/opt/n8n/docker/.env"
+    local script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    local config_dir="$script_dir/../conf"
     
-    cat > "$env_file" << 'EOF'
+    # Load environment variables from config files
+    # Start with defaults, then override with user settings if they exist
+    if [[ -f "$config_dir/default.env" ]]; then
+        log_debug "Loading default configuration from $config_dir/default.env"
+        source "$config_dir/default.env"
+    else
+        log_error "Default environment file not found: $config_dir/default.env"
+        return 1
+    fi
+    
+    if [[ -f "$config_dir/user.env" ]]; then
+        log_info "Loading user configuration from $config_dir/user.env"
+        source "$config_dir/user.env"
+    else
+        log_info "No user.env found, using default values"
+    fi
+    
+    # Create the Docker environment file using loaded variables
+    cat > "$env_file" << EOF
 # =============================================================================
 # n8n Docker Environment Configuration
+# Generated from: default.env + user.env (if exists)
 # =============================================================================
 
 # n8n Basic Configuration
-N8N_HOST="0.0.0.0"
-N8N_PORT="5678"
-N8N_PROTOCOL="https"
-WEBHOOK_URL="https://your-domain.com/webhook"
-N8N_EDITOR_BASE_URL="https://your-domain.com"
+N8N_HOST="${N8N_HOST}"
+N8N_PORT="${N8N_PORT}"
+N8N_PROTOCOL="${N8N_PROTOCOL}"
+WEBHOOK_URL="${N8N_WEBHOOK_URL}"
+N8N_EDITOR_BASE_URL="${N8N_EDITOR_BASE_URL}"
 
 # Web Interface Authentication
-N8N_BASIC_AUTH_ACTIVE="true"
-N8N_BASIC_AUTH_USER="admin"
-N8N_BASIC_AUTH_PASSWORD="your_strong_password_here"
+N8N_BASIC_AUTH_ACTIVE="${N8N_BASIC_AUTH_ACTIVE}"
+N8N_BASIC_AUTH_USER="${N8N_BASIC_AUTH_USER}"
+N8N_BASIC_AUTH_PASSWORD="${N8N_BASIC_AUTH_PASSWORD}"
 
 # SSL Configuration
-N8N_SSL_KEY="/opt/ssl/private.key"
-N8N_SSL_CERT="/opt/ssl/certificate.crt"
+N8N_SSL_KEY="${N8N_SSL_KEY}"
+N8N_SSL_CERT="${N8N_SSL_CERT}"
 
 # Timezone Configuration
-TIMEZONE="UTC"
+TIMEZONE="${SERVER_TIMEZONE}"
 
 # PostgreSQL Database Configuration
-DB_HOST="localhost"
-DB_PORT="5432"
-DB_NAME="n8n"
-DB_USER="n8n_user"
-DB_PASSWORD="your_secure_password"
-DB_SSL_ENABLED="false"
+DB_HOST="${DB_HOST}"
+DB_PORT="${DB_PORT}"
+DB_NAME="${DB_NAME}"
+DB_USER="${DB_USER}"
+DB_PASSWORD="${DB_PASSWORD}"
+DB_SSL_ENABLED="${DB_SSL_ENABLED}"
 
 # Redis Configuration
-REDIS_DB="0"
+REDIS_DB="${REDIS_DB}"
 
 # Security
-N8N_ENCRYPTION_KEY="your_encryption_key_here"
+N8N_ENCRYPTION_KEY="$(openssl rand -hex 32)"
 EOF
 
     if [[ -f "$env_file" ]]; then
-        log_info "Environment file created at $env_file"
-        log_warn "Please update the environment variables in $env_file with your actual values"
+        log_info "Docker environment file created at $env_file"
+        log_info "Values loaded from: default.env$([ -f "$config_dir/user.env" ] && echo " + user.env")"
+        
+        # Show configuration summary
+        log_info "Configuration summary:"
+        log_info "  - n8n Host: ${N8N_HOST}"
+        log_info "  - n8n Port: ${N8N_PORT}"
+        log_info "  - n8n Protocol: ${N8N_PROTOCOL}"
+        log_info "  - Production Mode: ${PRODUCTION}"
+        log_info "  - Basic Auth: ${N8N_BASIC_AUTH_ACTIVE}"
+        log_info "  - Database Host: ${DB_HOST}"
+        log_info "  - Timezone: ${SERVER_TIMEZONE}"
+        
         return 0
     else
-        log_error "Failed to create environment file"
+        log_error "Failed to create Docker environment file"
         return 1
     fi
 }
