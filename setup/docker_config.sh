@@ -108,7 +108,7 @@ install_docker_compose() {
         
         # Create docker-compose symlink for compatibility
         if ! execute_silently "ln -sf /usr/bin/docker /usr/local/bin/docker-compose"; then
-            log_warning "Failed to create docker-compose symlink, but plugin is available"
+            log_warn "Failed to create docker-compose symlink, but plugin is available"
         fi
         
         # Create wrapper script for docker-compose command
@@ -131,7 +131,7 @@ EOF
     
     if [[ -z "$compose_version" ]]; then
         compose_version="v2.21.0"  # Fallback version
-        log_warning "Could not determine latest Docker Compose version, using fallback: $compose_version"
+        log_warn "Could not determine latest Docker Compose version, using fallback: $compose_version"
     fi
     
     # Download Docker Compose
@@ -212,7 +212,7 @@ setup_user_permissions() {
     if ! groups "$current_user" | grep -q docker; then
         if execute_silently "sudo usermod -aG docker $current_user"; then
             log_info "Added user $current_user to docker group"
-            log_warning "Please log out and log back in for group changes to take effect"
+            log_warn "Please log out and log back in for group changes to take effect"
         else
             log_error "Failed to add user to docker group"
             return 1
@@ -376,7 +376,7 @@ EOF
 
     if [[ -f "$env_file" ]]; then
         log_info "Environment file created at $env_file"
-        log_warning "Please update the environment variables in $env_file with your actual values"
+        log_warn "Please update the environment variables in $env_file with your actual values"
         return 0
     else
         log_error "Failed to create environment file"
@@ -424,7 +424,7 @@ generate_self_signed_certificate() {
     execute_silently "sudo chown -R root:docker '$ssl_dir'"
     
     log_info "Self-signed SSL certificate generated successfully"
-    log_warning "This is a development certificate. Use proper SSL certificates for production."
+    log_warn "This is a development certificate. Use proper SSL certificates for production."
     
     return 0
 }
@@ -739,7 +739,7 @@ EOF
         if execute_silently "sudo systemctl enable n8n-docker.service"; then
             log_info "n8n-docker service enabled for auto-start"
         else
-            log_warning "Failed to enable n8n-docker service"
+            log_warn "Failed to enable n8n-docker service"
         fi
     else
         log_error "Failed to reload systemd daemon"
