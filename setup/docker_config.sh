@@ -427,6 +427,10 @@ services:
       - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
       - GENERIC_TIMEZONE=${TIMEZONE}
       - TZ=${TIMEZONE}
+      # Web Interface Authentication
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
       # SSL Configuration
       - N8N_SSL_KEY=${N8N_SSL_KEY}
       - N8N_SSL_CERT=${N8N_SSL_CERT}
@@ -502,6 +506,11 @@ N8N_PORT=5678
 N8N_PROTOCOL=https
 WEBHOOK_URL=https://your-domain.com/webhook
 N8N_EDITOR_BASE_URL=https://your-domain.com
+
+# Web Interface Authentication
+N8N_BASIC_AUTH_ACTIVE=true
+N8N_BASIC_AUTH_USER=admin
+N8N_BASIC_AUTH_PASSWORD=your_strong_password_here
 
 # SSL Configuration
 N8N_SSL_KEY=/opt/ssl/private.key
