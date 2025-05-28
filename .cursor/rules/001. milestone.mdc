@@ -5,6 +5,19 @@ alwaysApply: true
 ---
 # Milestone
 
+## Milestone 3 (In Progress)
+- Create `nginx_config.sh` under setup folder to:
+  - Install and configure Nginx as a secure proxy for n8n
+  - Configure SSL using Let's Encrypt
+    - if production = false, self-signed certificates should be used
+  - Configure firewall rules to expose Nginx ports (80/443)
+  - All connection to n8n should be through https, redirect http connection to https
+  - Provide robust error handling and silent installation
+- Updated `init.sh` to include Nginx configuration in the initialization process
+- Enhanced environment configuration:
+  - Added Nginx-specific settings to default.env and user.env.template
+  - Added SSL certificate configuration options
+
 ## Milestone 2 (Completed)
 - Create n8n Docker infrastructure:
   - Create directory structure on host:
