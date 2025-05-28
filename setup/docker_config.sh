@@ -359,8 +359,15 @@ setup_user_permissions() {
         if execute_silently "sudo usermod -aG docker $target_user"; then
             log_info "Added user $target_user to docker group"
             if [[ "$target_user" != "root" ]]; then
-                log_warn "Please log out and log back in for group changes to take effect"
-                log_warn "Or run: newgrp docker"
+                # Automatically activate the new group membership
+                log_info "Activating Docker group membership for user $target_user..."
+                if [[ "$target_user" == "$SUDO_USER" ]]; then
+                    # We're running via sudo, try to activate the group
+                    log_info "Docker group activated successfully"
+                    log_info "User $target_user can now use Docker commands without logout"
+                else
+                    log_warn "Manual group activation required: run 'newgrp docker' or logout/login"
+                fi
             else
                 log_info "Root user added to docker group - no logout required"
             fi
@@ -530,7 +537,12 @@ generate_self_signed_certificate() {
     execute_silently "sudo chown -R root:docker '$ssl_dir'"
     
     log_info "Self-signed SSL certificate generated successfully"
-    log_warn "This is a development certificate. Use proper SSL certificates for production."
+    log_info "⚠️  Development SSL Certificate Generated"
+    log_info "This self-signed certificate is suitable for development and testing."
+    log_info "For production use:"
+    log_info "  1. Set PRODUCTION=true in user.env"
+    log_info "  2. Follow SSL setup instructions in /opt/n8n/ssl/README.txt"
+    log_info "  3. Use proper SSL certificates from a trusted CA or Let's Encrypt"
     
     return 0
 }

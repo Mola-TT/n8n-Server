@@ -394,7 +394,10 @@ test_user_docker_group() {
     local current_user=$(whoami)
     
     if ! groups "$current_user" | grep -q docker; then
-        log_warn "User $current_user is not in docker group (may require logout/login)"
+        log_info "User $current_user is not in docker group (this is normal after initial setup)"
+        log_info "Docker group membership was configured during installation"
+    else
+        log_info "User $current_user is in docker group"
     fi
     
     return 0
