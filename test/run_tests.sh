@@ -12,6 +12,9 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # Source logger
 source "$PROJECT_DIR/lib/logger.sh"
 
+# Source Docker test suite (Milestone 2)
+source "$PROJECT_DIR/test/test_docker.sh"
+
 # Test counter
 TESTS_RUN=0
 TESTS_PASSED=0
@@ -91,7 +94,8 @@ main() {
     log_info "Starting n8n server initialization tests..."
     log_info "=========================================="
     
-    # Run tests
+    # Milestone 1 Tests
+    log_info "MILESTONE 1 Tests:"
     run_test "Directory structure" "test_directories"
     run_test "Required files exist" "test_required_files"
     run_test "Script permissions" "test_script_permissions"
@@ -99,6 +103,23 @@ main() {
     run_test "Environment loading" "test_env_loading"
     run_test "Logging functions" "test_logging"
     run_test "Utility functions" "test_utilities"
+    
+    # Milestone 2 Tests (Docker Infrastructure)
+    log_info ""
+    log_info "MILESTONE 2 Tests (Docker Infrastructure):"
+    run_test "n8n Directory Structure" "test_n8n_directories"
+    run_test "Directory Permissions" "test_directory_permissions"
+    run_test "Docker Compose File" "test_docker_compose_file"
+    run_test "Environment File" "test_environment_file"
+    run_test "Redis Configuration" "test_redis_configuration"
+    run_test "SSL Configuration" "test_ssl_configuration"
+    run_test "SSL Certificates" "test_ssl_certificates"
+    run_test "Operational Scripts" "test_operational_scripts"
+    run_test "Systemd Service" "test_systemd_service"
+    run_test "Docker Installation" "test_docker_installation"
+    run_test "Volume Mounts" "test_volume_mounts"
+    run_test "Network Configuration" "test_network_configuration"
+    run_test "Timezone Configuration" "test_timezone_configuration"
     
     # Print summary
     log_info "=========================================="

@@ -23,6 +23,9 @@ source "$SCRIPT_DIR/lib/utilities.sh"
 # Source general configuration
 source "$SCRIPT_DIR/setup/general_config.sh"
 
+# Source Docker configuration (Milestone 2)
+source "$SCRIPT_DIR/setup/docker_config.sh"
+
 # Display init banner
 display_banner() {
     echo "-----------------------------------------------"
@@ -87,6 +90,12 @@ main() {
     # Update system packages
     update_system
     
+    # Set up Docker infrastructure (Milestone 2)
+    log_info "-----------------------------------------------"
+    log_info "MILESTONE 2: Docker Infrastructure Setup"
+    log_info "-----------------------------------------------"
+    setup_docker_infrastructure
+    
     # Print setup summary
     log_info "-----------------------------------------------"
     log_info "SETUP SUMMARY"
@@ -95,6 +104,7 @@ main() {
     log_info "✓ System update: SUCCESS"
     log_info "✓ Timezone configuration: SUCCESS"
     log_info "✓ Environment loading: SUCCESS"
+    log_info "✓ Docker infrastructure: SUCCESS"
     log_info "-----------------------------------------------"
     
     log_info "Initialization COMPLETE"
