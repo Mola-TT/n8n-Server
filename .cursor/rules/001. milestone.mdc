@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Milestone
 
-## Milestone 1 (In Prgress)
+## Milestone 1 (Completed)
 - Created an `init.sh` script that:
   - Updates the Ubuntu server silently
   - Sets up timezone directly from configuration
