@@ -18,11 +18,31 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 install_docker() {
     log_info "Installing Docker..."
     
-    # Check if Docker is already installed
+    # Check if Docker is already installed and working
     if command -v docker &> /dev/null; then
-        log_info "Docker is already installed"
-        return 0
+        if docker --version &> /dev/null; then
+            log_info "Docker is already installed and working"
+            # Still check if service is running
+            if ! systemctl is-active docker &>/dev/null; then
+                log_info "Docker command exists but service not running, attempting to start..."
+                if execute_silently "systemctl start docker"; then
+                    log_info "Docker service started successfully"
+                else
+                    log_warn "Docker service failed to start, continuing with reinstallation..."
+                fi
+            fi
+            return 0
+        else
+            log_warn "Docker command exists but not working properly, continuing with installation..."
+        fi
     fi
+    
+    # Remove any conflicting packages that might interfere
+    log_info "Removing any conflicting Docker packages..."
+    execute_silently "apt-get remove -y docker docker-engine docker.io containerd runc" || true
+    
+    # Clean up any previous failed installations
+    execute_silently "apt-get autoremove -y" || true
     
     # Update package index
     if ! execute_silently "apt-get update"; then
@@ -72,14 +92,70 @@ install_docker() {
     
     # Start and enable Docker service
     log_info "Starting Docker service..."
-    if ! execute_silently "systemctl start docker"; then
-        log_error "Failed to start Docker service"
-        return 1
+    
+    # Check if Docker service already exists and its current state
+    if systemctl is-active docker &>/dev/null; then
+        log_info "Docker service is already running"
+    elif systemctl is-failed docker &>/dev/null; then
+        log_warn "Docker service is in failed state, resetting..."
+        execute_silently "systemctl reset-failed docker"
+        sleep 2
     fi
     
+    # Attempt to start Docker service with multiple retries
+    local start_attempts=3
+    local attempt=1
+    
+    while [ $attempt -le $start_attempts ]; do
+        if execute_silently "systemctl start docker"; then
+            log_info "Docker service started successfully"
+            break
+        else
+            log_warn "Docker service start attempt $attempt failed"
+            
+            if [ $attempt -eq $start_attempts ]; then
+                # Last attempt failed, check status and provide diagnostics
+                log_error "Failed to start Docker service after $start_attempts attempts"
+                log_info "Checking Docker service status for diagnostics..."
+                
+                # Provide diagnostic information
+                if command -v systemctl &>/dev/null; then
+                    local docker_status=$(systemctl status docker 2>&1 || true)
+                    log_info "Docker service status: $docker_status"
+                    
+                    # Check journal for recent Docker errors
+                    local docker_logs=$(journalctl -u docker --no-pager -n 10 2>&1 || true)
+                    log_info "Recent Docker logs: $docker_logs"
+                fi
+                
+                # Try alternative startup methods
+                log_info "Attempting alternative Docker startup methods..."
+                
+                # Try stopping first, then starting
+                execute_silently "systemctl stop docker" || true
+                sleep 3
+                
+                if execute_silently "systemctl start docker"; then
+                    log_info "Docker service started successfully using stop/start method"
+                    break
+                else
+                    log_error "All Docker startup methods failed"
+                    log_error "Please check system logs and Docker installation"
+                    return 1
+                fi
+            else
+                # Wait before retry
+                sleep 5
+                ((attempt++))
+            fi
+        fi
+    done
+    
+    # Enable Docker service for auto-start
     if ! execute_silently "systemctl enable docker"; then
-        log_error "Failed to enable Docker service"
-        return 1
+        log_warn "Failed to enable Docker service for auto-start (continuing anyway)"
+    else
+        log_info "Docker service enabled for auto-start"
     fi
     
     # Give Docker a moment to start up
