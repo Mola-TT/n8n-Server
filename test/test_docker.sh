@@ -352,8 +352,8 @@ test_docker_installation() {
     
     # Check Docker version (only if daemon is ready)
     if [ "$daemon_ready" = true ]; then
-        if timeout 10s docker --version 2>/dev/null; then
-            local docker_version_output=$(timeout 10s docker --version 2>/dev/null)
+        local docker_version_output
+        if docker_version_output=$(timeout 10s docker --version 2>/dev/null); then
             log_info "Docker version: $docker_version_output"
         else
             log_warn "Docker version check failed or timed out"
@@ -369,8 +369,12 @@ test_docker_installation() {
     fi
     
     # Check Docker Compose version
-    if timeout 10s docker-compose --version 2>/dev/null; then
-        local compose_version_output=$(timeout 10s docker-compose --version 2>/dev/null)
+    local compose_version_output
+    if compose_version_output=$(timeout 10s docker compose version --short 2>/dev/null); then
+        log_info "Docker Compose version: $compose_version_output"
+    elif compose_version_output=$(timeout 10s docker-compose version --short 2>/dev/null); then
+        log_info "Docker Compose version: $compose_version_output"
+    elif compose_version_output=$(timeout 10s docker compose version 2>/dev/null | head -1); then
         log_info "Docker Compose version: $compose_version_output"
     else
         log_warn "Docker Compose version check failed or timed out"
