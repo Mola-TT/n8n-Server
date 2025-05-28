@@ -64,15 +64,40 @@ test_n8n_directories() {
 }
 
 test_directory_permissions() {
+    # Determine expected owner using same logic as setup script
     local current_user=$(whoami)
+    local expected_owner
+    
+    if [[ "$current_user" == "root" ]]; then
+        # If running as root, check if there's a non-root user who should own the directories
+        if [[ -n "$SUDO_USER" ]]; then
+            expected_owner="$SUDO_USER"
+        else
+            # Fallback: find the user who owns the script directory
+            expected_owner=$(stat -c '%U' "$(dirname "${BASH_SOURCE[0]}")/..")
+            if [[ "$expected_owner" == "root" ]]; then
+                expected_owner="root"
+            fi
+        fi
+    else
+        expected_owner="$current_user"
+    fi
     
     # Check ownership
-    if [[ $(stat -c '%U' /opt/n8n) != "$current_user" ]]; then
-        log_error "/opt/n8n is not owned by $current_user"
+    local actual_owner=$(stat -c '%U' /opt/n8n)
+    if [[ "$actual_owner" != "$expected_owner" ]]; then
+        log_error "/opt/n8n is owned by '$actual_owner', expected '$expected_owner'"
         return 1
     fi
     
-    # Check if directories are writable
+    # Check group ownership (should be docker)
+    local actual_group=$(stat -c '%G' /opt/n8n)
+    if [[ "$actual_group" != "docker" ]]; then
+        log_error "/opt/n8n group is '$actual_group', expected 'docker'"
+        return 1
+    fi
+    
+    # Check if directories are writable by the expected owner
     if [[ ! -w "/opt/n8n/files" ]]; then
         log_error "/opt/n8n/files is not writable"
         return 1
