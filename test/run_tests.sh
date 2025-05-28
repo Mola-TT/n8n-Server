@@ -12,8 +12,9 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # Source logger
 source "$PROJECT_DIR/lib/logger.sh"
 
-# Source Docker test suite (Milestone 2)
+# Source test suites
 source "$PROJECT_DIR/test/test_docker.sh"
+source "$PROJECT_DIR/test/test_n8n.sh"
 
 # Test counter
 TESTS_RUN=0
@@ -112,14 +113,27 @@ main() {
     run_test "Docker Compose File" "test_docker_compose_file"
     run_test "Environment File" "test_environment_file"
     run_test "Redis Configuration" "test_redis_configuration"
-    run_test "SSL Configuration" "test_ssl_configuration"
-    run_test "SSL Certificates" "test_ssl_certificates"
     run_test "Operational Scripts" "test_operational_scripts"
     run_test "Systemd Service" "test_systemd_service"
     run_test "Docker Installation" "test_docker_installation"
     run_test "Volume Mounts" "test_volume_mounts"
     run_test "Network Configuration" "test_network_configuration"
-    run_test "Timezone Configuration" "test_timezone_configuration"
+    
+    # Milestone 2 Tests (n8n Application)
+    log_info ""
+    log_info "MILESTONE 2 Tests (n8n Application):"
+    run_test "n8n Environment Configuration" "test_n8n_environment_file"
+    run_test "Authentication Configuration" "test_n8n_authentication_configuration"
+    run_test "Timezone Configuration" "test_n8n_timezone_configuration"
+    run_test "SSL Configuration" "test_n8n_ssl_configuration"
+    run_test "SSL Certificates" "test_n8n_ssl_certificates"
+    run_test "PostgreSQL Connectivity" "test_n8n_postgresql_connectivity"
+    run_test "Database Permissions" "test_n8n_database_permissions"
+    run_test "n8n Container Health" "test_n8n_container_health"
+    run_test "Redis Connectivity" "test_n8n_redis_connectivity"
+    run_test "n8n Web Accessibility" "test_n8n_web_accessibility"
+    run_test "Authentication Challenge" "test_n8n_authentication_challenge"
+    run_test "Authentication Login" "test_n8n_authentication_login"
     
     # Print summary
     log_info "=========================================="

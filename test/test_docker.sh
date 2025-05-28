@@ -3,8 +3,13 @@
 # =============================================================================
 # Docker Infrastructure Test Suite - Milestone 2
 # =============================================================================
-# This script validates the complete n8n Docker infrastructure setup
-# including directories, permissions, Docker Compose, Redis, and scripts
+# This script validates the Docker infrastructure setup including:
+# - Directory structure and permissions
+# - Docker and Docker Compose installation
+# - docker-compose.yml configuration
+# - Redis configuration
+# - Operational scripts
+# - System integration
 # =============================================================================
 
 # Source required libraries
@@ -51,6 +56,7 @@ test_n8n_directories() {
         "/opt/n8n/logs"
         "/opt/n8n/backups"
         "/opt/n8n/scripts"
+        "/opt/n8n/ssl"
     )
     
     for dir in "${directories[@]}"; do
@@ -226,6 +232,7 @@ test_operational_scripts() {
         "/opt/n8n/scripts/cleanup.sh"
         "/opt/n8n/scripts/update.sh"
         "/opt/n8n/scripts/service.sh"
+        "/opt/n8n/scripts/ssl-renew.sh"
     )
     
     for script in "${scripts[@]}"; do
@@ -416,6 +423,11 @@ test_volume_mounts() {
         return 1
     fi
     
+    if ! grep -q "/opt/n8n/ssl:/opt/ssl:ro" "$compose_file"; then
+        log_error "SSL volume mount not configured"
+        return 1
+    fi
+    
     return 0
 }
 
@@ -436,144 +448,12 @@ test_network_configuration() {
 }
 
 # =============================================================================
-# Environment Variable Tests
-# =============================================================================
-
-test_postgresql_variables() {
-    local env_file="/opt/n8n/docker/.env"
-    
-    local pg_vars=("DB_HOST" "DB_PORT" "DB_NAME" "DB_USER" "DB_PASSWORD")
-    
-    for var in "${pg_vars[@]}"; do
-        if ! grep -q "^$var=" "$env_file"; then
-            log_error "PostgreSQL variable missing: $var"
-            return 1
-        fi
-    done
-    
-    return 0
-}
-
-test_ssl_configuration() {
-    local env_file="/opt/n8n/docker/.env"
-    local compose_file="/opt/n8n/docker/docker-compose.yml"
-    local ssl_dir="/opt/n8n/ssl"
-    
-    # Check SSL environment variables
-    if ! grep -q "N8N_SSL_KEY=" "$env_file"; then
-        log_error "N8N_SSL_KEY variable not found in environment file"
-        return 1
-    fi
-    
-    if ! grep -q "N8N_SSL_CERT=" "$env_file"; then
-        log_error "N8N_SSL_CERT variable not found in environment file"
-        return 1
-    fi
-    
-    # Check SSL volume mount in docker-compose
-    if ! grep -q "/opt/n8n/ssl:/opt/ssl:ro" "$compose_file"; then
-        log_error "SSL volume mount not configured in docker-compose"
-        return 1
-    fi
-    
-    # Check SSL directory exists
-    if [[ ! -d "$ssl_dir" ]]; then
-        log_error "SSL directory does not exist: $ssl_dir"
-        return 1
-    fi
-    
-    # Check for SSL renewal script
-    if [[ ! -f "/opt/n8n/scripts/ssl-renew.sh" ]]; then
-        log_error "SSL renewal script does not exist"
-        return 1
-    fi
-    
-    if [[ ! -x "/opt/n8n/scripts/ssl-renew.sh" ]]; then
-        log_error "SSL renewal script is not executable"
-        return 1
-    fi
-    
-    return 0
-}
-
-test_ssl_certificates() {
-    local ssl_dir="/opt/n8n/ssl"
-    local private_key="$ssl_dir/private.key"
-    local certificate="$ssl_dir/certificate.crt"
-    
-    # Check if SSL files exist (they should after setup)
-    if [[ -f "$private_key" ]]; then
-        # Check private key permissions
-        local key_perms=$(stat -c "%a" "$private_key")
-        if [[ "$key_perms" != "600" ]]; then
-            log_warn "Private key permissions should be 600, found: $key_perms"
-        fi
-        
-        # Validate private key format
-        if ! openssl rsa -in "$private_key" -check -noout &>/dev/null; then
-            log_error "Invalid private key format"
-            return 1
-        fi
-    fi
-    
-    if [[ -f "$certificate" ]]; then
-        # Check certificate permissions
-        local cert_perms=$(stat -c "%a" "$certificate")
-        if [[ "$cert_perms" != "644" ]]; then
-            log_warn "Certificate permissions should be 644, found: $cert_perms"
-        fi
-        
-        # Validate certificate format
-        if ! openssl x509 -in "$certificate" -text -noout &>/dev/null; then
-            log_error "Invalid certificate format"
-            return 1
-        fi
-        
-        # Check certificate expiry
-        local expiry_date=$(openssl x509 -in "$certificate" -noout -enddate | cut -d= -f2)
-        local expiry_epoch=$(date -d "$expiry_date" +%s)
-        local current_epoch=$(date +%s)
-        local days_until_expiry=$(( (expiry_epoch - current_epoch) / 86400 ))
-        
-        if [[ $days_until_expiry -lt 30 ]]; then
-            log_warn "SSL certificate expires in $days_until_expiry days"
-        fi
-    fi
-    
-    return 0
-}
-
-test_timezone_configuration() {
-    local compose_file="/opt/n8n/docker/docker-compose.yml"
-    local env_file="/opt/n8n/docker/.env"
-    
-    # Check timezone in environment file
-    if ! grep -q "TIMEZONE=" "$env_file"; then
-        log_error "TIMEZONE variable not found in environment file"
-        return 1
-    fi
-    
-    # Check timezone variables in docker-compose
-    if ! grep -q "GENERIC_TIMEZONE=\${TIMEZONE}" "$compose_file"; then
-        log_error "GENERIC_TIMEZONE not configured in docker-compose"
-        return 1
-    fi
-    
-    if ! grep -q "TZ=\${TIMEZONE}" "$compose_file"; then
-        log_error "TZ variable not configured in docker-compose"
-        return 1
-    fi
-    
-    return 0
-}
-
-# =============================================================================
 # Main Test Runner
 # =============================================================================
 
 run_all_tests() {
-    log_info "Starting n8n Docker Infrastructure Test Suite..."
-    log_info "=================================================="
+    log_info "Starting Docker Infrastructure Test Suite..."
+    log_info "============================================"
     
     # Directory and Permission Tests
     run_test "n8n Directory Structure" test_n8n_directories
@@ -585,7 +465,7 @@ run_all_tests() {
     run_test "Redis Configuration" test_redis_configuration
     
     # Operational Scripts Tests
-    run_test "Operational Scripts Existence" test_operational_scripts
+    run_test "Operational Scripts" test_operational_scripts
     run_test "Cleanup Script Content" test_cleanup_script_content
     run_test "Service Script Functionality" test_service_script_functionality
     
@@ -598,21 +478,15 @@ run_all_tests() {
     run_test "Volume Mounts" test_volume_mounts
     run_test "Network Configuration" test_network_configuration
     
-    # Environment Variable Tests
-    run_test "PostgreSQL Variables" test_postgresql_variables
-    run_test "SSL Configuration" test_ssl_configuration
-    run_test "SSL Certificates" test_ssl_certificates
-    run_test "Timezone Configuration" test_timezone_configuration
-    
     # Test Summary
-    log_info "=================================================="
-    log_info "Test Summary:"
+    log_info "============================================"
+    log_info "Docker Infrastructure Test Summary:"
     log_info "Tests Run: $TESTS_RUN"
     log_info "Tests Passed: $TESTS_PASSED"
     log_info "Tests Failed: $TESTS_FAILED"
     
     if [[ $TESTS_FAILED -eq 0 ]]; then
-        log_info "🎉 All tests passed! n8n Docker infrastructure is ready."
+        log_info "🎉 All Docker infrastructure tests passed!"
         return 0
     else
         log_error "❌ $TESTS_FAILED test(s) failed. Please review the issues above."
