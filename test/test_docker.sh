@@ -8,8 +8,8 @@
 # =============================================================================
 
 # Source required libraries
-source "$(dirname "$0")/../lib/logger.sh"
-source "$(dirname "$0")/../lib/utilities.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 
 # Test counters
 TESTS_RUN=0

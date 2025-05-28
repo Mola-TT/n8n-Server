@@ -8,8 +8,8 @@
 # =============================================================================
 
 # Source required libraries
-source "$(dirname "$0")/../lib/logger.sh"
-source "$(dirname "$0")/../lib/utilities.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 
 # =============================================================================
 # Directory and Infrastructure Setup
@@ -334,10 +334,10 @@ configure_ssl_certificates() {
     log_info "Configuring SSL certificates..."
     
     # Load environment to check PRODUCTION setting
-    if [[ -f "$(dirname "$0")/../conf/user.env" ]]; then
-        source "$(dirname "$0")/../conf/user.env"
+    if [[ -f "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env" ]]; then
+        source "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env"
     else
-        source "$(dirname "$0")/../conf/default.env"
+        source "$(dirname "${BASH_SOURCE[0]}")/../conf/default.env"
     fi
     
     local ssl_dir="/opt/n8n/ssl"
