@@ -26,6 +26,9 @@ source "$SCRIPT_DIR/setup/general_config.sh"
 # Source Docker configuration (Milestone 2)
 source "$SCRIPT_DIR/setup/docker_config.sh"
 
+# Source Nginx configuration (Milestone 3)
+source "$SCRIPT_DIR/setup/nginx_config.sh"
+
 # Display init banner
 display_banner() {
     echo "-----------------------------------------------"
@@ -97,6 +100,13 @@ main() {
     log_info "Note: Docker and Docker Compose will be automatically installed if not present"
     setup_docker_infrastructure
     
+    # Set up Nginx infrastructure (Milestone 3)
+    log_info "-----------------------------------------------"
+    log_info "MILESTONE 3: Nginx Reverse Proxy Setup"
+    log_info "-----------------------------------------------"
+    log_info "Note: Nginx will be configured as a secure reverse proxy for n8n"
+    setup_nginx_infrastructure
+    
     # Print setup summary
     log_info "-----------------------------------------------"
     log_info "SETUP SUMMARY"
@@ -106,6 +116,7 @@ main() {
     log_info "✓ Timezone configuration: SUCCESS"
     log_info "✓ Environment loading: SUCCESS"
     log_info "✓ Docker infrastructure: SUCCESS"
+    log_info "✓ Nginx reverse proxy: SUCCESS"
     log_info "-----------------------------------------------"
     
     log_info "Initialization COMPLETE"
