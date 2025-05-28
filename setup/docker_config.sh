@@ -12,6 +12,167 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 
 # =============================================================================
+# Docker Installation Functions
+# =============================================================================
+
+install_docker() {
+    log_info "Installing Docker..."
+    
+    # Check if Docker is already installed
+    if command -v docker &> /dev/null; then
+        log_info "Docker is already installed"
+        return 0
+    fi
+    
+    # Update package index
+    if ! execute_silently "apt-get update"; then
+        log_error "Failed to update package index"
+        return 1
+    fi
+    
+    # Install prerequisites
+    log_info "Installing Docker prerequisites..."
+    if ! execute_silently "apt-get install -y ca-certificates curl gnupg lsb-release"; then
+        log_error "Failed to install Docker prerequisites"
+        return 1
+    fi
+    
+    # Add Docker's official GPG key
+    log_info "Adding Docker GPG key..."
+    if ! execute_silently "mkdir -p /etc/apt/keyrings"; then
+        log_error "Failed to create keyrings directory"
+        return 1
+    fi
+    
+    if ! execute_silently "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg"; then
+        log_error "Failed to add Docker GPG key"
+        return 1
+    fi
+    
+    # Set up the repository
+    log_info "Setting up Docker repository..."
+    local repo_command='echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null'
+    if ! execute_silently "$repo_command"; then
+        log_error "Failed to set up Docker repository"
+        return 1
+    fi
+    
+    # Update package index again
+    if ! execute_silently "apt-get update"; then
+        log_error "Failed to update package index after adding Docker repository"
+        return 1
+    fi
+    
+    # Install Docker Engine
+    log_info "Installing Docker Engine..."
+    if ! execute_silently "apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"; then
+        log_error "Failed to install Docker Engine"
+        return 1
+    fi
+    
+    # Start and enable Docker service
+    log_info "Starting Docker service..."
+    if ! execute_silently "systemctl start docker"; then
+        log_error "Failed to start Docker service"
+        return 1
+    fi
+    
+    if ! execute_silently "systemctl enable docker"; then
+        log_error "Failed to enable Docker service"
+        return 1
+    fi
+    
+    # Verify Docker installation
+    if docker --version &> /dev/null; then
+        log_info "Docker installed successfully: $(docker --version)"
+    else
+        log_error "Docker installation verification failed"
+        return 1
+    fi
+    
+    return 0
+}
+
+install_docker_compose() {
+    log_info "Installing Docker Compose..."
+    
+    # Check if Docker Compose is already installed
+    if command -v docker-compose &> /dev/null; then
+        log_info "Docker Compose is already installed: $(docker-compose --version)"
+        return 0
+    fi
+    
+    # Check if Docker Compose plugin is available
+    if docker compose version &> /dev/null; then
+        log_info "Docker Compose plugin is available: $(docker compose version)"
+        
+        # Create docker-compose symlink for compatibility
+        if ! execute_silently "ln -sf /usr/bin/docker /usr/local/bin/docker-compose"; then
+            log_warning "Failed to create docker-compose symlink, but plugin is available"
+        fi
+        
+        # Create wrapper script for docker-compose command
+        cat > "/usr/local/bin/docker-compose" << 'EOF'
+#!/bin/bash
+exec docker compose "$@"
+EOF
+        chmod +x "/usr/local/bin/docker-compose"
+        log_info "Created docker-compose wrapper script"
+        
+        return 0
+    fi
+    
+    # Install Docker Compose standalone if plugin is not available
+    log_info "Installing Docker Compose standalone..."
+    
+    # Get latest version
+    local compose_version
+    compose_version=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
+    
+    if [[ -z "$compose_version" ]]; then
+        compose_version="v2.21.0"  # Fallback version
+        log_warning "Could not determine latest Docker Compose version, using fallback: $compose_version"
+    fi
+    
+    # Download Docker Compose
+    local compose_url="https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-$(uname -s)-$(uname -m)"
+    
+    if ! execute_silently "curl -L '$compose_url' -o /usr/local/bin/docker-compose"; then
+        log_error "Failed to download Docker Compose"
+        return 1
+    fi
+    
+    # Make it executable
+    if ! execute_silently "chmod +x /usr/local/bin/docker-compose"; then
+        log_error "Failed to make Docker Compose executable"
+        return 1
+    fi
+    
+    # Verify installation
+    if docker-compose --version &> /dev/null; then
+        log_info "Docker Compose installed successfully: $(docker-compose --version)"
+    else
+        log_error "Docker Compose installation verification failed"
+        return 1
+    fi
+    
+    return 0
+}
+
+install_docker_infrastructure() {
+    log_info "Installing Docker infrastructure..."
+    
+    # Install Docker
+    install_docker || return 1
+    
+    # Install Docker Compose
+    install_docker_compose || return 1
+    
+    log_info "Docker infrastructure installation completed successfully"
+    return 0
+}
+
+# =============================================================================
 # Directory and Infrastructure Setup
 # =============================================================================
 
@@ -595,13 +756,16 @@ EOF
 setup_docker_infrastructure() {
     log_info "Starting n8n Docker infrastructure setup..."
     
-    # Check if Docker is installed
+    # Install Docker infrastructure first
+    install_docker_infrastructure || return 1
+    
+    # Check if Docker is installed (should be available now)
     if ! command -v docker &> /dev/null; then
         log_error "Docker is not installed. Please install Docker first."
         return 1
     fi
     
-    # Check if Docker Compose is installed
+    # Check if Docker Compose is installed (should be available now)
     if ! command -v docker-compose &> /dev/null; then
         log_error "Docker Compose is not installed. Please install Docker Compose first."
         return 1

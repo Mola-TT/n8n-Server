@@ -286,19 +286,38 @@ test_systemd_service() {
 }
 
 test_docker_installation() {
+    # Check if Docker is installed
     if ! command -v docker &> /dev/null; then
         log_error "Docker is not installed"
         return 1
     fi
     
+    # Check Docker version
+    if ! docker --version &> /dev/null; then
+        log_error "Docker version check failed"
+        return 1
+    fi
+    
+    # Check if Docker Compose is installed
     if ! command -v docker-compose &> /dev/null; then
         log_error "Docker Compose is not installed"
+        return 1
+    fi
+    
+    # Check Docker Compose version
+    if ! docker-compose --version &> /dev/null; then
+        log_error "Docker Compose version check failed"
         return 1
     fi
     
     # Check if Docker service is running
     if ! systemctl is-active docker &>/dev/null; then
         log_warning "Docker service is not running"
+    fi
+    
+    # Check if Docker daemon is accessible
+    if ! docker info &>/dev/null; then
+        log_warning "Docker daemon is not accessible (this is normal if not running as root or in docker group)"
     fi
     
     return 0

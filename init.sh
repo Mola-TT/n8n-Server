@@ -94,6 +94,7 @@ main() {
     log_info "-----------------------------------------------"
     log_info "MILESTONE 2: Docker Infrastructure Setup"
     log_info "-----------------------------------------------"
+    log_info "Note: Docker and Docker Compose will be automatically installed if not present"
     setup_docker_infrastructure
     
     # Print setup summary
