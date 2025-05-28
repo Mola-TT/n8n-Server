@@ -1,0 +1,10 @@
+# Fresh Installation
+git clone https://github.com/Mola-TT/n8n-Server.git
+cd n8n-Server
+nano conf/user.env
+chmod +x init.sh
+clear
+sudo ./init.sh
+
+
+
