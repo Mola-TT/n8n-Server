@@ -39,10 +39,11 @@ install_docker() {
     
     # Remove any conflicting packages that might interfere
     log_info "Removing any conflicting Docker packages..."
-    execute_silently "apt-get remove -y docker docker-engine docker.io containerd runc" || true
+    # Use direct command execution for cleanup operations that may legitimately fail
+    apt-get remove -y docker docker-engine docker.io containerd runc >> "$LOG_FILE" 2>&1 || true
     
     # Clean up any previous failed installations
-    execute_silently "apt-get autoremove -y" || true
+    apt-get autoremove -y >> "$LOG_FILE" 2>&1 || true
     
     # Update package index
     if ! execute_silently "apt-get update"; then
@@ -151,10 +152,10 @@ install_docker() {
                 log_info "Attempting alternative Docker startup methods..."
                 
                 # Try stopping first, then starting
-                execute_silently "systemctl stop docker" || true
+                execute_silently "systemctl stop docker" "" "Failed to stop Docker service during recovery" || true
                 sleep 3
                 
-                if execute_silently "systemctl start docker"; then
+                if execute_silently "systemctl start docker" "" "Failed to start Docker service during recovery"; then
                     log_info "Docker service started successfully using stop/start method"
                     break
                 else
@@ -171,7 +172,7 @@ install_docker() {
     done
     
     # Enable Docker service for auto-start
-    if ! execute_silently "systemctl enable docker"; then
+    if ! execute_silently "systemctl enable docker" "" "Failed to enable Docker service for auto-start"; then
         log_warn "Failed to enable Docker service for auto-start (continuing anyway)"
     else
         log_info "Docker service enabled for auto-start"
@@ -183,7 +184,7 @@ install_docker() {
     
     # Restart Docker to ensure clean state
     log_info "Restarting Docker for clean initialization..."
-    if execute_silently "systemctl restart docker"; then
+    if execute_silently "systemctl restart docker" "" "Failed to restart Docker service"; then
         sleep 5  # Give more time after restart
     else
         log_warn "Failed to restart Docker, but continuing..."
@@ -241,11 +242,11 @@ install_docker_compose() {
         local compose_wrapper="/usr/local/bin/docker-compose"
         if [[ ! -f "$compose_wrapper" ]] || [[ ! -x "$compose_wrapper" ]]; then
             log_info "Creating docker-compose wrapper script..."
-            execute_silently "sudo tee $compose_wrapper > /dev/null" << 'EOF'
+            execute_silently "sudo tee $compose_wrapper > /dev/null" "" "Failed to create docker-compose wrapper" << 'EOF'
 #!/bin/bash
 exec docker compose "$@"
 EOF
-            execute_silently "sudo chmod +x $compose_wrapper"
+            execute_silently "sudo chmod +x $compose_wrapper" "" "Failed to make docker-compose wrapper executable"
             log_info "Created docker-compose wrapper at $compose_wrapper"
         else
             log_info "Docker-compose wrapper already exists"

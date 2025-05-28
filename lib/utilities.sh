@@ -21,7 +21,10 @@ execute_silently() {
     
     # Execute command, redirect stdout to log file, redirect stderr to variable
     if ! output=$(eval "$cmd" >> "$LOG_FILE" 2>&1); then
-        log_error "$err_msg"
+        # Only log error if error message is provided
+        if [ -n "$err_msg" ]; then
+            log_error "$err_msg"
+        fi
         log_debug "Command failed with output: $output"
         return 1
     fi
