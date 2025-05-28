@@ -40,6 +40,12 @@ alwaysApply: true
 - Timezone configuration:
   - Ensure proper timezone configuration for scheduled workflows
   - Configure timezone environment variables for containers
+- SSL/TLS configuration:
+  - n8n should always use SSL for secure connections
+  - If PRODUCTION=true: Configure with proper SSL certificates (Let's Encrypt or custom)
+  - If PRODUCTION=false: Generate and use self-signed certificates for development
+  - Configure HTTPS redirect and secure headers
+  - Set up SSL certificate management and renewal
 
 ## Milestone 1 (Completed)
 - Created an `init.sh` script that:
@@ -65,6 +71,3 @@ alwaysApply: true
 - Created general configuration:
   - Added system update functionality
   - Added timezone configuration
-
-
-
