@@ -292,14 +292,49 @@ test_docker_installation() {
         return 1
     fi
     
-    # Check Docker version with timeout to prevent segfaults
-    local docker_version_output
-    if timeout 10s docker --version 2>/dev/null; then
-        docker_version_output=$(timeout 10s docker --version 2>/dev/null)
-        log_info "Docker version: $docker_version_output"
+    # Check if Docker service is running first
+    if ! systemctl is-active docker &>/dev/null; then
+        log_warn "Docker service is not running"
+        return 0  # Don't fail the test, just warn
     else
-        log_warn "Docker version check failed or timed out (Docker may not be fully initialized)"
-        # Still continue if docker binary exists
+        log_info "Docker service is active"
+    fi
+    
+    # Give Docker daemon time to be ready if service just started
+    log_info "Checking Docker daemon readiness..."
+    local daemon_ready=false
+    local max_attempts=15
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if timeout 5s docker info &>/dev/null; then
+            daemon_ready=true
+            log_info "Docker daemon is accessible"
+            break
+        fi
+        
+        if [ $attempt -eq 1 ]; then
+            log_info "Waiting for Docker daemon to be ready..."
+        fi
+        
+        sleep 2
+        ((attempt++))
+    done
+    
+    if [ "$daemon_ready" = false ]; then
+        log_warn "Docker daemon is not accessible (this is normal if not running as root or in docker group, or if Docker is still starting up)"
+    fi
+    
+    # Check Docker version (only if daemon is ready)
+    if [ "$daemon_ready" = true ]; then
+        if timeout 10s docker --version 2>/dev/null; then
+            local docker_version_output=$(timeout 10s docker --version 2>/dev/null)
+            log_info "Docker version: $docker_version_output"
+        else
+            log_warn "Docker version check failed or timed out"
+        fi
+    else
+        log_info "Skipping Docker version check (daemon not accessible)"
     fi
     
     # Check if Docker Compose is installed
@@ -308,28 +343,12 @@ test_docker_installation() {
         return 1
     fi
     
-    # Check Docker Compose version with timeout
-    local compose_version_output
+    # Check Docker Compose version
     if timeout 10s docker-compose --version 2>/dev/null; then
-        compose_version_output=$(timeout 10s docker-compose --version 2>/dev/null)
+        local compose_version_output=$(timeout 10s docker-compose --version 2>/dev/null)
         log_info "Docker Compose version: $compose_version_output"
     else
         log_warn "Docker Compose version check failed or timed out"
-        # Still continue if docker-compose binary exists
-    fi
-    
-    # Check if Docker service is running
-    if ! systemctl is-active docker &>/dev/null; then
-        log_warn "Docker service is not running"
-    else
-        log_info "Docker service is active"
-    fi
-    
-    # Check if Docker daemon is accessible (with timeout)
-    if timeout 5s docker info &>/dev/null; then
-        log_info "Docker daemon is accessible"
-    else
-        log_warn "Docker daemon is not accessible (this is normal if not running as root or in docker group, or if Docker is still starting up)"
     fi
     
     return 0

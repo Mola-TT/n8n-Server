@@ -82,6 +82,18 @@ install_docker() {
         return 1
     fi
     
+    # Give Docker a moment to start up
+    log_info "Allowing Docker service to initialize..."
+    sleep 3
+    
+    # Restart Docker to ensure clean state
+    log_info "Restarting Docker for clean initialization..."
+    if execute_silently "systemctl restart docker"; then
+        sleep 5  # Give more time after restart
+    else
+        log_warn "Failed to restart Docker, but continuing..."
+    fi
+    
     # Verify Docker installation
     if docker --version &> /dev/null; then
         log_info "Docker installed successfully: $(docker --version)"
@@ -90,6 +102,33 @@ install_docker() {
         return 1
     fi
     
+    # Wait for Docker daemon to be ready
+    wait_for_docker_daemon
+    
+    return 0
+}
+
+wait_for_docker_daemon() {
+    log_info "Waiting for Docker daemon to be ready..."
+    
+    local max_attempts=30
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if docker info &>/dev/null; then
+            log_info "Docker daemon is ready"
+            return 0
+        fi
+        
+        if [ $attempt -eq 1 ]; then
+            log_info "Docker daemon starting up, please wait..."
+        fi
+        
+        sleep 2
+        ((attempt++))
+    done
+    
+    log_warn "Docker daemon took longer than expected to start, but continuing..."
     return 0
 }
 
@@ -101,6 +140,9 @@ install_docker_compose() {
         log_info "Docker Compose is already installed: $(docker-compose --version)"
         return 0
     fi
+    
+    # Ensure Docker daemon is ready before checking compose plugin
+    wait_for_docker_daemon
     
     # Check if Docker Compose plugin is available
     if docker compose version &> /dev/null; then
@@ -116,8 +158,18 @@ install_docker_compose() {
 #!/bin/bash
 exec docker compose "$@"
 EOF
-        chmod +x "/usr/local/bin/docker-compose"
-        log_info "Created docker-compose wrapper script"
+        
+        if ! execute_silently "chmod +x /usr/local/bin/docker-compose"; then
+            log_warn "Failed to make docker-compose wrapper executable"
+            return 1
+        fi
+        
+        # Verify the wrapper works
+        if timeout 10s /usr/local/bin/docker-compose --version &>/dev/null; then
+            log_info "Created docker-compose wrapper script"
+        else
+            log_warn "Docker-compose wrapper created but may not be fully functional yet"
+        fi
         
         return 0
     fi
@@ -779,6 +831,10 @@ setup_docker_infrastructure() {
     configure_ssl_certificates || return 1
     create_cleanup_scripts || return 1
     create_systemd_service || return 1
+    
+    # Final Docker readiness check
+    log_info "Performing final Docker readiness verification..."
+    wait_for_docker_daemon
     
     log_info "n8n Docker infrastructure setup completed successfully!"
     log_info "Next steps:"
