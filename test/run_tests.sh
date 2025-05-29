@@ -96,8 +96,9 @@ main() {
     echo "=========================================="
     
     # Milestone 1 Tests
+    echo "=========================================="
     echo "MILESTONE 1 Tests:"
-    echo ""
+    echo "=========================================="
     run_test "Directory structure" "test_directories"
     run_test "Required files exist" "test_required_files"
     run_test "Script permissions" "test_script_permissions"
@@ -105,11 +106,13 @@ main() {
     run_test "Environment loading" "test_env_loading"
     run_test "Logging functions" "test_logging"
     run_test "Utility functions" "test_utilities"
+    echo "=========================================="
     
     # Milestone 2 Tests (Docker Infrastructure)
     echo ""
+    echo "=========================================="
     echo "MILESTONE 2 Tests (Docker Infrastructure):"
-    echo ""
+    echo "=========================================="
     run_test "n8n Directory Structure" "test_n8n_directories"
     run_test "Directory Permissions" "test_directory_permissions"
     run_test "Docker Compose File" "test_docker_compose_file"
@@ -120,12 +123,13 @@ main() {
     run_test "Docker Installation" "test_docker_installation"
     run_test "Volume Mounts" "test_volume_mounts"
     run_test "Network Configuration" "test_network_configuration"
+    echo "=========================================="
     
     # Milestone 2 Tests (n8n Application)
     echo ""
-    echo ""
+    echo "=========================================="
     echo "MILESTONE 2 Tests (n8n Application):"
-    echo ""
+    echo "=========================================="
     run_test "n8n Environment Configuration" "test_n8n_environment_file"
     run_test "Authentication Configuration" "test_n8n_authentication_configuration"
     run_test "Timezone Configuration" "test_n8n_timezone_configuration"
@@ -138,6 +142,7 @@ main() {
     run_test "n8n Web Accessibility" "test_n8n_web_accessibility"
     run_test "Authentication Challenge" "test_n8n_authentication_challenge"
     run_test "Authentication Login" "test_n8n_authentication_login"
+    echo "=========================================="
     echo ""
     
     # Print summary
