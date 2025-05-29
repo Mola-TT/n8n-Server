@@ -152,6 +152,10 @@ generate_self_signed_nginx_certificate() {
     execute_silently "chown -R root:root '$ssl_dir'"
     
     log_info "Nginx SSL certificate generated successfully"
+    
+    # Create placeholder SSL renewal script for future implementation
+    create_ssl_renewal_placeholder
+    
     return 0
 }
 
@@ -192,8 +196,10 @@ setup_letsencrypt_certificate() {
             execute_silently "chmod 644 $ssl_dir/certificate.crt"
             execute_silently "chown -R root:root '$ssl_dir'"
             
-            # Set up automatic renewal
-            setup_certificate_renewal "$domain"
+            log_info "SSL certificates configured successfully"
+            
+            # Create placeholder SSL renewal script for future implementation
+            create_ssl_renewal_placeholder
         else
             log_error "Failed to copy certificates"
             return 1
@@ -210,53 +216,31 @@ setup_letsencrypt_certificate() {
     return 0
 }
 
-setup_certificate_renewal() {
-    local domain="$1"
+create_ssl_renewal_placeholder() {
+    log_info "Creating SSL renewal script placeholder..."
     
-    log_info "Setting up automatic SSL certificate renewal..."
-    
-    # Create renewal script
     local renewal_script="/opt/n8n/scripts/ssl-renew.sh"
-    cat > "$renewal_script" << EOF
+    cat > "$renewal_script" << 'EOF'
 #!/bin/bash
 
-# SSL Certificate Renewal Script
+# SSL Certificate Renewal Script - Placeholder
+# This is a placeholder script for future SSL auto-renewal implementation
+# SSL auto-renewal will be implemented in a later milestone
+
 log() {
-    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] [INFO] \$1"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
 }
 
-log "Starting SSL certificate renewal..."
+log "SSL Certificate Renewal - Not Implemented Yet"
+log "This is a placeholder script for future implementation"
+log "SSL auto-renewal will be added in a later milestone"
+log "For now, SSL certificates need to be renewed manually"
 
-# Renew certificates
-if certbot renew --quiet --pre-hook "systemctl stop nginx" --post-hook "systemctl start nginx"; then
-    log "Certificate renewal successful"
-    
-    # Copy renewed certificates
-    if [[ -f "/etc/letsencrypt/live/$domain/privkey.pem" && -f "/etc/letsencrypt/live/$domain/fullchain.pem" ]]; then
-        cp /etc/letsencrypt/live/$domain/privkey.pem /etc/nginx/ssl/private.key
-        cp /etc/letsencrypt/live/$domain/fullchain.pem /etc/nginx/ssl/certificate.crt
-        chmod 600 /etc/nginx/ssl/private.key
-        chmod 644 /etc/nginx/ssl/certificate.crt
-        
-        # Reload Nginx to use new certificates
-        systemctl reload nginx
-        log "Nginx reloaded with new certificates"
-    fi
-else
-    log "Certificate renewal failed or not needed"
-fi
-
-log "SSL renewal process completed"
+exit 0
 EOF
 
     chmod +x "$renewal_script"
-    
-    # Add to crontab for automatic renewal (daily check)
-    local cron_entry="0 3 * * * $renewal_script"
-    if ! crontab -l 2>/dev/null | grep -q "$renewal_script"; then
-        (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
-        log_info "Added automatic SSL renewal to crontab"
-    fi
+    log_info "SSL renewal placeholder script created: $renewal_script"
     
     return 0
 }
