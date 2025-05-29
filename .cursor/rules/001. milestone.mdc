@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Milestone
 
-## Milestone 4 (Completed)
+## Milestone 4 (In Progress)
 - Created `netdata_config.sh` under setup folder that:
   - Installs Netdata for system resource monitoring
   - Configures Netdata to listen only on localhost for security
