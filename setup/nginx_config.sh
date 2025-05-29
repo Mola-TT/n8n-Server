@@ -454,9 +454,21 @@ configure_nginx_firewall() {
     fi
     
     # Show firewall status
-    local ufw_status=$(ufw status 2>/dev/null)
     log_info "Firewall configuration completed"
-    log_info "Current firewall status: $ufw_status"
+    
+    # Summarize firewall status
+    if ufw status | grep -q "Status: active"; then
+        log_info "UFW firewall is active"
+        
+        # Count and log allowed services
+        local ssh_allowed=$(ufw status | grep -c "22/tcp.*ALLOW" || echo "0")
+        local http_allowed=$(ufw status | grep -c "80/tcp.*ALLOW" || echo "0")
+        local https_allowed=$(ufw status | grep -c "443/tcp.*ALLOW" || echo "0")
+        
+        log_info "Firewall rules: SSH ($ssh_allowed), HTTP ($http_allowed), HTTPS ($https_allowed)"
+    else
+        log_warn "UFW firewall is not active"
+    fi
     
     return 0
 }
