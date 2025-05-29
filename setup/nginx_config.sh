@@ -221,11 +221,15 @@ setup_certificate_renewal() {
 #!/bin/bash
 
 # Nginx SSL Certificate Renewal Script
-echo "Starting Nginx SSL certificate renewal..."
+log() {
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] [INFO] \$1"
+}
+
+log "Starting Nginx SSL certificate renewal..."
 
 # Renew certificates
 if certbot renew --quiet --pre-hook "systemctl stop nginx" --post-hook "systemctl start nginx"; then
-    echo "Certificate renewal successful"
+    log "Certificate renewal successful"
     
     # Copy renewed certificates
     if [[ -f "/etc/letsencrypt/live/$domain/privkey.pem" && -f "/etc/letsencrypt/live/$domain/fullchain.pem" ]]; then
@@ -236,13 +240,13 @@ if certbot renew --quiet --pre-hook "systemctl stop nginx" --post-hook "systemct
         
         # Reload Nginx to use new certificates
         systemctl reload nginx
-        echo "Nginx reloaded with new certificates"
+        log "Nginx reloaded with new certificates"
     fi
 else
-    echo "Certificate renewal failed or not needed"
+    log "Certificate renewal failed or not needed"
 fi
 
-echo "SSL renewal process completed"
+log "SSL renewal process completed"
 EOF
 
     chmod +x "$renewal_script"

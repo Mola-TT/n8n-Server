@@ -31,9 +31,9 @@ source "$SCRIPT_DIR/setup/nginx_config.sh"
 
 # Display init banner
 display_banner() {
-    echo "-----------------------------------------------"
-    echo "n8n Server Initialization"
-    echo "-----------------------------------------------"
+    log_info "-----------------------------------------------"
+    log_info "n8n Server Initialization"
+    log_info "-----------------------------------------------"
     log_info "Starting initialization process"
 }
 
@@ -121,7 +121,7 @@ main() {
     log_info "-----------------------------------------------"
     
     log_info "Initialization COMPLETE"
-    echo ""
+    log_info ""
     
     # Run tests if enabled
     if [ "${RUN_TESTS:-true}" = true ]; then

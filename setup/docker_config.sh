@@ -658,29 +658,33 @@ create_cleanup_scripts() {
 # n8n Docker Cleanup Script
 # =============================================================================
 
-echo "Starting n8n Docker cleanup..."
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
+}
+
+log "Starting n8n Docker cleanup..."
 
 # Remove unused Docker images
-echo "Removing unused Docker images..."
+log "Removing unused Docker images..."
 docker image prune -f
 
 # Remove unused Docker volumes
-echo "Removing unused Docker volumes..."
+log "Removing unused Docker volumes..."
 docker volume prune -f
 
 # Remove unused Docker networks
-echo "Removing unused Docker networks..."
+log "Removing unused Docker networks..."
 docker network prune -f
 
 # Clean up old log files (older than 30 days)
-echo "Cleaning up old log files..."
+log "Cleaning up old log files..."
 find /opt/n8n/logs -name "*.log" -mtime +30 -delete 2>/dev/null || true
 
 # Clean up old backup files (older than 90 days)
-echo "Cleaning up old backup files..."
+log "Cleaning up old backup files..."
 find /opt/n8n/backups -name "*.tar.gz" -mtime +90 -delete 2>/dev/null || true
 
-echo "Docker cleanup completed successfully"
+log "Docker cleanup completed successfully"
 EOF
 
     # Update script
@@ -692,24 +696,28 @@ EOF
 # n8n Docker Update Script
 # =============================================================================
 
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
+}
+
 cd /opt/n8n/docker
 
-echo "Starting n8n update process..."
+log "Starting n8n update process..."
 
 # Pull latest images
-echo "Pulling latest Docker images..."
+log "Pulling latest Docker images..."
 docker-compose pull
 
 # Restart services with new images
-echo "Restarting services..."
+log "Restarting services..."
 docker-compose down
 docker-compose up -d
 
 # Clean up old images
-echo "Cleaning up old images..."
+log "Cleaning up old images..."
 docker image prune -f
 
-echo "n8n update completed successfully"
+log "n8n update completed successfully"
 EOF
 
     # Service management script
@@ -721,27 +729,31 @@ EOF
 # n8n Service Management Script
 # =============================================================================
 
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
+}
+
 cd /opt/n8n/docker
 
 case "$1" in
     start)
-        echo "Starting n8n services..."
+        log "Starting n8n services..."
         docker-compose up -d
         ;;
     stop)
-        echo "Stopping n8n services..."
+        log "Stopping n8n services..."
         docker-compose down
         ;;
     restart)
-        echo "Restarting n8n services..."
+        log "Restarting n8n services..."
         docker-compose restart
         ;;
     status)
-        echo "n8n service status:"
+        log "n8n service status:"
         docker-compose ps
         ;;
     logs)
-        echo "Showing n8n logs..."
+        log "Showing n8n logs..."
         docker-compose logs -f
         ;;
     *)
