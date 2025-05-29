@@ -963,30 +963,44 @@ create_environment_file() {
         db_ssl_enabled="${DB_SSL_ENABLED}"
     fi
     
+    # Set default for NGINX_ENABLED if not defined (assume true since this is an Nginx setup)
+    if [[ -z "${NGINX_ENABLED}" ]]; then
+        NGINX_ENABLED="true"
+        log_info "NGINX_ENABLED not set, defaulting to true (Nginx reverse proxy setup)"
+    fi
+    
     # Determine n8n SSL certificate configuration based on protocol
     local n8n_ssl_key=""
     local n8n_ssl_cert=""
     
-    # Only set SSL certificate paths if n8n is configured for HTTPS protocol
-    if [[ "${N8N_PROTOCOL,,}" == "https" ]]; then
+    # For this setup, n8n should run in HTTP mode since Nginx handles SSL termination
+    # Override any HTTPS protocol setting from configuration files
+    local n8n_protocol="http"
+    
+    # Only set SSL certificate paths if explicitly configured for direct HTTPS access
+    # (This would be unusual in this setup since Nginx is the reverse proxy)
+    if [[ "${N8N_PROTOCOL,,}" == "https" && "${NGINX_ENABLED,,}" != "true" ]]; then
+        # Direct HTTPS mode (no Nginx reverse proxy)
+        n8n_protocol="https"
+        
         # Check if SSL certificates exist or should be used
         if [[ -n "${N8N_SSL_KEY}" && -n "${N8N_SSL_CERT}" ]]; then
             n8n_ssl_key="${N8N_SSL_KEY}"
             n8n_ssl_cert="${N8N_SSL_CERT}"
-            log_info "n8n HTTPS mode: using configured SSL certificates"
+            log_info "n8n direct HTTPS mode: using configured SSL certificates"
         elif [[ "${PRODUCTION,,}" == "true" ]]; then
-            # Production mode with HTTPS - expect certificates to be provided
+            # Production mode with direct HTTPS - expect certificates to be provided
             n8n_ssl_key="/opt/n8n/ssl/private.key"
             n8n_ssl_cert="/opt/n8n/ssl/certificate.crt"
-            log_info "n8n HTTPS production mode: expecting SSL certificates at /opt/n8n/ssl/"
+            log_info "n8n direct HTTPS production mode: expecting SSL certificates at /opt/n8n/ssl/"
         else
-            # Development mode with HTTPS - use self-signed certificates
+            # Development mode with direct HTTPS - use self-signed certificates
             n8n_ssl_key="/opt/n8n/ssl/private.key"
             n8n_ssl_cert="/opt/n8n/ssl/certificate.crt"
-            log_info "n8n HTTPS development mode: using self-signed SSL certificates"
+            log_info "n8n direct HTTPS development mode: using self-signed SSL certificates"
         fi
     else
-        # HTTP mode - no SSL certificates needed for n8n
+        # HTTP mode with Nginx reverse proxy (recommended setup)
         log_info "n8n HTTP mode: SSL certificates not required (Nginx handles SSL termination)"
     fi
     
@@ -1000,7 +1014,7 @@ create_environment_file() {
 # n8n Basic Configuration
 N8N_HOST="${N8N_HOST}"
 N8N_PORT="${N8N_PORT}"
-N8N_PROTOCOL="${N8N_PROTOCOL}"
+N8N_PROTOCOL="${n8n_protocol}"
 WEBHOOK_URL="${N8N_WEBHOOK_URL}"
 N8N_EDITOR_BASE_URL="${N8N_EDITOR_BASE_URL}"
 
@@ -1043,7 +1057,7 @@ EOF
 
     if [[ -f "$env_file" ]]; then
         log_info "Docker environment file created successfully"
-        log_info "n8n Protocol: ${N8N_PROTOCOL}, SSL Key: '${n8n_ssl_key}', SSL Cert: '${n8n_ssl_cert}'"
+        log_info "n8n Protocol: ${n8n_protocol}, SSL Key: '${n8n_ssl_key}', SSL Cert: '${n8n_ssl_cert}'"
         log_info "PostgreSQL SSL configuration: enabled=${db_ssl_enabled}, reject_unauthorized=${db_ssl_reject_unauthorized}"
         log_info "Node.js TLS reject unauthorized: ${node_tls_reject_unauthorized}"
         return 0
