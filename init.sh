@@ -100,6 +100,9 @@ main() {
     log_info "Note: Docker and Docker Compose will be automatically installed if not present"
     setup_docker_infrastructure
     
+    # Start Docker containers after infrastructure setup
+    start_docker_containers
+    
     # Set up Nginx infrastructure (Milestone 3)
     log_info "-----------------------------------------------"
     log_info "MILESTONE 3: Nginx Reverse Proxy Setup"
@@ -116,6 +119,7 @@ main() {
     log_info "✓ Timezone configuration: SUCCESS"
     log_info "✓ Environment loading: SUCCESS"
     log_info "✓ Docker infrastructure: SUCCESS"
+    log_info "✓ Docker containers: STARTED"
     log_info "✓ Nginx reverse proxy: SUCCESS"
     log_info "-----------------------------------------------"
     
@@ -169,6 +173,72 @@ run_tests() {
     # Final flush of output
     sync
     return $exit_code
+}
+
+# Start Docker containers after infrastructure setup
+start_docker_containers() {
+    log_info "Starting n8n Docker containers..."
+    
+    local docker_dir="/opt/n8n/docker"
+    
+    if [ ! -d "$docker_dir" ]; then
+        log_error "Docker directory not found: $docker_dir"
+        return 1
+    fi
+    
+    if [ ! -f "$docker_dir/docker-compose.yml" ]; then
+        log_error "docker-compose.yml not found in $docker_dir"
+        return 1
+    fi
+    
+    if [ ! -f "$docker_dir/.env" ]; then
+        log_error "Environment file (.env) not found in $docker_dir"
+        return 1
+    fi
+    
+    # Change to docker directory
+    cd "$docker_dir"
+    
+    # Start containers
+    log_info "Starting Docker Compose services..."
+    if execute_silently "docker-compose up -d" "" "Failed to start Docker containers"; then
+        log_info "Docker containers started successfully"
+        
+        # Wait for containers to be ready
+        log_info "Waiting for containers to initialize..."
+        sleep 10
+        
+        # Check container status
+        local container_status
+        container_status=$(docker-compose ps --format "table" 2>/dev/null || echo "Unable to check container status")
+        log_info "Container status: $container_status"
+        
+        # Verify n8n is responding
+        local max_attempts=12  # 60 seconds total
+        local attempt=1
+        
+        log_info "Verifying n8n service is responding..."
+        while [ $attempt -le $max_attempts ]; do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:5678 2>/dev/null | grep -q "200"; then
+                log_info "n8n service is responding successfully"
+                return 0
+            fi
+            
+            if [ $attempt -eq 1 ]; then
+                log_info "Waiting for n8n to become ready..."
+            fi
+            
+            sleep 5
+            ((attempt++))
+        done
+        
+        log_warn "n8n service may still be starting up (this is normal for first run)"
+        log_info "You can check service status with: docker-compose -f /opt/n8n/docker/docker-compose.yml ps"
+        return 0
+    else
+        log_error "Failed to start Docker containers"
+        return 1
+    fi
 }
 
 # Execute main function
