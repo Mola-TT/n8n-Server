@@ -29,6 +29,9 @@ source "$SCRIPT_DIR/setup/docker_config.sh"
 # Source Nginx configuration (Milestone 3)
 source "$SCRIPT_DIR/setup/nginx_config.sh"
 
+# Source Netdata configuration (Milestone 4)
+source "$SCRIPT_DIR/setup/netdata_config.sh"
+
 # Display init banner
 display_banner() {
     echo "-----------------------------------------------"
@@ -107,6 +110,13 @@ main() {
     log_info "Note: Nginx will be configured as a secure reverse proxy for n8n"
     setup_nginx_infrastructure
     
+    # Set up Netdata monitoring (Milestone 4)
+    echo "-----------------------------------------------"
+    echo "MILESTONE 4: Netdata Monitoring Setup"
+    echo "-----------------------------------------------"
+    log_info "Note: Netdata will be configured for system resource monitoring with secure access"
+    setup_netdata_infrastructure
+    
     # Print setup summary
     echo "-----------------------------------------------"
     echo "SETUP SUMMARY"
@@ -118,6 +128,7 @@ main() {
     log_info "✓ Docker infrastructure: SUCCESS"
     log_info "✓ Docker containers: STARTED"
     log_info "✓ Nginx reverse proxy: SUCCESS"
+    log_info "✓ Netdata monitoring: SUCCESS"
     echo "-----------------------------------------------"
     
     log_info "Initialization COMPLETE"
