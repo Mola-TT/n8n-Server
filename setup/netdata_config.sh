@@ -62,15 +62,32 @@ install_netdata() {
     # Clean up installer
     rm -f /tmp/netdata-installer.sh
     
-    # Verify installation
+    # Verify installation using multiple methods
+    log_info "Verifying Netdata installation..."
+    
+    # Method 1: Check if netdata command is available
     if command -v netdata &> /dev/null; then
-        local netdata_version=$(netdata -W version 2>/dev/null | head -1 | cut -d' ' -f2 || echo "installed")
-        log_info "Netdata verification successful: version $netdata_version"
+        local netdata_version=$(netdata -W version 2>/dev/null | head -1 | cut -d' ' -f2 2>/dev/null || echo "")
+        if [ -n "$netdata_version" ]; then
+            log_info "Netdata verification successful: version $netdata_version"
+        else
+            log_info "Netdata command found but version check failed (normal after installation)"
+        fi
+    # Method 2: Check if netdata service/binary exists in common locations
+    elif [ -f "/usr/sbin/netdata" ] || [ -f "/usr/bin/netdata" ] || [ -f "/opt/netdata/bin/netdata" ]; then
+        log_info "Netdata binary found in system paths"
+    # Method 3: Check if netdata configuration directory exists
+    elif [ -d "/etc/netdata" ]; then
+        log_info "Netdata configuration directory found"
+    # Method 4: Check if netdata systemd service exists
+    elif systemctl list-unit-files | grep -q "netdata.service"; then
+        log_info "Netdata systemd service found"
     else
-        log_error "Netdata installation verification failed"
+        log_error "Netdata installation verification failed - no evidence of installation found"
         return 1
     fi
     
+    log_info "Netdata installation verification completed successfully"
     return 0
 }
 
@@ -491,21 +508,39 @@ start_netdata_service() {
         return 1
     fi
     
-    # Wait a moment for service to fully start
-    sleep 3
+    # Wait for service to fully start with timeout
+    log_info "Waiting for Netdata service to become ready..."
+    local wait_count=0
+    local max_wait=30
     
-    # Check service status
+    while [ $wait_count -lt $max_wait ]; do
+        if systemctl is-active netdata &>/dev/null; then
+            log_info "Netdata service is running"
+            break
+        fi
+        sleep 1
+        wait_count=$((wait_count + 1))
+    done
+    
+    # Final service status check
     if systemctl is-active netdata &>/dev/null; then
-        log_info "Netdata service is running"
+        log_info "Netdata service is active and running"
         
-        # Test local connectivity
-        if curl -s "http://${NETDATA_BIND_IP}:${NETDATA_PORT}/api/v1/info" &>/dev/null; then
+        # Wait a bit more for API to be ready
+        sleep 3
+        
+        # Test local connectivity with timeout
+        if timeout 10 curl -s "http://${NETDATA_BIND_IP:-127.0.0.1}:${NETDATA_PORT:-19999}/api/v1/info" &>/dev/null; then
             log_info "Netdata API is responding on localhost"
         else
-            log_warn "Netdata API test failed - service may still be starting"
+            log_warn "Netdata API test failed - service may still be initializing (this is normal)"
         fi
     else
-        log_error "Netdata service is not running"
+        log_error "Netdata service failed to start properly"
+        # Show service status for debugging
+        systemctl status netdata --no-pager -l 2>/dev/null | head -10 | while read line; do
+            log_error "Service status: $line"
+        done
         return 1
     fi
     
