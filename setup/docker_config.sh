@@ -449,11 +449,19 @@ services:
       - DB_POSTGRESDB_USER=${DB_USER}
       - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD}
       - DB_POSTGRESDB_SSL_ENABLED=${DB_SSL_ENABLED}
+      - DB_POSTGRESDB_SSL_CA=${DB_POSTGRESDB_SSL_CA}
+      - DB_POSTGRESDB_SSL_CERT=${DB_POSTGRESDB_SSL_CERT}
+      - DB_POSTGRESDB_SSL_KEY=${DB_POSTGRESDB_SSL_KEY}
+      - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=${DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED}
+      # Node.js SSL Configuration (for self-signed certificates)
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
       # Redis Configuration
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
       - QUEUE_BULL_REDIS_DB=${REDIS_DB}
       - EXECUTIONS_MODE=queue
+      # File permissions fix
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=${N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS}
     volumes:
       - /opt/n8n/files:/data/files
       - /opt/n8n/.n8n:/home/node/.n8n
@@ -933,6 +941,28 @@ create_environment_file() {
         log_info "No user.env found, using default values"
     fi
     
+    # Determine proper SSL configuration for database
+    # If PRODUCTION is true, enable SSL with certificate validation
+    # If PRODUCTION is false, enable SSL but disable certificate validation for self-signed certs
+    local db_ssl_enabled="true"
+    local db_ssl_reject_unauthorized="false"
+    local node_tls_reject_unauthorized="0"
+    
+    if [[ "${PRODUCTION,,}" == "true" ]]; then
+        log_info "Production mode: enabling SSL with certificate validation"
+        db_ssl_reject_unauthorized="true"
+        node_tls_reject_unauthorized="1"
+    else
+        log_info "Development mode: enabling SSL but disabling certificate validation for self-signed certificates"
+        db_ssl_reject_unauthorized="false"
+        node_tls_reject_unauthorized="0"
+    fi
+    
+    # Override user-defined SSL settings if explicitly set
+    if [[ -n "${DB_SSL_ENABLED}" ]]; then
+        db_ssl_enabled="${DB_SSL_ENABLED}"
+    fi
+    
     # Create the Docker environment file using loaded variables
     cat > "$env_file" << EOF
 # =============================================================================
@@ -953,8 +983,8 @@ N8N_BASIC_AUTH_USER="${N8N_BASIC_AUTH_USER}"
 N8N_BASIC_AUTH_PASSWORD="${N8N_BASIC_AUTH_PASSWORD}"
 
 # SSL Configuration
-N8N_SSL_KEY="${N8N_SSL_KEY}"
-N8N_SSL_CERT="${N8N_SSL_CERT}"
+N8N_SSL_KEY="${N8N_SSL_KEY:-}"
+N8N_SSL_CERT="${N8N_SSL_CERT:-}"
 
 # Timezone Configuration
 TIMEZONE="${SERVER_TIMEZONE}"
@@ -965,10 +995,20 @@ DB_PORT="${DB_PORT}"
 DB_NAME="${DB_NAME}"
 DB_USER="${DB_USER}"
 DB_PASSWORD="${DB_PASSWORD}"
-DB_SSL_ENABLED="${DB_SSL_ENABLED}"
+DB_SSL_ENABLED="${db_ssl_enabled}"
+DB_POSTGRESDB_SSL_CA=""
+DB_POSTGRESDB_SSL_CERT=""
+DB_POSTGRESDB_SSL_KEY=""
+DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED="${db_ssl_reject_unauthorized}"
+
+# Node.js SSL Configuration (for self-signed certificates)
+NODE_TLS_REJECT_UNAUTHORIZED="${node_tls_reject_unauthorized}"
 
 # Redis Configuration
 REDIS_DB="${REDIS_DB}"
+
+# File permissions fix
+N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS="false"
 
 # Security
 N8N_ENCRYPTION_KEY="$(openssl rand -hex 32)"
@@ -976,6 +1016,8 @@ EOF
 
     if [[ -f "$env_file" ]]; then
         log_info "Docker environment file created successfully"
+        log_info "PostgreSQL SSL configuration: enabled=${db_ssl_enabled}, reject_unauthorized=${db_ssl_reject_unauthorized}"
+        log_info "Node.js TLS reject unauthorized: ${node_tls_reject_unauthorized}"
         return 0
     else
         log_error "Failed to create Docker environment file"
