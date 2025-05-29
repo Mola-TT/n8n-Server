@@ -963,6 +963,33 @@ create_environment_file() {
         db_ssl_enabled="${DB_SSL_ENABLED}"
     fi
     
+    # Determine n8n SSL certificate configuration based on protocol
+    local n8n_ssl_key=""
+    local n8n_ssl_cert=""
+    
+    # Only set SSL certificate paths if n8n is configured for HTTPS protocol
+    if [[ "${N8N_PROTOCOL,,}" == "https" ]]; then
+        # Check if SSL certificates exist or should be used
+        if [[ -n "${N8N_SSL_KEY}" && -n "${N8N_SSL_CERT}" ]]; then
+            n8n_ssl_key="${N8N_SSL_KEY}"
+            n8n_ssl_cert="${N8N_SSL_CERT}"
+            log_info "n8n HTTPS mode: using configured SSL certificates"
+        elif [[ "${PRODUCTION,,}" == "true" ]]; then
+            # Production mode with HTTPS - expect certificates to be provided
+            n8n_ssl_key="/opt/n8n/ssl/private.key"
+            n8n_ssl_cert="/opt/n8n/ssl/certificate.crt"
+            log_info "n8n HTTPS production mode: expecting SSL certificates at /opt/n8n/ssl/"
+        else
+            # Development mode with HTTPS - use self-signed certificates
+            n8n_ssl_key="/opt/n8n/ssl/private.key"
+            n8n_ssl_cert="/opt/n8n/ssl/certificate.crt"
+            log_info "n8n HTTPS development mode: using self-signed SSL certificates"
+        fi
+    else
+        # HTTP mode - no SSL certificates needed for n8n
+        log_info "n8n HTTP mode: SSL certificates not required (Nginx handles SSL termination)"
+    fi
+    
     # Create the Docker environment file using loaded variables
     cat > "$env_file" << EOF
 # =============================================================================
@@ -983,8 +1010,8 @@ N8N_BASIC_AUTH_USER="${N8N_BASIC_AUTH_USER}"
 N8N_BASIC_AUTH_PASSWORD="${N8N_BASIC_AUTH_PASSWORD}"
 
 # SSL Configuration
-N8N_SSL_KEY="${N8N_SSL_KEY:-}"
-N8N_SSL_CERT="${N8N_SSL_CERT:-}"
+N8N_SSL_KEY="${n8n_ssl_key}"
+N8N_SSL_CERT="${n8n_ssl_cert}"
 
 # Timezone Configuration
 TIMEZONE="${SERVER_TIMEZONE}"
@@ -1016,6 +1043,7 @@ EOF
 
     if [[ -f "$env_file" ]]; then
         log_info "Docker environment file created successfully"
+        log_info "n8n Protocol: ${N8N_PROTOCOL}, SSL Key: '${n8n_ssl_key}', SSL Cert: '${n8n_ssl_cert}'"
         log_info "PostgreSQL SSL configuration: enabled=${db_ssl_enabled}, reject_unauthorized=${db_ssl_reject_unauthorized}"
         log_info "Node.js TLS reject unauthorized: ${node_tls_reject_unauthorized}"
         return 0
