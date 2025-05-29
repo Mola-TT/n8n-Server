@@ -216,16 +216,16 @@ setup_certificate_renewal() {
     log_info "Setting up automatic SSL certificate renewal..."
     
     # Create renewal script
-    local renewal_script="/opt/n8n/scripts/nginx-ssl-renew.sh"
+    local renewal_script="/opt/n8n/scripts/ssl-renew.sh"
     cat > "$renewal_script" << EOF
 #!/bin/bash
 
-# Nginx SSL Certificate Renewal Script
+# SSL Certificate Renewal Script
 log() {
     echo "[\$(date '+%Y-%m-%d %H:%M:%S')] [INFO] \$1"
 }
 
-log "Starting Nginx SSL certificate renewal..."
+log "Starting SSL certificate renewal..."
 
 # Renew certificates
 if certbot renew --quiet --pre-hook "systemctl stop nginx" --post-hook "systemctl start nginx"; then
