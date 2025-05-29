@@ -487,6 +487,7 @@ run_all_tests() {
     log_info "Tests Run: $TESTS_RUN"
     log_info "Tests Passed: $TESTS_PASSED"
     log_info "Tests Failed: $TESTS_FAILED"
+    echo "============================================"
     
     if [[ $TESTS_FAILED -eq 0 ]]; then
         log_info "🎉 All Docker infrastructure tests passed!"

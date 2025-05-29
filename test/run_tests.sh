@@ -141,6 +141,7 @@ main() {
     log_info "  Total tests: $TESTS_RUN"
     log_info "  Passed: $TESTS_PASSED"
     log_info "  Failed: $TESTS_FAILED"
+    echo "=========================================="
     
     if [ $TESTS_FAILED -eq 0 ]; then
         log_pass "All tests passed!"
