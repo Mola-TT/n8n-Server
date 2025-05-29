@@ -32,7 +32,7 @@ source "$SCRIPT_DIR/setup/nginx_config.sh"
 # Display init banner
 display_banner() {
     echo "-----------------------------------------------"
-    log_info "n8n Server Initialization"
+    echo "n8n Server Initialization"
     echo "-----------------------------------------------"
     log_info "Starting initialization process"
 }
@@ -95,21 +95,21 @@ main() {
     
     # Set up Docker infrastructure (Milestone 2)
     echo "-----------------------------------------------"
-    log_info "MILESTONE 2: Docker Infrastructure Setup"
+    echo "MILESTONE 2: Docker Infrastructure Setup"
     echo "-----------------------------------------------"
     log_info "Note: Docker and Docker Compose will be automatically installed if not present"
     setup_docker_infrastructure
     
     # Set up Nginx infrastructure (Milestone 3)
     echo "-----------------------------------------------"
-    log_info "MILESTONE 3: Nginx Reverse Proxy Setup"
+    echo "MILESTONE 3: Nginx Reverse Proxy Setup"
     echo "-----------------------------------------------"
     log_info "Note: Nginx will be configured as a secure reverse proxy for n8n"
     setup_nginx_infrastructure
     
     # Print setup summary
     echo "-----------------------------------------------"
-    log_info "SETUP SUMMARY"
+    echo "SETUP SUMMARY"
     echo "-----------------------------------------------"
     log_info "✓ Script permissions: SUCCESS"
     log_info "✓ System update: SUCCESS"

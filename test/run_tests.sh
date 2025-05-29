@@ -96,7 +96,7 @@ main() {
     echo "=========================================="
     
     # Milestone 1 Tests
-    log_info "MILESTONE 1 Tests:"
+    echo "MILESTONE 1 Tests:"
     run_test "Directory structure" "test_directories"
     run_test "Required files exist" "test_required_files"
     run_test "Script permissions" "test_script_permissions"
@@ -107,7 +107,7 @@ main() {
     
     # Milestone 2 Tests (Docker Infrastructure)
     echo ""
-    log_info "MILESTONE 2 Tests (Docker Infrastructure):"
+    echo "MILESTONE 2 Tests (Docker Infrastructure):"
     run_test "n8n Directory Structure" "test_n8n_directories"
     run_test "Directory Permissions" "test_directory_permissions"
     run_test "Docker Compose File" "test_docker_compose_file"
@@ -121,7 +121,7 @@ main() {
     
     # Milestone 2 Tests (n8n Application)
     echo ""
-    log_info "MILESTONE 2 Tests (n8n Application):"
+    echo "MILESTONE 2 Tests (n8n Application):"
     run_test "n8n Environment Configuration" "test_n8n_environment_file"
     run_test "Authentication Configuration" "test_n8n_authentication_configuration"
     run_test "Timezone Configuration" "test_n8n_timezone_configuration"
@@ -137,7 +137,7 @@ main() {
     
     # Print summary
     echo "=========================================="
-    log_info "Test Summary:"
+    echo "Test Summary:"
     log_info "  Total tests: $TESTS_RUN"
     log_info "  Passed: $TESTS_PASSED"
     log_info "  Failed: $TESTS_FAILED"

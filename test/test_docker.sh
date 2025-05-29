@@ -483,7 +483,7 @@ run_all_tests() {
     
     # Test Summary
     echo "============================================"
-    log_info "Docker Infrastructure Test Summary:"
+    echo "Docker Infrastructure Test Summary:"
     log_info "Tests Run: $TESTS_RUN"
     log_info "Tests Passed: $TESTS_PASSED"
     log_info "Tests Failed: $TESTS_FAILED"
