@@ -31,9 +31,9 @@ source "$SCRIPT_DIR/setup/nginx_config.sh"
 
 # Display init banner
 display_banner() {
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     log_info "n8n Server Initialization"
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     log_info "Starting initialization process"
 }
 
@@ -94,23 +94,23 @@ main() {
     update_system
     
     # Set up Docker infrastructure (Milestone 2)
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     log_info "MILESTONE 2: Docker Infrastructure Setup"
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     log_info "Note: Docker and Docker Compose will be automatically installed if not present"
     setup_docker_infrastructure
     
     # Set up Nginx infrastructure (Milestone 3)
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     log_info "MILESTONE 3: Nginx Reverse Proxy Setup"
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     log_info "Note: Nginx will be configured as a secure reverse proxy for n8n"
     setup_nginx_infrastructure
     
     # Print setup summary
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     log_info "SETUP SUMMARY"
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     log_info "✓ Script permissions: SUCCESS"
     log_info "✓ System update: SUCCESS"
     log_info "✓ Timezone configuration: SUCCESS"
@@ -118,10 +118,10 @@ main() {
     log_info "✓ Docker infrastructure: SUCCESS"
     log_info "✓ Docker containers: STARTED"
     log_info "✓ Nginx reverse proxy: SUCCESS"
-    log_info "-----------------------------------------------"
+    echo "-----------------------------------------------"
     
     log_info "Initialization COMPLETE"
-    log_info ""
+    echo ""
     
     # Run tests if enabled
     if [ "${RUN_TESTS:-true}" = true ]; then

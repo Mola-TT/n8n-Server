@@ -93,7 +93,7 @@ test_script_permissions() {
 # Main test execution
 main() {
     log_info "Starting n8n server initialization tests..."
-    log_info "=========================================="
+    echo "=========================================="
     
     # Milestone 1 Tests
     log_info "MILESTONE 1 Tests:"
@@ -106,7 +106,7 @@ main() {
     run_test "Utility functions" "test_utilities"
     
     # Milestone 2 Tests (Docker Infrastructure)
-    log_info ""
+    echo ""
     log_info "MILESTONE 2 Tests (Docker Infrastructure):"
     run_test "n8n Directory Structure" "test_n8n_directories"
     run_test "Directory Permissions" "test_directory_permissions"
@@ -120,7 +120,7 @@ main() {
     run_test "Network Configuration" "test_network_configuration"
     
     # Milestone 2 Tests (n8n Application)
-    log_info ""
+    echo ""
     log_info "MILESTONE 2 Tests (n8n Application):"
     run_test "n8n Environment Configuration" "test_n8n_environment_file"
     run_test "Authentication Configuration" "test_n8n_authentication_configuration"
@@ -136,7 +136,7 @@ main() {
     run_test "Authentication Login" "test_n8n_authentication_login"
     
     # Print summary
-    log_info "=========================================="
+    echo "=========================================="
     log_info "Test Summary:"
     log_info "  Total tests: $TESTS_RUN"
     log_info "  Passed: $TESTS_PASSED"

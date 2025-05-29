@@ -456,7 +456,7 @@ test_network_configuration() {
 
 run_all_tests() {
     log_info "Starting Docker Infrastructure Test Suite..."
-    log_info "============================================"
+    echo "============================================"
     
     # Directory and Permission Tests
     run_test "n8n Directory Structure" test_n8n_directories
@@ -482,7 +482,7 @@ run_all_tests() {
     run_test "Network Configuration" test_network_configuration
     
     # Test Summary
-    log_info "============================================"
+    echo "============================================"
     log_info "Docker Infrastructure Test Summary:"
     log_info "Tests Run: $TESTS_RUN"
     log_info "Tests Passed: $TESTS_PASSED"

@@ -611,7 +611,7 @@ test_n8n_authentication_login() {
 
 run_all_tests() {
     log_info "Starting n8n Application Test Suite..."
-    log_info "======================================"
+    echo "======================================"
     
     # Load environment first
     load_test_environment
@@ -639,7 +639,7 @@ run_all_tests() {
     run_test "Authentication Login" test_n8n_authentication_login
     
     # Test Summary
-    log_info "======================================"
+    echo "======================================"
     log_info "n8n Test Summary:"
     log_info "Tests Run: $TESTS_RUN"
     log_info "Tests Passed: $TESTS_PASSED"
