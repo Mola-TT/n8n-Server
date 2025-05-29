@@ -879,6 +879,71 @@ EOF
 # Main Setup Function
 # =============================================================================
 
+start_docker_containers() {
+    log_info "Starting n8n Docker containers..."
+    
+    local docker_dir="/opt/n8n/docker"
+    
+    if [ ! -d "$docker_dir" ]; then
+        log_error "Docker directory not found: $docker_dir"
+        return 1
+    fi
+    
+    if [ ! -f "$docker_dir/docker-compose.yml" ]; then
+        log_error "docker-compose.yml not found in $docker_dir"
+        return 1
+    fi
+    
+    if [ ! -f "$docker_dir/.env" ]; then
+        log_error "Environment file (.env) not found in $docker_dir"
+        return 1
+    fi
+    
+    # Change to docker directory
+    cd "$docker_dir"
+    
+    # Start containers
+    log_info "Starting Docker Compose services..."
+    if execute_silently "docker-compose up -d" "" "Failed to start Docker containers"; then
+        log_info "Docker containers started successfully"
+        
+        # Wait for containers to be ready
+        log_info "Waiting for containers to initialize..."
+        sleep 10
+        
+        # Check container status
+        local container_status
+        container_status=$(docker-compose ps --format "table" 2>/dev/null || echo "Unable to check container status")
+        log_info "Container status: $container_status"
+        
+        # Verify n8n is responding
+        local max_attempts=12  # 60 seconds total
+        local attempt=1
+        
+        log_info "Verifying n8n service is responding..."
+        while [ $attempt -le $max_attempts ]; do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:5678 2>/dev/null | grep -q "200"; then
+                log_info "n8n service is responding successfully"
+                return 0
+            fi
+            
+            if [ $attempt -eq 1 ]; then
+                log_info "Waiting for n8n to become ready..."
+            fi
+            
+            sleep 5
+            ((attempt++))
+        done
+        
+        log_warn "n8n service may still be starting up (this is normal for first run)"
+        log_info "You can check service status with: docker-compose -f /opt/n8n/docker/docker-compose.yml ps"
+        return 0
+    else
+        log_error "Failed to start Docker containers"
+        return 1
+    fi
+}
+
 setup_docker_infrastructure() {
     log_info "Starting n8n Docker infrastructure setup..."
     
@@ -908,11 +973,14 @@ setup_docker_infrastructure() {
     create_cleanup_scripts || return 1
     create_systemd_service || return 1
     
+    # Start the containers as the final step
+    start_docker_containers || return 1
+    
     log_info "n8n Docker infrastructure setup completed successfully!"
     log_info "Next steps:"
-    log_info "1. Update environment variables in /opt/n8n/docker/.env"
-    log_info "2. Start services: sudo systemctl start n8n-docker"
-    log_info "3. Check status: /opt/n8n/scripts/service.sh status"
+    log_info "1. Update environment variables in /opt/n8n/docker/.env if needed"
+    log_info "2. Check status: /opt/n8n/scripts/service.sh status"
+    log_info "3. Access n8n via your configured domain or https://localhost"
     
     return 0
 }
