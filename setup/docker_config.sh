@@ -849,9 +849,25 @@ start_docker_containers() {
         sleep 10
         
         # Check container status
-        local container_status
-        container_status=$(docker-compose ps --format "table" 2>/dev/null || echo "Unable to check container status")
-        log_info "Container status: $container_status"
+        log_info "Checking container status..."
+        
+        # Get container information and parse it
+        local containers_info=$(docker-compose ps --format "{{.Name}}\t{{.State}}\t{{.Ports}}" 2>/dev/null)
+        if [[ -n "$containers_info" ]]; then
+            while IFS=$'\t' read -r name state ports; do
+                if [[ -n "$name" ]]; then
+                    local status_msg="$name: $state"
+                    if [[ -n "$ports" && "$ports" != "" ]]; then
+                        # Extract just the essential port info
+                        local simplified_ports=$(echo "$ports" | sed 's/0\.0\.0\.0://g' | sed 's/\[::\]://g' | sed 's/->/→/g')
+                        status_msg="$status_msg (ports: $simplified_ports)"
+                    fi
+                    log_info "$status_msg"
+                fi
+            done <<< "$containers_info"
+        else
+            log_warn "Unable to check container status"
+        fi
         
         # Verify n8n is responding
         local max_attempts=12  # 60 seconds total
