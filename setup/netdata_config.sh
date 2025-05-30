@@ -142,6 +142,46 @@ configure_netdata_security() {
                 fi
             fi
         done
+        
+        # CRITICAL FIX: Create missing required directories and files
+        log_info "Creating missing required directories and files..."
+        
+        # Create runtime directory
+        mkdir -p /run/netdata
+        chown netdata:netdata /run/netdata
+        chmod 755 /run/netdata
+        log_info "Created runtime directory: /run/netdata"
+        
+        # Create cloud config directory and file
+        mkdir -p "$lib_dir/cloud.d"
+        chown -R netdata:netdata "$lib_dir/cloud.d"
+        chmod 755 "$lib_dir/cloud.d"
+        
+        cat > "$lib_dir/cloud.d/cloud.conf" << EOF
+[global]
+    enabled = no
+    cloud base url = https://app.netdata.cloud
+EOF
+        chown netdata:netdata "$lib_dir/cloud.d/cloud.conf"
+        chmod 644 "$lib_dir/cloud.d/cloud.conf"
+        log_info "Created cloud config: $lib_dir/cloud.d/cloud.conf"
+        
+        # Create stream config file
+        local stream_conf="/opt/netdata/etc/netdata/stream.conf"
+        if [ ! -f "$stream_conf" ]; then
+            cat > "$stream_conf" << EOF
+# Netdata Stream Configuration - Milestone 4
+# This file is required for Netdata to start properly
+
+[stream]
+    enabled = no
+    destination = 
+    api key = 
+EOF
+            chown netdata:netdata "$stream_conf"
+            chmod 644 "$stream_conf"
+            log_info "Created stream config: $stream_conf"
+        fi
     fi
     
     # Create or update configuration - CRITICAL FIX for binding
@@ -154,8 +194,8 @@ configure_netdata_security() {
     # Default update frequency (seconds)
     update every = 1
     
-    # Memory mode
-    memory mode = save
+    # Memory mode - FIXED: Use 'ram' instead of invalid 'save'
+    memory mode = ram
     
     # Disable registry for privacy
     registry enabled = ${NETDATA_REGISTRY_ENABLED:-no}
@@ -163,7 +203,7 @@ configure_netdata_security() {
     # Disable anonymous statistics
     anonymous statistics = ${NETDATA_ANONYMOUS_STATISTICS:-no}
     
-    # Set directories
+    # Set directories - CRITICAL FIX: Use correct paths for official installer
     cache directory = ${NETDATA_CACHE_DIR:-$cache_dir}
     lib directory = ${NETDATA_LIB_DIR:-$lib_dir}
     log directory = ${NETDATA_LOG_DIR:-$log_dir}
@@ -228,7 +268,7 @@ EOF
         log_info "Netdata service restarted successfully"
         
         # Wait longer for service to start and verify binding
-        sleep 10
+        sleep 15
         
         # Check if Netdata is now properly bound to localhost
         if ss -tlnp | grep -q "127.0.0.1:${NETDATA_PORT:-19999}"; then
@@ -762,5 +802,132 @@ setup_netdata_infrastructure() {
     log_info "Local access: http://${NETDATA_BIND_IP}:${NETDATA_PORT} (localhost only)"
     echo "-----------------------------------------------"
     
+    return 0
+}
+
+verify_netdata_installation() {
+    log_info "Verifying Netdata installation..."
+    
+    # Check if Netdata binary exists
+    local netdata_binary="/opt/netdata/usr/sbin/netdata"
+    if [ ! -f "$netdata_binary" ]; then
+        # Fallback to system location
+        netdata_binary="/usr/sbin/netdata"
+        if [ ! -f "$netdata_binary" ]; then
+            log_error "Netdata binary not found in /opt/netdata/usr/sbin/netdata or /usr/sbin/netdata"
+            return 1
+        fi
+    fi
+    log_info "✓ Netdata binary found: $netdata_binary"
+    
+    # Check if Netdata user exists
+    if ! id netdata >/dev/null 2>&1; then
+        log_error "Netdata user does not exist"
+        return 1
+    fi
+    log_info "✓ Netdata user exists"
+    
+    # Check configuration file - FIXED: Use correct location
+    local netdata_conf="/opt/netdata/etc/netdata/netdata.conf"
+    if [ ! -f "$netdata_conf" ]; then
+        # Fallback to system location
+        netdata_conf="/etc/netdata/netdata.conf"
+        if [ ! -f "$netdata_conf" ]; then
+            log_error "Netdata configuration file not found"
+            return 1
+        fi
+    fi
+    log_info "✓ Netdata configuration file exists: $netdata_conf"
+    
+    # CRITICAL: Check required directories exist
+    local required_dirs=(
+        "/run/netdata"
+        "/var/lib/netdata"
+        "/opt/netdata/var/lib/netdata"
+        "/opt/netdata/var/cache/netdata"
+    )
+    
+    for dir in "${required_dirs[@]}"; do
+        if [ ! -d "$dir" ]; then
+            log_warn "Required directory missing: $dir"
+        else
+            log_info "✓ Required directory exists: $dir"
+        fi
+    done
+    
+    # Check if required files exist
+    local required_files=(
+        "/opt/netdata/var/lib/netdata/cloud.d/cloud.conf"
+        "/opt/netdata/etc/netdata/stream.conf"
+    )
+    
+    for file in "${required_files[@]}"; do
+        if [ ! -f "$file" ]; then
+            log_warn "Required file missing: $file"
+        else
+            log_info "✓ Required file exists: $file"
+        fi
+    done
+    
+    # Check systemd service
+    if ! systemctl is-enabled netdata >/dev/null 2>&1; then
+        log_error "Netdata service is not enabled"
+        return 1
+    fi
+    log_info "✓ Netdata service is enabled"
+    
+    # Enhanced service status check with multiple attempts
+    local max_attempts=3
+    local attempt=1
+    local service_running=false
+    
+    while [ $attempt -le $max_attempts ]; do
+        log_info "Checking Netdata service status (attempt $attempt/$max_attempts)..."
+        
+        if systemctl is-active netdata >/dev/null 2>&1; then
+            service_running=true
+            log_info "✓ Netdata service is active"
+            break
+        else
+            local status=$(systemctl show netdata --property=ActiveState --value)
+            log_warn "Netdata service status: $status"
+            
+            if [ "$status" = "activating" ]; then
+                log_info "Service is starting, waiting 10 seconds..."
+                sleep 10
+            elif [ "$status" = "failed" ]; then
+                log_error "Service failed to start, checking logs..."
+                journalctl -u netdata --no-pager -n 10 | tail -5
+                break
+            else
+                log_warn "Service in unexpected state: $status"
+                sleep 5
+            fi
+        fi
+        
+        attempt=$((attempt + 1))
+    done
+    
+    if [ "$service_running" = false ]; then
+        log_error "Netdata service is not running after $max_attempts attempts"
+        log_error "Final service status:"
+        systemctl status netdata --no-pager -l
+        return 1
+    fi
+    
+    # Check if Netdata is listening on the correct port
+    local netdata_port="${NETDATA_PORT:-19999}"
+    local bind_ip="${NETDATA_BIND_IP:-127.0.0.1}"
+    
+    if ss -tlnp | grep -q "${bind_ip}:${netdata_port}"; then
+        log_info "✓ Netdata is listening on ${bind_ip}:${netdata_port}"
+    else
+        log_warn "Netdata may not be listening on expected address ${bind_ip}:${netdata_port}"
+        log_info "Current listening ports:"
+        ss -tlnp | grep ":${netdata_port}" || log_warn "No process listening on port ${netdata_port}"
+        # Don't fail here as it might still be starting
+    fi
+    
+    log_info "Netdata installation verification completed"
     return 0
 } 
