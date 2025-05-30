@@ -175,12 +175,21 @@ EOF
     web files group = netdata
     web files owner = netdata
     
-    # Additional security for localhost-only access
+    # CRITICAL FIX: Allow connections from IP addresses
     allow connections from = localhost 127.0.0.1 ::1
     allow dashboard from = localhost 127.0.0.1 ::1
     allow badges from = localhost 127.0.0.1 ::1
     allow streaming from = localhost 127.0.0.1 ::1
     allow netdata.conf from = localhost 127.0.0.1 ::1
+    allow management from = localhost 127.0.0.1 ::1
+    
+    # CRITICAL FIX: Allow specific host headers (fixes HTTP 400 issue)
+    allow connections by dns = localhost 127.0.0.1
+    allow dashboard by dns = localhost 127.0.0.1
+    allow badges by dns = localhost 127.0.0.1
+    allow streaming by dns = localhost 127.0.0.1
+    allow netdata.conf by dns = localhost 127.0.0.1
+    allow management by dns = localhost 127.0.0.1
 
 [plugins]
     # Enable essential plugins
