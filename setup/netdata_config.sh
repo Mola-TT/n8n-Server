@@ -28,7 +28,7 @@ install_netdata() {
     if execute_silently "wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh"; then
         log_info "Installing Netdata (this may take a few minutes)..."
         # Use non-interactive installation with auto-update disabled
-        if execute_silently "bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-method disable"; then
+        if execute_silently "bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab"; then
             log_info "Netdata installed successfully"
         else
             log_error "Netdata installation failed"
