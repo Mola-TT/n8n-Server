@@ -55,94 +55,89 @@ install_netdata() {
 configure_netdata_security() {
     log_info "Configuring Netdata security settings..."
     
-    # CRITICAL FIX: Use the correct config file location for official installer
-    local netdata_conf="/opt/netdata/etc/netdata/netdata.conf"
-    local backup_conf="/opt/netdata/etc/netdata/netdata.conf.backup"
-    local system_conf="/etc/netdata/netdata.conf"
+    # CRITICAL FIX: Detect installation type and use correct paths
+    local netdata_conf=""
+    local netdata_type=""
+    local web_dir=""
+    local cache_dir=""
+    local lib_dir=""
+    local log_dir=""
+    local run_dir="/run/netdata"
     
-    # Create backup of original configuration
-    if [ -f "$netdata_conf" ] && [ ! -f "$backup_conf" ]; then
-        cp "$netdata_conf" "$backup_conf"
-        log_info "Created backup: $backup_conf"
-    fi
-    
-    # Configure Netdata to bind only to localhost for security
-    log_info "Configuring Netdata to listen only on localhost..."
-    log_info "Using official installer config location: $netdata_conf"
-    
-    # Detect actual Netdata installation paths
-    local cache_dir="/var/cache/netdata"
-    local lib_dir="/var/lib/netdata" 
-    local log_dir="/var/log/netdata"
-    local run_dir="/var/run/netdata"
-    local web_dir="/usr/share/netdata/web"
-    local alarm_script="/usr/libexec/netdata/plugins.d/alarm-notify.sh"
-    
-    # Check if Netdata is installed in /opt/netdata (official installer)
-    if [ -d "/opt/netdata" ]; then
+    # Detect installation type by checking where the binary and config are located
+    if [ -f "/usr/sbin/netdata" ] && [ -d "/etc/netdata" ]; then
+        # System package installation (apt/yum)
+        netdata_type="system"
+        netdata_conf="/etc/netdata/netdata.conf"
+        web_dir="/usr/share/netdata/web"
+        cache_dir="/var/cache/netdata"
+        lib_dir="/var/lib/netdata"
+        log_dir="/var/log/netdata"
+        log_info "Detected system package installation of Netdata"
+        
+        # Remove systemd override that's designed for official installer
+        if [ -d "/etc/systemd/system/netdata.service.d" ]; then
+            log_info "Removing systemd override (not needed for system package installation)"
+            rm -rf /etc/systemd/system/netdata.service.d
+            systemctl daemon-reload
+        fi
+        
+    elif [ -f "/opt/netdata/usr/sbin/netdata" ] || [ -d "/opt/netdata" ]; then
+        # Official installer installation
+        netdata_type="official"
+        netdata_conf="/opt/netdata/etc/netdata/netdata.conf"
+        web_dir="/opt/netdata/usr/share/netdata/web"
         cache_dir="/opt/netdata/var/cache/netdata"
         lib_dir="/opt/netdata/var/lib/netdata"
         log_dir="/opt/netdata/var/log/netdata"
-        run_dir="/opt/netdata/var/run/netdata"
-        web_dir="/opt/netdata/usr/share/netdata/web"
-        alarm_script="/opt/netdata/usr/libexec/netdata/plugins.d/alarm-notify.sh"
-        log_info "Detected official Netdata installation in /opt/netdata"
+        log_info "Detected official installer installation of Netdata"
         
-        # Create missing system directory symlinks for tests
-        for sys_dir in "/var/lib/netdata" "/var/cache/netdata" "/var/log/netdata"; do
-            if [ ! -d "$sys_dir" ] && [ ! -L "$sys_dir" ]; then
-                local opt_dir="${sys_dir/\/var/\/opt\/netdata\/var}"
-                if [ -d "$opt_dir" ]; then
-                    mkdir -p "$(dirname "$sys_dir")"
-                    ln -sf "$opt_dir" "$sys_dir"
-                    log_info "Created symlink: $sys_dir -> $opt_dir"
-                fi
-            fi
-        done
+        # Ensure config directory exists for official installer
+        mkdir -p "$(dirname "$netdata_conf")"
+        chown -R netdata:netdata "$(dirname "$(dirname "$netdata_conf")")" 2>/dev/null || true
         
-        # CRITICAL FIX: Create missing required directories and files
-        log_info "Creating missing required directories and files..."
-        
-        # Create runtime directory
-        mkdir -p /run/netdata
-        chown netdata:netdata /run/netdata
-        chmod 755 /run/netdata
-        log_info "Created runtime directory: /run/netdata"
-        
-        # Create cloud config directory and file
+    else
+        log_error "Could not detect Netdata installation type"
+        return 1
+    fi
+    
+    log_info "Using Netdata type: $netdata_type"
+    log_info "Config file: $netdata_conf"
+    log_info "Web directory: $web_dir"
+    
+    # Create backup of original configuration if it exists
+    if [ -f "$netdata_conf" ]; then
+        local backup_conf="${netdata_conf}.backup"
+        if [ ! -f "$backup_conf" ]; then
+            cp "$netdata_conf" "$backup_conf"
+            log_info "Created backup: $backup_conf"
+        fi
+    fi
+    
+    # Ensure required directories exist
+    log_info "Creating required directories..."
+    for dir in "$cache_dir" "$lib_dir" "$log_dir" "$run_dir"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            chown netdata:netdata "$dir" 2>/dev/null || true
+            log_info "Created directory: $dir"
+        fi
+    done
+    
+    # For system installations, also create cloud config if needed
+    if [ "$netdata_type" = "system" ] && [ ! -f "$lib_dir/cloud.d/cloud.conf" ]; then
         mkdir -p "$lib_dir/cloud.d"
-        chown -R netdata:netdata "$lib_dir/cloud.d"
-        chmod 755 "$lib_dir/cloud.d"
-        
         cat > "$lib_dir/cloud.d/cloud.conf" << EOF
 [global]
     enabled = no
     cloud base url = https://app.netdata.cloud
 EOF
-        chown netdata:netdata "$lib_dir/cloud.d/cloud.conf"
-        chmod 644 "$lib_dir/cloud.d/cloud.conf"
+        chown -R netdata:netdata "$lib_dir/cloud.d"
         log_info "Created cloud config: $lib_dir/cloud.d/cloud.conf"
-        
-        # Create stream config file
-        local stream_conf="/opt/netdata/etc/netdata/stream.conf"
-        if [ ! -f "$stream_conf" ]; then
-            cat > "$stream_conf" << EOF
-# Netdata Stream Configuration - Milestone 4
-# This file is required for Netdata to start properly
-
-[stream]
-    enabled = no
-    destination = 
-    api key = 
-EOF
-            chown netdata:netdata "$stream_conf"
-            chmod 644 "$stream_conf"
-            log_info "Created stream config: $stream_conf"
-        fi
     fi
     
-    # Create or update configuration - CRITICAL FIX for binding
-    log_info "Writing configuration to official installer location: $netdata_conf"
+    # Configure Netdata to bind only to localhost for security
+    log_info "Writing Netdata configuration for localhost-only binding..."
     cat > "$netdata_conf" << EOF
 # Netdata Configuration - Milestone 4
 # Generated by n8n server initialization
@@ -151,7 +146,7 @@ EOF
     # Default update frequency (seconds)
     update every = 1
     
-    # Memory mode - FIXED: Use 'ram' instead of invalid 'save'
+    # Memory mode
     memory mode = ram
     
     # Disable registry for privacy
@@ -160,19 +155,19 @@ EOF
     # Disable anonymous statistics
     anonymous statistics = ${NETDATA_ANONYMOUS_STATISTICS:-no}
     
-    # Set directories - CRITICAL FIX: Use correct paths for official installer
-    cache directory = ${NETDATA_CACHE_DIR:-$cache_dir}
-    lib directory = ${NETDATA_LIB_DIR:-$lib_dir}
-    log directory = ${NETDATA_LOG_DIR:-$log_dir}
-    run directory = ${NETDATA_RUN_DIR:-$run_dir}
-    web files directory = ${NETDATA_WEB_DIR:-$web_dir}
+    # Set directories
+    cache directory = $cache_dir
+    lib directory = $lib_dir
+    log directory = $log_dir
+    run directory = $run_dir
+    web files directory = $web_dir
 
 [web]
     # CRITICAL: Web server configuration for localhost-only binding
     mode = static-threaded
     listen backlog = 4096
     default port = ${NETDATA_PORT:-19999}
-    # FIXED: Use single 'bind to' directive with IP:PORT format
+    # Bind only to localhost for security
     bind to = ${NETDATA_BIND_IP:-127.0.0.1}:${NETDATA_PORT:-19999}
     
     # Security settings
@@ -199,21 +194,16 @@ EOF
     # Health monitoring
     enabled = yes
     in memory max health log entries = 1000
-    # Use correct alarm script path
-    script to execute on alarm = $alarm_script
     
 EOF
     
-    # Also create a symlink from system location for compatibility
-    if [ ! -f "$system_conf" ] && [ ! -L "$system_conf" ]; then
-        mkdir -p "$(dirname "$system_conf")"
-        ln -sf "$netdata_conf" "$system_conf"
-        log_info "Created compatibility symlink: $system_conf -> $netdata_conf"
-    fi
+    # Set proper ownership and permissions
+    chown netdata:netdata "$netdata_conf"
+    chmod 644 "$netdata_conf"
     
     log_info "Netdata configuration updated successfully"
     
-    # CRITICAL: Kill existing Netdata process and restart to force rebind
+    # CRITICAL: Force restart Netdata service to apply localhost-only binding
     log_info "Force-restarting Netdata service to apply localhost-only binding..."
     
     # Kill any existing netdata processes
