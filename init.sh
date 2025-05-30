@@ -115,7 +115,7 @@ main() {
     echo "MILESTONE 4: Netdata Monitoring Setup"
     echo "-----------------------------------------------"
     log_info "Note: Netdata will be configured for system resource monitoring with secure access"
-    setup_netdata_infrastructure
+    setup_netdata_monitoring
     
     # Print setup summary
     echo "-----------------------------------------------"
