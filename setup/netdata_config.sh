@@ -245,9 +245,23 @@ EOF
 configure_netdata_health_monitoring() {
     log_info "Configuring Netdata health monitoring alerts..."
     
-    # CRITICAL FIX: Use correct health.d directory for official installer
-    local health_dir="/opt/netdata/etc/netdata/health.d"
-    local notification_script="/opt/netdata/usr/libexec/netdata/plugins.d/alarm-notify.sh"
+    # Use installation-type-specific paths from detection
+    local health_dir
+    local notification_config
+    
+    # Detect installation type and set correct paths
+    if [ -f "/usr/sbin/netdata" ] && [ -d "/etc/netdata" ]; then
+        # System package installation
+        health_dir="/etc/netdata/health.d"
+        notification_config="/etc/netdata/health_alarm_notify.conf"
+    elif [ -f "/opt/netdata/usr/sbin/netdata" ] || [ -d "/opt/netdata" ]; then
+        # Official installer installation
+        health_dir="/opt/netdata/etc/netdata/health.d"
+        notification_config="/opt/netdata/etc/netdata/health_alarm_notify.conf"
+    else
+        log_error "Could not detect Netdata installation type for health configuration"
+        return 1
+    fi
     
     # Create health.d directory if it doesn't exist
     mkdir -p "$health_dir"
@@ -325,7 +339,7 @@ EOF
     
     # Configure email notifications if enabled
     if [ "${NETDATA_EMAIL_ALERTS:-true}" = "true" ]; then
-        configure_netdata_email_notifications
+        configure_netdata_email_notifications "$notification_config"
     fi
     
     log_info "Health monitoring alerts configured successfully"
@@ -333,11 +347,12 @@ EOF
 }
 
 configure_netdata_email_notifications() {
+    local health_alarm_notify="$1"
     log_info "Configuring Netdata email notifications..."
-    
-    # CRITICAL FIX: Use correct notification config location for official installer
-    local health_alarm_notify="/opt/netdata/etc/netdata/health_alarm_notify.conf"
     log_info "Using notification config file: $health_alarm_notify"
+    
+    # Ensure parent directory exists
+    mkdir -p "$(dirname "$health_alarm_notify")"
     
     # Create notification configuration
     cat > "$health_alarm_notify" << EOF
@@ -366,7 +381,7 @@ EMAIL_SUBJECT="[Netdata Alert] \${host} \${alarm} \${status}"
 EOF
     
     # Set proper permissions
-    chown netdata:netdata "$health_alarm_notify"
+    chown netdata:netdata "$health_alarm_notify" 2>/dev/null || chown root:root "$health_alarm_notify"
     chmod 640 "$health_alarm_notify"
     
     log_info "Email notifications configured successfully"
