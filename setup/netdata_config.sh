@@ -18,76 +18,33 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 install_netdata() {
     log_info "Installing Netdata system monitoring..."
     
-    # Check if Netdata is already installed
-    if command -v netdata &> /dev/null; then
-        local netdata_version=$(netdata -W version 2>/dev/null | head -1 | cut -d' ' -f2 || echo "unknown")
-        log_info "Netdata is already installed: version $netdata_version"
-        return 0
-    fi
-    
-    # Update package index
-    if ! execute_silently "apt-get update"; then
-        log_error "Failed to update package index"
-        return 1
-    fi
-    
-    # Install required packages
+    # Install dependencies
     log_info "Installing Netdata dependencies..."
-    if ! execute_silently "apt-get install -y curl wget gnupg"; then
-        log_error "Failed to install dependencies"
-        return 1
-    fi
+    execute_silently "apt-get update"
+    execute_silently "apt-get install -y curl wget gnupg lsb-release"
     
-    # Download and install Netdata using official installer
+    # Download and run official Netdata installer
     log_info "Downloading Netdata installer..."
-    local installer_url="https://my-netdata.io/kickstart.sh"
-    
-    if ! execute_silently "wget -O /tmp/netdata-installer.sh '$installer_url'"; then
+    if execute_silently "wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh"; then
+        log_info "Installing Netdata (this may take a few minutes)..."
+        # Use non-interactive installation with auto-update disabled
+        if execute_silently "bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-method disable"; then
+            log_info "Netdata installed successfully"
+        else
+            log_error "Netdata installation failed"
+            return 1
+        fi
+        
+        # Clean up installer
+        rm -f /tmp/netdata-kickstart.sh
+    else
         log_error "Failed to download Netdata installer"
         return 1
     fi
     
-    # Make installer executable
-    chmod +x /tmp/netdata-installer.sh
+    # CRITICAL: Configure systemd override BEFORE any other configuration
+    configure_netdata_systemd_override
     
-    # Install Netdata with non-interactive options
-    log_info "Installing Netdata (this may take a few minutes)..."
-    if execute_silently "/tmp/netdata-installer.sh --dont-wait --disable-telemetry --auto-update"; then
-        log_info "Netdata installed successfully"
-    else
-        log_error "Failed to install Netdata"
-        return 1
-    fi
-    
-    # Clean up installer
-    rm -f /tmp/netdata-installer.sh
-    
-    # Verify installation using multiple methods
-    log_info "Verifying Netdata installation..."
-    
-    # Method 1: Check if netdata command is available
-    if command -v netdata &> /dev/null; then
-        local netdata_version=$(netdata -W version 2>/dev/null | head -1 | cut -d' ' -f2 2>/dev/null || echo "")
-        if [ -n "$netdata_version" ]; then
-            log_info "Netdata verification successful: version $netdata_version"
-        else
-            log_info "Netdata command found but version check failed (normal after installation)"
-        fi
-    # Method 2: Check if netdata service/binary exists in common locations
-    elif [ -f "/usr/sbin/netdata" ] || [ -f "/usr/bin/netdata" ] || [ -f "/opt/netdata/bin/netdata" ]; then
-        log_info "Netdata binary found in system paths"
-    # Method 3: Check if netdata configuration directory exists
-    elif [ -d "/etc/netdata" ]; then
-        log_info "Netdata configuration directory found"
-    # Method 4: Check if netdata systemd service exists
-    elif systemctl list-unit-files | grep -q "netdata.service"; then
-        log_info "Netdata systemd service found"
-    else
-        log_error "Netdata installation verification failed - no evidence of installation found"
-        return 1
-    fi
-    
-    log_info "Netdata installation verification completed successfully"
     return 0
 }
 
@@ -295,7 +252,7 @@ EOF
     return 0
 }
 
-configure_netdata_health_alerts() {
+configure_netdata_health_monitoring() {
     log_info "Configuring Netdata health monitoring alerts..."
     
     # CRITICAL FIX: Use correct health.d directory for official installer
@@ -733,46 +690,103 @@ start_netdata_service() {
 # Main Setup Function
 # =============================================================================
 
-setup_netdata_infrastructure() {
+setup_netdata_monitoring() {
     log_info "Setting up Netdata monitoring infrastructure..."
     
-    # Check if Netdata is enabled
-    if [ "${NETDATA_ENABLED:-true}" != "true" ]; then
-        log_info "Netdata is disabled - skipping setup"
-        return 0
-    fi
-    
-    # Install Netdata
+    # Step 1: Install Netdata (includes systemd override)
     if ! install_netdata; then
         log_error "Failed to install Netdata"
         return 1
     fi
     
-    # Configure Netdata security
+    # Step 2: Stop service and kill any existing processes
+    log_info "Stopping any existing Netdata processes..."
+    systemctl stop netdata 2>/dev/null || true
+    pkill -f netdata || true
+    sleep 3
+    
+    # Step 3: Configure Netdata security settings  
     if ! configure_netdata_security; then
         log_error "Failed to configure Netdata security"
         return 1
     fi
     
-    # Configure health monitoring
-    if ! configure_netdata_health_alerts; then
-        log_error "Failed to configure health monitoring"
+    # Step 4: Configure health monitoring
+    if ! configure_netdata_health_monitoring; then
+        log_error "Failed to configure Netdata health monitoring"
         return 1
     fi
     
-    # Start Netdata service
-    if ! start_netdata_service; then
+    # Step 5: Start and enable Netdata service with new configuration
+    log_info "Starting and enabling Netdata service..."
+    
+    # Reload systemd daemon to ensure override is picked up
+    systemctl daemon-reload
+    
+    # Enable the service
+    if execute_silently "systemctl enable netdata"; then
+        log_info "Netdata service enabled for auto-start"
+    else
+        log_error "Failed to enable Netdata service"
+        return 1
+    fi
+    
+    # Start the service with the new environment variables
+    if execute_silently "systemctl start netdata"; then
+        log_info "Netdata service started successfully"
+    else
         log_error "Failed to start Netdata service"
+        # Show recent logs for debugging
+        journalctl -u netdata --no-pager -n 10
         return 1
     fi
     
-    # Configure Nginx proxy
+    # Step 6: Wait for service to be ready and verify
+    log_info "Waiting for Netdata service to become ready..."
+    local max_wait=30
+    local wait_count=0
+    
+    while [ $wait_count -lt $max_wait ]; do
+        if systemctl is-active netdata >/dev/null 2>&1; then
+            log_info "Netdata service is active and running"
+            break
+        fi
+        
+        wait_count=$((wait_count + 1))
+        sleep 2
+    done
+    
+    if [ $wait_count -ge $max_wait ]; then
+        log_error "Netdata service failed to start within $max_wait seconds"
+        log_error "Service status:"
+        systemctl status netdata --no-pager -l
+        return 1
+    fi
+    
+    # Step 7: Verify Netdata is listening on localhost
+    sleep 5  # Additional wait for service to bind to port
+    
+    if ss -tlnp | grep -q "127.0.0.1:19999"; then
+        log_info "✓ Netdata is listening on localhost:19999"
+    else
+        log_warn "Netdata may not be listening on localhost:19999 yet"
+        log_info "Current listening ports:"
+        ss -tlnp | grep ":19999" || log_warn "No process listening on port 19999"
+    fi
+    
+    # Step 8: Test API response
+    if curl -s --max-time 5 "http://127.0.0.1:19999/api/v1/info" >/dev/null 2>&1; then
+        log_info "✓ Netdata API is responding"
+    else
+        log_warn "Netdata API test failed - service may still be initializing (this is normal)"
+    fi
+    
+    # Step 9: Configure Nginx proxy and firewall
     if ! configure_netdata_nginx_proxy; then
         log_error "Failed to configure Nginx proxy for Netdata"
         return 1
     fi
     
-    # Configure firewall
     if ! configure_netdata_firewall; then
         log_error "Failed to configure firewall for Netdata"
         return 1
@@ -780,27 +794,15 @@ setup_netdata_infrastructure() {
     
     log_info "Netdata monitoring infrastructure setup completed successfully"
     
-    # Add local hosts entry for testing if not in production
-    local server_name="${NETDATA_NGINX_SUBDOMAIN}.${NGINX_SERVER_NAME:-localhost}"
-    if [ "${PRODUCTION:-false}" != "true" ] && [ "$server_name" != "monitoring.localhost" ]; then
-        log_info "Adding local hosts entry for testing: $server_name"
-        if ! grep -q "$server_name" /etc/hosts; then
-            echo "127.0.0.1 $server_name" >> /etc/hosts
-            log_info "Added hosts entry: 127.0.0.1 $server_name"
-        else
-            log_info "Hosts entry already exists for $server_name"
-        fi
+    # Add local hosts entry for testing (if domain is configured)
+    if [ -n "${NETDATA_DOMAIN}" ] && [ "${NETDATA_DOMAIN}" != "localhost" ]; then
+        log_info "Adding local hosts entry for testing: ${NETDATA_DOMAIN}"
+        # Remove existing entry if present
+        sed -i "/${NETDATA_DOMAIN}/d" /etc/hosts 2>/dev/null || true
+        # Add new entry
+        echo "127.0.0.1 ${NETDATA_DOMAIN}" >> /etc/hosts
+        log_info "Added hosts entry: 127.0.0.1 ${NETDATA_DOMAIN}"
     fi
-    
-    # Display access information
-    echo "-----------------------------------------------"
-    echo "NETDATA ACCESS INFORMATION"
-    echo "-----------------------------------------------"
-    log_info "Dashboard URL: https://$server_name"
-    log_info "Username: ${NETDATA_NGINX_AUTH_USER}"
-    log_info "Password: [configured]"
-    log_info "Local access: http://${NETDATA_BIND_IP}:${NETDATA_PORT} (localhost only)"
-    echo "-----------------------------------------------"
     
     return 0
 }
@@ -930,4 +932,68 @@ verify_netdata_installation() {
     
     log_info "Netdata installation verification completed"
     return 0
-} 
+}
+
+configure_netdata_systemd_override() {
+    log_info "Creating systemd service override to fix directory paths..."
+    
+    # Create systemd override directory
+    local override_dir="/etc/systemd/system/netdata.service.d"
+    mkdir -p "$override_dir"
+    
+    # Create override configuration that sets environment variables
+    # This ensures Netdata uses the correct paths regardless of config file issues
+    cat > "$override_dir/override.conf" << 'EOF'
+[Service]
+# Override environment variables to force correct paths for official installer
+Environment="NETDATA_WEB_DIR=/opt/netdata/usr/share/netdata/web"
+Environment="NETDATA_CACHE_DIR=/opt/netdata/var/cache/netdata"
+Environment="NETDATA_LIB_DIR=/opt/netdata/var/lib/netdata"
+Environment="NETDATA_LOG_DIR=/opt/netdata/var/log/netdata"
+Environment="NETDATA_RUN_DIR=/run/netdata"
+Environment="NETDATA_BIND_IP=127.0.0.1"
+Environment="NETDATA_PORT=19999"
+
+# Ensure runtime directory exists
+ExecStartPre=/bin/mkdir -p /run/netdata
+ExecStartPre=/bin/chown netdata:netdata /run/netdata
+ExecStartPre=/bin/chmod 755 /run/netdata
+
+# Ensure cache directory exists  
+ExecStartPre=/bin/mkdir -p /opt/netdata/var/cache/netdata
+ExecStartPre=/bin/chown -R netdata:netdata /opt/netdata/var/cache/netdata
+EOF
+    
+    log_info "Systemd override created: $override_dir/override.conf"
+    
+    # Reload systemd to pick up the override
+    systemctl daemon-reload
+    log_info "Systemd configuration reloaded"
+    
+    return 0
+}
+
+# Main execution
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # Source required utilities
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "$SCRIPT_DIR/../utils/logger.sh"
+    source "$SCRIPT_DIR/../utils/utilities.sh"
+    
+    # Load environment variables
+    if [ -f "$SCRIPT_DIR/../conf/user.env" ]; then
+        set -o allexport
+        source "$SCRIPT_DIR/../conf/user.env"
+        set +o allexport
+    fi
+    
+    # Set defaults from default.env if not already set
+    if [ -f "$SCRIPT_DIR/../conf/default.env" ]; then
+        set -o allexport
+        source "$SCRIPT_DIR/../conf/default.env"
+        set +o allexport
+    fi
+    
+    # Run the main setup function
+    setup_netdata_monitoring
+fi 
