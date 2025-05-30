@@ -115,32 +115,69 @@ test_netdata_nginx_config_syntax() {
 
 test_netdata_https_proxy_accessible() {
     # Test if Netdata is accessible via HTTPS proxy (skip certificate verification for self-signed)
-    local server_name="${NETDATA_NGINX_SUBDOMAIN:-monitoring}.${NGINX_SERVER_NAME:-localhost}"
+    local server_name
+    
+    # Use localhost for development, actual domain for production
+    if [ "${PRODUCTION:-false}" = "true" ]; then
+        server_name="${NETDATA_NGINX_SUBDOMAIN:-monitor}.${NGINX_SERVER_NAME:-localhost}"
+    else
+        # Development mode: use localhost with Host header
+        server_name="localhost"
+    fi
     
     # Test without authentication first (should get 401)
-    local response_code=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 10 "https://$server_name/" 2>/dev/null || echo "000")
+    local response_code
+    if [ "${PRODUCTION:-false}" = "true" ]; then
+        response_code=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 10 "https://$server_name/" 2>/dev/null || echo "000")
+    else
+        # Development: use localhost with Host header
+        local host_header="${NETDATA_NGINX_SUBDOMAIN:-monitor}.${NGINX_SERVER_NAME:-localhost}"
+        response_code=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 10 \
+            -H "Host: $host_header" "https://localhost/" 2>/dev/null || echo "000")
+    fi
+    
     [ "$response_code" = "401" ] # Should require authentication
 }
 
 test_netdata_https_authentication() {
     # Test authentication with credentials
-    local server_name="${NETDATA_NGINX_SUBDOMAIN:-monitoring}.${NGINX_SERVER_NAME:-localhost}"
+    local server_name
     local auth_user="${NETDATA_NGINX_AUTH_USER:-netdata}"
     local auth_pass="${NETDATA_NGINX_AUTH_PASSWORD:-secure_monitoring_password}"
     
-    # Test with correct credentials (should get 200)
-    local response_code=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 10 \
-        -u "$auth_user:$auth_pass" "https://$server_name/" 2>/dev/null || echo "000")
+    # Use localhost for development, actual domain for production
+    if [ "${PRODUCTION:-false}" = "true" ]; then
+        server_name="${NETDATA_NGINX_SUBDOMAIN:-monitor}.${NGINX_SERVER_NAME:-localhost}"
+        # Test with correct credentials (should get 200)
+        local response_code=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 10 \
+            -u "$auth_user:$auth_pass" "https://$server_name/" 2>/dev/null || echo "000")
+    else
+        # Development: use localhost with Host header
+        local host_header="${NETDATA_NGINX_SUBDOMAIN:-monitor}.${NGINX_SERVER_NAME:-localhost}"
+        local response_code=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 10 \
+            -u "$auth_user:$auth_pass" -H "Host: $host_header" "https://localhost/" 2>/dev/null || echo "000")
+    fi
+    
     [ "$response_code" = "200" ]
 }
 
 test_netdata_http_to_https_redirect() {
     # Test HTTP to HTTPS redirection
-    local server_name="${NETDATA_NGINX_SUBDOMAIN:-monitoring}.${NGINX_SERVER_NAME:-localhost}"
+    local server_name
     
-    # Test HTTP redirect (should get 301)
-    local response_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 \
-        "http://$server_name/" 2>/dev/null || echo "000")
+    # Use localhost for development, actual domain for production
+    if [ "${PRODUCTION:-false}" = "true" ]; then
+        server_name="${NETDATA_NGINX_SUBDOMAIN:-monitor}.${NGINX_SERVER_NAME:-localhost}"
+        # Test HTTP redirect (should get 301)
+        local response_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 \
+            "http://$server_name/" 2>/dev/null || echo "000")
+    else
+        # Development: use localhost with Host header
+        local host_header="${NETDATA_NGINX_SUBDOMAIN:-monitor}.${NGINX_SERVER_NAME:-localhost}"
+        local response_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 \
+            -H "Host: $host_header" "http://localhost/" 2>/dev/null || echo "000")
+    fi
+    
     [ "$response_code" = "301" ]
 }
 
@@ -171,13 +208,22 @@ test_netdata_not_accessible_externally() {
 
 test_netdata_security_headers() {
     # Test if security headers are present in HTTPS response
-    local server_name="${NETDATA_NGINX_SUBDOMAIN:-monitoring}.${NGINX_SERVER_NAME:-localhost}"
+    local server_name
     local auth_user="${NETDATA_NGINX_AUTH_USER:-netdata}"
     local auth_pass="${NETDATA_NGINX_AUTH_PASSWORD:-secure_monitoring_password}"
     
-    # Get headers from HTTPS response
-    local headers=$(curl -k -s -I --connect-timeout 10 \
-        -u "$auth_user:$auth_pass" "https://$server_name/" 2>/dev/null)
+    # Use localhost for development, actual domain for production
+    if [ "${PRODUCTION:-false}" = "true" ]; then
+        server_name="${NETDATA_NGINX_SUBDOMAIN:-monitor}.${NGINX_SERVER_NAME:-localhost}"
+        # Get headers from HTTPS response using GET request (not HEAD due to Netdata limitations)
+        local headers=$(curl -k -s --connect-timeout 10 -D - -o /dev/null \
+            -u "$auth_user:$auth_pass" "https://$server_name/" 2>/dev/null)
+    else
+        # Development: use localhost with Host header
+        local host_header="${NETDATA_NGINX_SUBDOMAIN:-monitor}.${NGINX_SERVER_NAME:-localhost}"
+        local headers=$(curl -k -s --connect-timeout 10 -D - -o /dev/null \
+            -u "$auth_user:$auth_pass" -H "Host: $host_header" "https://localhost/" 2>/dev/null)
+    fi
     
     # Check for essential security headers
     echo "$headers" | grep -qi "strict-transport-security" &&
