@@ -32,6 +32,9 @@ source "$SCRIPT_DIR/setup/nginx_config.sh"
 # Source Netdata configuration (Milestone 4)
 source "$SCRIPT_DIR/setup/netdata_config.sh"
 
+# Source SSL renewal configuration (Milestone 5)
+source "$SCRIPT_DIR/setup/ssl_renewal.sh"
+
 # Display init banner
 display_banner() {
     echo "-----------------------------------------------"
@@ -117,6 +120,13 @@ main() {
     log_info "Note: Netdata will be configured for system resource monitoring with secure access"
     setup_netdata_monitoring
     
+    # Set up SSL certificate management (Milestone 5)
+    echo "-----------------------------------------------"
+    echo "MILESTONE 5: SSL Certificate Management Setup"
+    echo "-----------------------------------------------"
+    log_info "Note: SSL certificates will be configured for automatic renewal"
+    setup_ssl_certificate_management
+    
     # Print setup summary
     echo "-----------------------------------------------"
     echo "SETUP SUMMARY"
@@ -129,6 +139,7 @@ main() {
     log_info "✓ Docker containers: STARTED"
     log_info "✓ Nginx reverse proxy: SUCCESS"
     log_info "✓ Netdata monitoring: SUCCESS"
+    log_info "✓ SSL certificate management: SUCCESS"
     echo "-----------------------------------------------"
     
     log_info "Initialization COMPLETE"
