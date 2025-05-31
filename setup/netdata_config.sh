@@ -515,11 +515,11 @@ configure_netdata_nginx_proxy() {
     # Create basic auth file for Netdata
     log_info "Creating basic authentication for Netdata..."
     if command -v htpasswd &> /dev/null; then
-        echo "${NETDATA_NGINX_AUTH_PASSWORD}" | htpasswd -ci "$auth_file" "${NETDATA_NGINX_AUTH_USER}"
+        echo "${NETDATA_NGINX_AUTH_PASSWORD}" | htpasswd -ci "$auth_file" "${NETDATA_NGINX_AUTH_USER}" >/dev/null 2>&1
     else
         # Install apache2-utils for htpasswd
         if execute_silently "apt-get install -y apache2-utils"; then
-            echo "${NETDATA_NGINX_AUTH_PASSWORD}" | htpasswd -ci "$auth_file" "${NETDATA_NGINX_AUTH_USER}"
+            echo "${NETDATA_NGINX_AUTH_PASSWORD}" | htpasswd -ci "$auth_file" "${NETDATA_NGINX_AUTH_USER}" >/dev/null 2>&1
         else
             log_error "Failed to install apache2-utils for password generation"
             return 1
