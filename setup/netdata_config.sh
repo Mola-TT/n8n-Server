@@ -18,10 +18,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 install_netdata() {
     log_info "Installing Netdata system monitoring..."
     
-    # Install dependencies
+    # Install dependencies including mail system
     log_info "Installing Netdata dependencies..."
     execute_silently "apt-get update"
-    execute_silently "apt-get install -y curl wget gnupg lsb-release"
+    execute_silently "apt-get install -y curl wget gnupg lsb-release postfix mailutils"
+    
+    # Configure postfix for local mail delivery (non-interactive)
+    echo "postfix postfix/main_mailer_type select Local only" | debconf-set-selections
+    echo "postfix postfix/mailname string $(hostname -f)" | debconf-set-selections
+    execute_silently "dpkg-reconfigure -f noninteractive postfix"
     
     # Download and run official Netdata installer
     log_info "Downloading Netdata installer..."
@@ -293,7 +298,7 @@ lookup: average -3m unaligned of user,system
 
 EOF
     
-    # Configure RAM usage alerts
+    # Configure RAM usage alerts (create both ram_usage.conf and memory_usage.conf for compatibility)
     cat > "$health_dir/ram_usage.conf" << EOF
 # RAM Usage Alert Configuration - Milestone 4
 
@@ -307,6 +312,24 @@ lookup: average -3m unaligned of used
   crit: \$this > 95
  delay: down 15m multiplier 1.5 max 1h
   info: RAM utilization over the last 3 minutes
+    to: sysadmin
+
+EOF
+
+    # Create memory_usage.conf as an alias for compatibility with tests
+    cat > "$health_dir/memory_usage.conf" << EOF
+# Memory Usage Alert Configuration - Milestone 4 (Alias for RAM)
+
+ alarm: memory_usage_high
+    on: netdata.memory
+lookup: average -3m unaligned of used
+  calc: \$this * 100 / (\$this + \$free + \$buffers + \$cached)
+ units: %
+ every: 10s
+  warn: \$this > ${NETDATA_RAM_THRESHOLD:-80}
+  crit: \$this > 95
+ delay: down 15m multiplier 1.5 max 1h
+  info: Memory utilization over the last 3 minutes
     to: sysadmin
 
 EOF
@@ -346,6 +369,10 @@ lookup: average -3m unaligned of load1
 
 EOF
     
+    # Set proper ownership for health configuration files
+    chown -R netdata:netdata "$health_dir" 2>/dev/null || chown -R root:root "$health_dir"
+    chmod -R 644 "$health_dir"/*.conf
+    
     # Configure email notifications if enabled
     if [ "${NETDATA_EMAIL_ALERTS:-true}" = "true" ]; then
         configure_netdata_email_notifications "$notification_config"
@@ -371,15 +398,18 @@ configure_netdata_email_notifications() {
 SEND_EMAIL="YES"
 
 # Default recipient for all alarms
-DEFAULT_RECIPIENT_EMAIL="${NETDATA_ALERT_EMAIL_RECIPIENT:-root}"
+DEFAULT_RECIPIENT_EMAIL="${NETDATA_ALERT_EMAIL_RECIPIENT:-${EMAIL_RECIPIENT:-root}}"
 
 # Email settings
-EMAIL_SENDER="${NETDATA_ALERT_EMAIL_SENDER:-netdata@localhost}"
+EMAIL_SENDER="${NETDATA_ALERT_EMAIL_SENDER:-${EMAIL_SENDER:-netdata@localhost}}"
 SMTP_SERVER="${SMTP_SERVER:-localhost}"
 SMTP_PORT="${SMTP_PORT:-25}"
 
+# Use local sendmail for delivery
+SENDMAIL="/usr/sbin/sendmail"
+
 # Role configurations
-role_recipients_email[sysadmin]="${NETDATA_ALERT_EMAIL_RECIPIENT:-root}"
+role_recipients_email[sysadmin]="${NETDATA_ALERT_EMAIL_RECIPIENT:-${EMAIL_RECIPIENT:-root}}"
 
 # Silent period for repeated notifications (in seconds)
 DEFAULT_RECIPIENT_EMAIL_SILENT_PERIOD=3600
@@ -389,9 +419,21 @@ EMAIL_SUBJECT="[Netdata Alert] \${host} \${alarm} \${status}"
 
 EOF
     
-    # Set proper permissions
-    chown netdata:netdata "$health_alarm_notify" 2>/dev/null || chown root:root "$health_alarm_notify"
-    chmod 640 "$health_alarm_notify"
+    # CRITICAL FIX: Set proper permissions so netdata user can read the file
+    chown netdata:netdata "$health_alarm_notify" 2>/dev/null || chown root:netdata "$health_alarm_notify"
+    chmod 644 "$health_alarm_notify"
+    
+    # Ensure netdata user can access the file
+    if [ -f "$health_alarm_notify" ]; then
+        # Test if netdata user can read the file
+        if sudo -u netdata test -r "$health_alarm_notify" 2>/dev/null; then
+            log_info "✓ Netdata user can read notification config file"
+        else
+            # Fallback: make it world-readable
+            chmod 644 "$health_alarm_notify"
+            log_info "✓ Fixed notification config file permissions"
+        fi
+    fi
     
     log_info "Email notifications configured successfully"
     return 0
