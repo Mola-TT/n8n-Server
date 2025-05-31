@@ -79,7 +79,7 @@ alwaysApply: true
   - Service monitoring and restart capabilities
   - Hardware specification comparison logic
   - Gradual optimization scheduling
-- Create integration test script (`test_milestone_6_integration.sh`) to validate:
+- Create integration test script (`test_optimization.sh`) to validate:
   - End-to-end optimization workflow
   - Cross-component configuration consistency
   - Performance impact measurement
