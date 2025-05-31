@@ -45,28 +45,28 @@ test_netdata_listening_localhost() {
 # =============================================================================
 
 test_netdata_config_exists() {
-    [ -f "/opt/netdata/etc/netdata/netdata.conf" ]
+    [ -f "/etc/netdata/netdata.conf" ]
 }
 
 test_netdata_config_localhost_binding() {
-    if [ -f "/opt/netdata/etc/netdata/netdata.conf" ]; then
-        grep -q "bind to.*127.0.0.1" "/opt/netdata/etc/netdata/netdata.conf" 2>/dev/null
+    if [ -f "/etc/netdata/netdata.conf" ]; then
+        grep -q "bind to.*127.0.0.1" "/etc/netdata/netdata.conf" 2>/dev/null
     else
         return 1
     fi
 }
 
 test_netdata_health_config_exists() {
-    [ -d "/opt/netdata/etc/netdata/health.d" ] && 
-    [ -f "/opt/netdata/etc/netdata/health.d/cpu_usage.conf" ] && 
-    [ -f "/opt/netdata/etc/netdata/health.d/ram_usage.conf" ] &&
-    [ -f "/opt/netdata/etc/netdata/health.d/disk_usage.conf" ] &&
-    [ -f "/opt/netdata/etc/netdata/health.d/load_average.conf" ]
+    [ -d "/etc/netdata/health.d" ] && 
+    [ -f "/etc/netdata/health.d/cpu_usage.conf" ] && 
+    [ -f "/etc/netdata/health.d/ram_usage.conf" ] &&
+    [ -f "/etc/netdata/health.d/disk_usage.conf" ] &&
+    [ -f "/etc/netdata/health.d/load_average.conf" ]
 }
 
 test_netdata_email_notifications_configured() {
-    [ -f "/opt/netdata/etc/netdata/health_alarm_notify.conf" ] &&
-    grep -q "SEND_EMAIL.*YES" "/opt/netdata/etc/netdata/health_alarm_notify.conf" 2>/dev/null
+    [ -f "/etc/netdata/health_alarm_notify.conf" ] &&
+    grep -q "SEND_EMAIL.*YES" "/etc/netdata/health_alarm_notify.conf" 2>/dev/null
 }
 
 # =============================================================================
@@ -270,16 +270,16 @@ test_netdata_health_alerts_configured() {
 # =============================================================================
 
 test_netdata_directories_exist() {
-    [ -d "/opt/netdata/var/cache/netdata" ] &&
-    [ -d "/opt/netdata/var/lib/netdata" ] &&
-    [ -d "/opt/netdata/var/log/netdata" ] &&
+    [ -d "/var/cache/netdata" ] &&
+    [ -d "/var/lib/netdata" ] &&
+    [ -d "/var/log/netdata" ] &&
     [ -d "/run/netdata" ]
 }
 
 test_netdata_log_files_exist() {
     # Check if Netdata is generating log files
-    [ -d "/opt/netdata/var/log/netdata" ] &&
-    [ -n "$(find "/opt/netdata/var/log/netdata" -name "*.log" -type f 2>/dev/null)" ]
+    [ -d "/var/log/netdata" ] &&
+    [ -n "$(find "/var/log/netdata" -name "*.log" -type f 2>/dev/null)" ]
 }
 
 test_netdata_permissions() {
