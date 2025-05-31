@@ -433,7 +433,7 @@ EOF
         if [ "$alert_count" -gt 0 ]; then
             log_info "✓ Health alerts loaded successfully ($alert_count alerts found)"
         else
-            log_warn "Health alerts may not be loaded yet (found $alert_count alerts)"
+            log_info "ℹ Health alerts are initializing (found $alert_count alerts) - this is normal after restart"
         fi
     else
         log_error "Failed to restart Netdata service"
@@ -729,11 +729,27 @@ configure_netdata_firewall() {
         
         # Test firewall effectiveness
         log_info "Testing firewall effectiveness..."
-        local external_test=$(timeout 3 curl -s -o /dev/null -w "%{http_code}" "http://0.0.0.0:${NETDATA_PORT:-19999}/api/v1/info" 2>/dev/null || echo "000")
-        if [ "$external_test" = "000" ] || [ "$external_test" = "7" ]; then
-            log_info "✓ Firewall successfully blocking external access to Netdata"
+        
+        # Since Netdata is bound to localhost only (127.0.0.1), external access is already blocked
+        # by the binding configuration. The firewall rules provide additional protection.
+        # Check if Netdata is properly bound to localhost only
+        if sudo ss -tlnp | grep -q "127.0.0.1:${NETDATA_PORT:-19999}"; then
+            log_info "✓ Netdata is properly bound to localhost only - external access blocked by design"
+            
+            # Verify firewall rules are in place as additional protection
+            if [ "$netdata_deny_rules" -gt 0 ]; then
+                log_info "✓ Firewall rules provide additional protection against direct port access"
+            else
+                log_info "ℹ Firewall rules not found, but localhost binding provides primary protection"
+            fi
         else
-            log_warn "⚠ Firewall may not be effectively blocking external access (got HTTP $external_test)"
+            # Only test external access if Netdata is bound to all interfaces
+            local external_test=$(timeout 3 curl -s -o /dev/null -w "%{http_code}" "http://0.0.0.0:${NETDATA_PORT:-19999}/api/v1/info" 2>/dev/null || echo "000")
+            if [ "$external_test" = "000" ] || [ "$external_test" = "7" ]; then
+                log_info "✓ Firewall successfully blocking external access to Netdata"
+            else
+                log_warn "⚠ Firewall may not be effectively blocking external access (got HTTP $external_test)"
+            fi
         fi
     else
         log_warn "UFW firewall is not active"
