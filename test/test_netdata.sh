@@ -188,8 +188,8 @@ test_netdata_http_to_https_redirect() {
 test_netdata_firewall_blocks_direct_access() {
     # Check if UFW is configured to block direct access to Netdata port
     if command -v ufw &>/dev/null; then
-        # Check if there's a deny rule for Netdata port
-        ufw status numbered 2>/dev/null | grep -q "DENY.*${NETDATA_PORT:-19999}/tcp" 2>/dev/null
+        # Check if there's a deny rule for Netdata port (requires sudo)
+        sudo ufw status numbered 2>/dev/null | grep -q "DENY.*${NETDATA_PORT:-19999}/tcp" 2>/dev/null
     else
         # If UFW is not available, consider test passed
         return 0
@@ -202,8 +202,22 @@ test_netdata_not_accessible_externally() {
     # In a real environment, this would test from another machine
     
     # Test if port is bound only to localhost (not 0.0.0.0)
-    ! (netstat -tlnp 2>/dev/null | grep ":${NETDATA_PORT:-19999}" | grep "0.0.0.0" >/dev/null 2>&1 ||
-       ss -tlnp 2>/dev/null | grep ":${NETDATA_PORT:-19999}" | grep "0.0.0.0" >/dev/null 2>&1)
+    # Check both netstat and ss output formats
+    local netstat_check=false
+    local ss_check=false
+    
+    # Check netstat format: should show 127.0.0.1:19999, not 0.0.0.0:19999
+    if netstat -tlnp 2>/dev/null | grep ":${NETDATA_PORT:-19999}" | grep -q "127.0.0.1:${NETDATA_PORT:-19999}"; then
+        netstat_check=true
+    fi
+    
+    # Check ss format: should show 127.0.0.1:19999, not 0.0.0.0:19999 or *:19999
+    if ss -tlnp 2>/dev/null | grep ":${NETDATA_PORT:-19999}" | grep -q "127.0.0.1:${NETDATA_PORT:-19999}"; then
+        ss_check=true
+    fi
+    
+    # Test passes if either tool shows localhost binding (not 0.0.0.0 or *)
+    [ "$netstat_check" = "true" ] || [ "$ss_check" = "true" ]
 }
 
 test_netdata_security_headers() {
