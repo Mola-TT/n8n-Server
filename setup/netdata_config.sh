@@ -281,8 +281,8 @@ configure_netdata_health_monitoring() {
 # CPU Usage Alert Configuration - Milestone 4
 
  alarm: cpu_usage_high
-    on: system.cpu
-lookup: average -3m unaligned of user,system,softirq,irq,guest
+    on: netdata.server_cpu
+lookup: average -3m unaligned of user,system
  units: %
  every: 10s
   warn: \$this > ${NETDATA_CPU_THRESHOLD:-80}
@@ -298,9 +298,9 @@ EOF
 # RAM Usage Alert Configuration - Milestone 4
 
  alarm: ram_usage_high
-    on: system.ram
+    on: netdata.memory
 lookup: average -3m unaligned of used
-  calc: \$this * 100 / (\$this + \$avail)
+  calc: \$this * 100 / (\$this + \$free + \$buffers + \$cached)
  units: %
  every: 10s
   warn: \$this > ${NETDATA_RAM_THRESHOLD:-80}
@@ -311,14 +311,14 @@ lookup: average -3m unaligned of used
 
 EOF
     
-    # Configure disk usage alerts
+    # Configure disk usage alerts (using available disk chart)
     cat > "$health_dir/disk_usage.conf" << EOF
 # Disk Usage Alert Configuration - Milestone 4
 
  alarm: disk_space_usage_high
-    on: disk_space.used
+    on: disk_space._
 lookup: average -1m unaligned of used
-  calc: \$this
+  calc: \$this * 100 / (\$this + \$avail)
  units: %
  every: 10s
   warn: \$this > ${NETDATA_DISK_THRESHOLD:-80}

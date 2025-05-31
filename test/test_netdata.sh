@@ -189,7 +189,8 @@ test_netdata_firewall_blocks_direct_access() {
     # Check if UFW is configured to block direct access to Netdata port
     if command -v ufw &>/dev/null; then
         # Check if there's a deny rule for Netdata port (requires sudo)
-        sudo ufw status numbered 2>/dev/null | grep -q "DENY.*${NETDATA_PORT:-19999}/tcp" 2>/dev/null
+        # UFW format: "19999/tcp DENY IN Anywhere" or "19999 DENY IN Anywhere"
+        sudo ufw status numbered 2>/dev/null | grep -E "${NETDATA_PORT:-19999}(/tcp)?\s+DENY" >/dev/null 2>&1
     else
         # If UFW is not available, consider test passed
         return 0
