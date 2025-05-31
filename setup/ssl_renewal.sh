@@ -413,11 +413,11 @@ restart_services() {
     # Restart Netdata if it exists and is running
     if systemctl is-active netdata >/dev/null 2>&1; then
         log_ssl "INFO" "Restarting Netdata..."
-        if sudo systemctl reload netdata; then
-            log_ssl "INFO" "Netdata reloaded successfully"
+        if sudo systemctl restart netdata; then
+            log_ssl "INFO" "Netdata restarted successfully"
             services_restarted=$((services_restarted + 1))
         else
-            log_ssl "WARN" "Failed to reload Netdata, but continuing"
+            log_ssl "WARN" "Failed to restart Netdata, but continuing"
             services_failed=$((services_failed + 1))
         fi
     fi
