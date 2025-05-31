@@ -20,32 +20,77 @@ install_netdata() {
     
     # Install dependencies including mail system
     log_info "Installing Netdata dependencies..."
-    execute_silently "apt-get update"
-    execute_silently "apt-get install -y curl wget gnupg lsb-release postfix mailutils"
     
-    # Configure postfix for local mail delivery (non-interactive)
-    echo "postfix postfix/main_mailer_type select Local only" | debconf-set-selections
-    echo "postfix postfix/mailname string $(hostname -f)" | debconf-set-selections
-    execute_silently "dpkg-reconfigure -f noninteractive postfix"
+    # Check if we have sudo privileges
+    if ! sudo -n true 2>/dev/null; then
+        log_error "This script requires sudo privileges for package installation"
+        return 1
+    fi
     
-    # Download and run official Netdata installer
-    log_info "Downloading Netdata installer..."
-    if execute_silently "wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh"; then
-        log_info "Installing Netdata (this may take a few minutes)..."
-        # Use non-interactive installation with auto-update disabled
-        if execute_silently "bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab"; then
-            log_info "Netdata installed successfully"
-        else
-            log_error "Netdata installation failed"
+    # Wait for any running package operations to complete
+    local wait_count=0
+    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+        if [ $wait_count -ge 30 ]; then
+            log_error "Timeout waiting for package manager to become available"
+            return 1
+        fi
+        log_info "Waiting for package manager to become available... ($wait_count/30)"
+        sleep 10
+        wait_count=$((wait_count + 1))
+    done
+    
+    # Update package lists
+    if ! sudo apt-get update -qq; then
+        log_error "Failed to update package lists"
+        return 1
+    fi
+    
+    # Check if postfix is already installed
+    if dpkg -l postfix 2>/dev/null | grep -q "^ii"; then
+        log_info "Postfix is already installed, skipping installation"
+        # Just install other dependencies
+        if ! sudo apt-get install -y curl wget gnupg lsb-release mailutils; then
+            log_error "Failed to install basic dependencies"
+            return 1
+        fi
+    else
+        log_info "Installing postfix and other dependencies..."
+        # Configure postfix for local mail delivery (non-interactive)
+        echo "postfix postfix/main_mailer_type select Local only" | sudo debconf-set-selections
+        echo "postfix postfix/mailname string $(hostname -f)" | sudo debconf-set-selections
+        
+        # Install all dependencies including postfix
+        if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl wget gnupg lsb-release postfix mailutils; then
+            log_error "Failed to install dependencies including postfix"
             return 1
         fi
         
-        # Clean up installer
-        rm -f /tmp/netdata-kickstart.sh
-    else
+        # Reconfigure postfix non-interactively
+        if ! sudo DEBIAN_FRONTEND=noninteractive dpkg-reconfigure postfix; then
+            log_warn "Failed to reconfigure postfix, but continuing..."
+        fi
+    fi
+    
+    log_info "Dependencies installed successfully"
+    
+    # Download and run official Netdata installer
+    log_info "Downloading Netdata installer..."
+    if ! wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh; then
         log_error "Failed to download Netdata installer"
         return 1
     fi
+    
+    log_info "Installing Netdata (this may take a few minutes)..."
+    # Use non-interactive installation with auto-update disabled
+    if ! sudo bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab --dont-wait; then
+        log_error "Netdata installation failed"
+        return 1
+    fi
+    
+    log_info "Netdata installed successfully"
+    
+    # Clean up installer
+    rm -f /tmp/netdata-kickstart.sh
     
     # CRITICAL: Configure systemd override BEFORE any other configuration
     configure_netdata_systemd_override
@@ -83,8 +128,8 @@ configure_netdata_security() {
         # Remove systemd override that's designed for official installer
         if [ -d "/etc/systemd/system/netdata.service.d" ]; then
             log_info "Removing systemd override (not needed for system package installation)"
-            rm -rf /etc/systemd/system/netdata.service.d
-            systemctl daemon-reload
+            sudo rm -rf /etc/systemd/system/netdata.service.d
+            sudo systemctl daemon-reload
         fi
         
     elif [ -f "/opt/netdata/usr/sbin/netdata" ] || [ -d "/opt/netdata" ]; then
@@ -98,8 +143,8 @@ configure_netdata_security() {
         log_info "Detected official installer installation of Netdata"
         
         # Ensure config directory exists for official installer
-        mkdir -p "$(dirname "$netdata_conf")"
-        chown -R netdata:netdata "$(dirname "$(dirname "$netdata_conf")")" 2>/dev/null || true
+        sudo mkdir -p "$(dirname "$netdata_conf")"
+        sudo chown -R netdata:netdata "$(dirname "$(dirname "$netdata_conf")")" 2>/dev/null || true
         
     else
         log_error "Could not detect Netdata installation type"
@@ -114,7 +159,7 @@ configure_netdata_security() {
     if [ -f "$netdata_conf" ]; then
         local backup_conf="${netdata_conf}.backup"
         if [ ! -f "$backup_conf" ]; then
-            cp "$netdata_conf" "$backup_conf"
+            sudo cp "$netdata_conf" "$backup_conf"
             log_info "Created backup: $backup_conf"
         fi
     fi
@@ -123,27 +168,27 @@ configure_netdata_security() {
     log_info "Creating required directories..."
     for dir in "$cache_dir" "$lib_dir" "$log_dir" "$run_dir"; do
         if [ ! -d "$dir" ]; then
-            mkdir -p "$dir"
-            chown netdata:netdata "$dir" 2>/dev/null || true
+            sudo mkdir -p "$dir"
+            sudo chown netdata:netdata "$dir" 2>/dev/null || true
             log_info "Created directory: $dir"
         fi
     done
     
     # For system installations, also create cloud config if needed
     if [ "$netdata_type" = "system" ] && [ ! -f "$lib_dir/cloud.d/cloud.conf" ]; then
-        mkdir -p "$lib_dir/cloud.d"
-        cat > "$lib_dir/cloud.d/cloud.conf" << EOF
+        sudo mkdir -p "$lib_dir/cloud.d"
+        sudo tee "$lib_dir/cloud.d/cloud.conf" > /dev/null << EOF
 [global]
     enabled = no
     cloud base url = https://app.netdata.cloud
 EOF
-        chown -R netdata:netdata "$lib_dir/cloud.d"
+        sudo chown -R netdata:netdata "$lib_dir/cloud.d"
         log_info "Created cloud config: $lib_dir/cloud.d/cloud.conf"
     fi
     
     # Configure Netdata to bind only to localhost for security
     log_info "Writing Netdata configuration for localhost-only binding..."
-    cat > "$netdata_conf" << EOF
+    sudo tee "$netdata_conf" > /dev/null << EOF
 # Netdata Configuration - Milestone 4
 # Generated by n8n server initialization
 
@@ -212,8 +257,8 @@ EOF
 EOF
     
     # Set proper ownership and permissions
-    chown netdata:netdata "$netdata_conf"
-    chmod 644 "$netdata_conf"
+    sudo chown netdata:netdata "$netdata_conf"
+    sudo chmod 644 "$netdata_conf"
     
     log_info "Netdata configuration updated successfully"
     
@@ -221,11 +266,11 @@ EOF
     log_info "Force-restarting Netdata service to apply localhost-only binding..."
     
     # Kill any existing netdata processes
-    pkill -f netdata || true
+    sudo pkill -f netdata || true
     sleep 2
     
     # Start fresh
-    if execute_silently "systemctl restart netdata"; then
+    if sudo systemctl restart netdata; then
         log_info "Netdata service restarted successfully"
         
         # Wait longer for service to start and verify binding
@@ -278,11 +323,11 @@ configure_netdata_health_monitoring() {
     fi
     
     # Create health.d directory if it doesn't exist
-    mkdir -p "$health_dir"
+    sudo mkdir -p "$health_dir"
     log_info "Using health configuration directory: $health_dir"
     
     # Configure CPU usage alerts
-    cat > "$health_dir/cpu_usage.conf" << EOF
+    sudo tee "$health_dir/cpu_usage.conf" > /dev/null << EOF
 # CPU Usage Alert Configuration - Milestone 4
 
  alarm: cpu_usage_high
@@ -299,7 +344,7 @@ lookup: average -3m unaligned of user,system
 EOF
     
     # Configure RAM usage alerts (create both ram_usage.conf and memory_usage.conf for compatibility)
-    cat > "$health_dir/ram_usage.conf" << EOF
+    sudo tee "$health_dir/ram_usage.conf" > /dev/null << EOF
 # RAM Usage Alert Configuration - Milestone 4
 
  alarm: ram_usage_high
@@ -317,7 +362,7 @@ lookup: average -3m unaligned of used
 EOF
 
     # Create memory_usage.conf as an alias for compatibility with tests
-    cat > "$health_dir/memory_usage.conf" << EOF
+    sudo tee "$health_dir/memory_usage.conf" > /dev/null << EOF
 # Memory Usage Alert Configuration - Milestone 4 (Alias for RAM)
 
  alarm: memory_usage_high
@@ -335,7 +380,7 @@ lookup: average -3m unaligned of used
 EOF
     
     # Configure disk usage alerts (using available disk chart)
-    cat > "$health_dir/disk_usage.conf" << EOF
+    sudo tee "$health_dir/disk_usage.conf" > /dev/null << EOF
 # Disk Usage Alert Configuration - Milestone 4
 
  alarm: disk_space_usage_high
@@ -353,7 +398,7 @@ lookup: average -1m unaligned of used
 EOF
     
     # Configure load average alerts
-    cat > "$health_dir/load_average.conf" << EOF
+    sudo tee "$health_dir/load_average.conf" > /dev/null << EOF
 # Load Average Alert Configuration - Milestone 4
 
  alarm: load_average_high
@@ -370,8 +415,8 @@ lookup: average -3m unaligned of load1
 EOF
     
     # Set proper ownership for health configuration files
-    chown -R netdata:netdata "$health_dir" 2>/dev/null || chown -R root:root "$health_dir"
-    chmod -R 644 "$health_dir"/*.conf
+    sudo chown -R netdata:netdata "$health_dir" 2>/dev/null || sudo chown -R root:root "$health_dir"
+    sudo chmod -R 644 "$health_dir"/*.conf
     
     # Configure email notifications if enabled
     if [ "${NETDATA_EMAIL_ALERTS:-true}" = "true" ]; then
@@ -388,10 +433,10 @@ configure_netdata_email_notifications() {
     log_info "Using notification config file: $health_alarm_notify"
     
     # Ensure parent directory exists
-    mkdir -p "$(dirname "$health_alarm_notify")"
+    sudo mkdir -p "$(dirname "$health_alarm_notify")"
     
     # Create notification configuration
-    cat > "$health_alarm_notify" << EOF
+    sudo tee "$health_alarm_notify" > /dev/null << EOF
 # Netdata Health Alarm Notification Configuration - Milestone 4
 
 # Enable sending emails
@@ -420,8 +465,8 @@ EMAIL_SUBJECT="[Netdata Alert] \${host} \${alarm} \${status}"
 EOF
     
     # CRITICAL FIX: Set proper permissions so netdata user can read the file
-    chown netdata:netdata "$health_alarm_notify" 2>/dev/null || chown root:netdata "$health_alarm_notify"
-    chmod 644 "$health_alarm_notify"
+    sudo chown netdata:netdata "$health_alarm_notify" 2>/dev/null || sudo chown root:netdata "$health_alarm_notify"
+    sudo chmod 644 "$health_alarm_notify"
     
     # Ensure netdata user can access the file
     if [ -f "$health_alarm_notify" ]; then
@@ -430,7 +475,7 @@ EOF
             log_info "✓ Netdata user can read notification config file"
         else
             # Fallback: make it world-readable
-            chmod 644 "$health_alarm_notify"
+            sudo chmod 644 "$health_alarm_notify"
             log_info "✓ Fixed notification config file permissions"
         fi
     fi
@@ -467,7 +512,7 @@ configure_netdata_nginx_proxy() {
     
     if [ -f "$auth_file" ]; then
         chmod 640 "$auth_file"
-        chown root:www-data "$auth_file"
+        sudo chown root:www-data "$auth_file"
         log_info "Basic authentication configured for user: ${NETDATA_NGINX_AUTH_USER}"
     else
         log_error "Failed to create authentication file"
@@ -482,7 +527,7 @@ configure_netdata_nginx_proxy() {
     if [ -f "$ssl_key_path" ]; then
         # Fix SSL key permissions - make it readable by nginx
         chmod 644 "$ssl_key_path"
-        chown root:www-data "$ssl_key_path"
+        sudo chown root:www-data "$ssl_key_path"
         log_info "Fixed SSL private key permissions: $ssl_key_path"
     else
         log_error "SSL private key not found: $ssl_key_path"
@@ -491,7 +536,7 @@ configure_netdata_nginx_proxy() {
     
     if [ -f "$ssl_cert_path" ]; then
         chmod 644 "$ssl_cert_path"
-        chown root:www-data "$ssl_cert_path"
+        sudo chown root:www-data "$ssl_cert_path"
         log_info "SSL certificate permissions verified: $ssl_cert_path"
     else
         log_error "SSL certificate not found: $ssl_cert_path"
@@ -501,7 +546,7 @@ configure_netdata_nginx_proxy() {
     # Create Nginx configuration for Netdata
     local server_name="${NETDATA_NGINX_SUBDOMAIN}.${NGINX_SERVER_NAME:-localhost}"
     
-    cat > "$netdata_conf" << EOF
+    sudo tee "$netdata_conf" > /dev/null << EOF
 # Netdata Nginx Configuration - Milestone 4
 # Secure HTTPS proxy for Netdata dashboard
 
@@ -583,18 +628,18 @@ EOF
     
     # Enable the configuration
     if [ ! -L "$nginx_enabled_dir/netdata" ]; then
-        ln -sf "$netdata_conf" "$nginx_enabled_dir/netdata"
+        sudo ln -sf "$netdata_conf" "$nginx_enabled_dir/netdata"
         log_info "Netdata Nginx configuration enabled"
     else
         log_info "Netdata Nginx configuration already enabled"
     fi
     
     # Test Nginx configuration
-    if nginx -t &>/dev/null; then
+    if sudo nginx -t &>/dev/null; then
         log_info "Nginx configuration test successful"
         
         # Reload Nginx
-        if execute_silently "systemctl reload nginx"; then
+        if sudo systemctl reload nginx; then
             log_info "Nginx reloaded successfully"
         else
             log_warn "Failed to reload Nginx - manual restart may be required"
@@ -602,7 +647,7 @@ EOF
     else
         log_error "Nginx configuration test failed"
         log_error "Running nginx -t for detailed error information..."
-        nginx -t
+        sudo nginx -t
         return 1
     fi
     
@@ -655,13 +700,13 @@ configure_netdata_firewall() {
     execute_silently "ufw reload" 2>/dev/null || true
     
     # Display current firewall status
-    local firewall_status=$(ufw status 2>/dev/null | head -1)
+    local firewall_status=$(sudo ufw status 2>/dev/null | head -1)
     if [[ "$firewall_status" == *"active"* ]]; then
         # Count the rules for summary
-        local ssh_rules=$(ufw status numbered 2>/dev/null | grep -c "22/tcp" || echo "0")
-        local http_rules=$(ufw status numbered 2>/dev/null | grep -c "80/tcp" || echo "0") 
-        local https_rules=$(ufw status numbered 2>/dev/null | grep -c "443/tcp" || echo "0")
-        local netdata_deny_rules=$(ufw status numbered 2>/dev/null | grep -c "${NETDATA_PORT:-19999}/tcp.*DENY" || echo "0")
+        local ssh_rules=$(sudo ufw status numbered 2>/dev/null | grep -c "22/tcp" || echo "0")
+        local http_rules=$(sudo ufw status numbered 2>/dev/null | grep -c "80/tcp" || echo "0") 
+        local https_rules=$(sudo ufw status numbered 2>/dev/null | grep -c "443/tcp" || echo "0")
+        local netdata_deny_rules=$(sudo ufw status numbered 2>/dev/null | grep -c "${NETDATA_PORT:-19999}/tcp.*DENY" || echo "0")
         
         log_info "UFW firewall is active"
         log_info "Firewall rules: SSH ($ssh_rules), HTTP ($http_rules), HTTPS ($https_rules), Netdata DENY ($netdata_deny_rules)"
@@ -709,7 +754,7 @@ start_netdata_service() {
     local max_wait=30
     
     while [ $wait_count -lt $max_wait ]; do
-        if systemctl is-active netdata &>/dev/null; then
+        if sudo systemctl is-active netdata &>/dev/null; then
             log_info "Netdata service is running"
             break
         fi
@@ -718,7 +763,7 @@ start_netdata_service() {
     done
     
     # Final service status check
-    if systemctl is-active netdata &>/dev/null; then
+    if sudo systemctl is-active netdata &>/dev/null; then
         log_info "Netdata service is active and running"
         
         # Wait a bit more for API to be ready
@@ -733,7 +778,7 @@ start_netdata_service() {
     else
         log_error "Netdata service failed to start properly"
         # Show service status for debugging
-        systemctl status netdata --no-pager -l 2>/dev/null | head -10 | while read line; do
+        sudo systemctl status netdata --no-pager -l 2>/dev/null | head -10 | while read line; do
             log_error "Service status: $line"
         done
         return 1
@@ -757,8 +802,8 @@ setup_netdata_monitoring() {
     
     # Step 2: Stop service and kill any existing processes
     log_info "Stopping any existing Netdata processes..."
-    systemctl stop netdata 2>/dev/null || true
-    pkill -f netdata || true
+    sudo systemctl stop netdata 2>/dev/null || true
+    sudo pkill -f netdata || true
     sleep 3
     
     # Step 3: Configure Netdata security settings  
@@ -777,7 +822,7 @@ setup_netdata_monitoring() {
     log_info "Starting and enabling Netdata service..."
     
     # Reload systemd daemon to ensure override is picked up
-    systemctl daemon-reload
+    sudo systemctl daemon-reload
     
     # Enable the service
     if execute_silently "systemctl enable netdata"; then
@@ -793,7 +838,7 @@ setup_netdata_monitoring() {
     else
         log_error "Failed to start Netdata service"
         # Show recent logs for debugging
-        journalctl -u netdata --no-pager -n 10
+        sudo journalctl -u netdata --no-pager -n 10
         return 1
     fi
     
@@ -803,7 +848,7 @@ setup_netdata_monitoring() {
     local wait_count=0
     
     while [ $wait_count -lt $max_wait ]; do
-        if systemctl is-active netdata >/dev/null 2>&1; then
+        if sudo systemctl is-active netdata >/dev/null 2>&1; then
             log_info "Netdata service is active and running"
             break
         fi
@@ -815,19 +860,19 @@ setup_netdata_monitoring() {
     if [ $wait_count -ge $max_wait ]; then
         log_error "Netdata service failed to start within $max_wait seconds"
         log_error "Service status:"
-        systemctl status netdata --no-pager -l
+        sudo systemctl status netdata --no-pager -l
         return 1
     fi
     
     # Step 7: Verify Netdata is listening on localhost
     sleep 5  # Additional wait for service to bind to port
     
-    if ss -tlnp | grep -q "127.0.0.1:19999"; then
+    if sudo ss -tlnp | grep -q "127.0.0.1:19999"; then
         log_info "✓ Netdata is listening on localhost:19999"
     else
         log_warn "Netdata may not be listening on localhost:19999 yet"
         log_info "Current listening ports:"
-        ss -tlnp | grep ":19999" || log_warn "No process listening on port 19999"
+        sudo ss -tlnp | grep ":19999" || log_warn "No process listening on port 19999"
     fi
     
     # Step 8: Test API response
@@ -854,9 +899,9 @@ setup_netdata_monitoring() {
     if [ -n "${NETDATA_DOMAIN}" ] && [ "${NETDATA_DOMAIN}" != "localhost" ]; then
         log_info "Adding local hosts entry for testing: ${NETDATA_DOMAIN}"
         # Remove existing entry if present
-        sed -i "/${NETDATA_DOMAIN}/d" /etc/hosts 2>/dev/null || true
+        sudo sed -i "/${NETDATA_DOMAIN}/d" /etc/hosts 2>/dev/null || true
         # Add new entry
-        echo "127.0.0.1 ${NETDATA_DOMAIN}" >> /etc/hosts
+        echo "127.0.0.1 ${NETDATA_DOMAIN}" | sudo tee -a /etc/hosts
         log_info "Added hosts entry: 127.0.0.1 ${NETDATA_DOMAIN}"
     fi
     
@@ -928,7 +973,7 @@ verify_netdata_installation() {
     done
     
     # Check systemd service
-    if ! systemctl is-enabled netdata >/dev/null 2>&1; then
+    if ! sudo systemctl is-enabled netdata >/dev/null 2>&1; then
         log_error "Netdata service is not enabled"
         return 1
     fi
@@ -942,12 +987,12 @@ verify_netdata_installation() {
     while [ $attempt -le $max_attempts ]; do
         log_info "Checking Netdata service status (attempt $attempt/$max_attempts)..."
         
-        if systemctl is-active netdata >/dev/null 2>&1; then
+        if sudo systemctl is-active netdata >/dev/null 2>&1; then
             service_running=true
             log_info "✓ Netdata service is active"
             break
         else
-            local status=$(systemctl show netdata --property=ActiveState --value)
+            local status=$(sudo systemctl show netdata --property=ActiveState --value)
             log_warn "Netdata service status: $status"
             
             if [ "$status" = "activating" ]; then
@@ -955,7 +1000,7 @@ verify_netdata_installation() {
                 sleep 10
             elif [ "$status" = "failed" ]; then
                 log_error "Service failed to start, checking logs..."
-                journalctl -u netdata --no-pager -n 10 | tail -5
+                sudo journalctl -u netdata --no-pager -n 10 | tail -5
                 break
             else
                 log_warn "Service in unexpected state: $status"
@@ -969,7 +1014,7 @@ verify_netdata_installation() {
     if [ "$service_running" = false ]; then
         log_error "Netdata service is not running after $max_attempts attempts"
         log_error "Final service status:"
-        systemctl status netdata --no-pager -l
+        sudo systemctl status netdata --no-pager -l
         return 1
     fi
     
@@ -977,12 +1022,12 @@ verify_netdata_installation() {
     local netdata_port="${NETDATA_PORT:-19999}"
     local bind_ip="${NETDATA_BIND_IP:-127.0.0.1}"
     
-    if ss -tlnp | grep -q "${bind_ip}:${netdata_port}"; then
+    if sudo ss -tlnp | grep -q "${bind_ip}:${netdata_port}"; then
         log_info "✓ Netdata is listening on ${bind_ip}:${netdata_port}"
     else
         log_warn "Netdata may not be listening on expected address ${bind_ip}:${netdata_port}"
         log_info "Current listening ports:"
-        ss -tlnp | grep ":${netdata_port}" || log_warn "No process listening on port ${netdata_port}"
+        sudo ss -tlnp | grep ":${netdata_port}" || log_warn "No process listening on port ${netdata_port}"
         # Don't fail here as it might still be starting
     fi
     
@@ -995,11 +1040,11 @@ configure_netdata_systemd_override() {
     
     # Create systemd override directory
     local override_dir="/etc/systemd/system/netdata.service.d"
-    mkdir -p "$override_dir"
+    sudo mkdir -p "$override_dir"
     
     # Create override configuration that sets environment variables
     # This ensures Netdata uses the correct paths regardless of config file issues
-    cat > "$override_dir/override.conf" << 'EOF'
+    sudo tee "$override_dir/override.conf" > /dev/null << 'EOF'
 [Service]
 # Override environment variables to force correct paths for official installer
 Environment="NETDATA_WEB_DIR=/opt/netdata/usr/share/netdata/web"
@@ -1023,7 +1068,7 @@ EOF
     log_info "Systemd override created: $override_dir/override.conf"
     
     # Reload systemd to pick up the override
-    systemctl daemon-reload
+    sudo systemctl daemon-reload
     log_info "Systemd configuration reloaded"
     
     return 0
