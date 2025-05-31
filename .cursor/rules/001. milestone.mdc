@@ -5,6 +5,52 @@ alwaysApply: true
 ---
 # Milestone
 
+## Milestone 5 (In Progress)
+- Created `ssl_renewal.sh` under setup folder that:
+  - Set up automatic renewal of Let's Encrypt SSL certificates for production environments
+  - Handle self-signed certificate management when PRODUCTION=false
+  - Configured proper renewal hooks to restart/reload Nginx and related services after renewal
+  - Implemented fallback mechanisms for when Let's Encrypt renewal might fail
+  - Created detailed logging for renewal processes and certificate management
+  - Ensured proper file permissions for certificate files in both production and development modes
+  - Included graceful error handling with clear error messages
+  - Configured different certificate approaches based on PRODUCTION flag (Let's Encrypt vs self-signed)
+  - Added special handling for DNS propagation delays in Cloudflare DNS validation for production
+  - Implemented development mode with self-signed certificate regeneration when needed
+  - Integrated with existing Nginx SSL configuration for seamless certificate updates
+- Created comprehensive test script (`test_ssl_renewal.sh`) to validate:
+  - Proper certificate renewal configuration for production environments
+  - Self-signed certificate handling for development environments (PRODUCTION=false)
+  - Renewal hooks functionality and service restart capabilities
+  - Proper permissions on SSL certificate files for both Nginx and n8n access
+  - Simulated renewal process with dry-run for Let's Encrypt certificates
+  - Log file creation and error reporting for certificate management
+  - Added specific handling for development vs production environment differences
+  - Provided detailed diagnostics for renewal simulation failures
+  - Validated integration with existing Nginx reverse proxy configuration
+  - Test script for the SSL renewal function to ensure proper operation
+  - Automated testing of certificate renewal workflows without affecting production certificates
+- Updated init.sh and related scripts:
+  - Added SSL renewal configuration in the initialization process
+  - Enhanced integration with existing Nginx SSL setup from Milestone 3
+  - Improved certificate management workflow for both development and production
+  - Added certificate validation and automatic regeneration capabilities
+- Enhanced error handling and logging:
+  - Implemented detailed error reporting for certificate renewal and generation failures
+  - Added verification steps for SSL certificate configuration
+  - Created troubleshooting guidance in log messages for certificate issues
+  - Added validation checks to prevent common SSL certificate problems
+  - Enhanced logging to distinguish between production Let's Encrypt and development self-signed workflows
+  - Created helper functions for certificate management operations
+- SSL Certificate Management Features:
+  - Automatic Let's Encrypt certificate acquisition and renewal for production environments
+  - Self-signed certificate generation and management for development environments (PRODUCTION=false)
+  - Seamless integration with existing Nginx reverse proxy from Milestone 3
+  - Certificate validation and health checking capabilities
+  - Proper certificate file permissions for multi-service access (Nginx, n8n, Netdata)
+  - Backup and recovery mechanisms for certificate files
+  - Support for multiple domain configurations and certificate types
+
 ## Milestone 4 (Completed)
 - Created `netdata_config.sh` under setup folder that:
   - Installs Netdata for system resource monitoring
