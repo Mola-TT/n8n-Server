@@ -322,10 +322,8 @@ generate_self_signed_certificate() {
     
     # Generate certificate
     log_ssl "INFO" "Generating self-signed certificate..."
-    local openssl_cmd="openssl req -new -x509 -key $SSL_KEY_PATH -out $SSL_CERT_PATH -days $days"
-    openssl_cmd="$openssl_cmd -subj '/C=US/ST=State/L=City/O=Organization/CN=$domain'"
-    
-    if sudo $openssl_cmd; then
+    if sudo openssl req -new -x509 -key "$SSL_KEY_PATH" -out "$SSL_CERT_PATH" -days "$days" \
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=$domain"; then
         log_ssl "INFO" "Self-signed certificate generated successfully"
     else
         log_ssl "ERROR" "Failed to generate self-signed certificate"
