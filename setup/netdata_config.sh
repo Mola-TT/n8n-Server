@@ -40,7 +40,7 @@ install_netdata() {
     done
     
     # Update package lists
-    if ! sudo apt-get update -qq; then
+    if ! execute_silently "sudo apt-get update"; then
         log_error "Failed to update package lists"
         return 1
     fi
@@ -49,7 +49,7 @@ install_netdata() {
     if dpkg -l postfix 2>/dev/null | grep -q "^ii"; then
         log_info "Postfix is already installed, skipping installation"
         # Just install other dependencies
-        if ! sudo apt-get install -y curl wget gnupg lsb-release mailutils; then
+        if ! execute_silently "sudo apt-get install -y curl wget gnupg lsb-release mailutils"; then
             log_error "Failed to install basic dependencies"
             return 1
         fi
@@ -60,13 +60,13 @@ install_netdata() {
         echo "postfix postfix/mailname string $(hostname -f)" | sudo debconf-set-selections
         
         # Install all dependencies including postfix
-        if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl wget gnupg lsb-release postfix mailutils; then
+        if ! execute_silently "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl wget gnupg lsb-release postfix mailutils"; then
             log_error "Failed to install dependencies including postfix"
             return 1
         fi
         
         # Reconfigure postfix non-interactively
-        if ! sudo DEBIAN_FRONTEND=noninteractive dpkg-reconfigure postfix; then
+        if ! execute_silently "sudo DEBIAN_FRONTEND=noninteractive dpkg-reconfigure postfix"; then
             log_warn "Failed to reconfigure postfix, but continuing..."
         fi
     fi
@@ -75,14 +75,14 @@ install_netdata() {
     
     # Download and run official Netdata installer
     log_info "Downloading Netdata installer..."
-    if ! wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh; then
+    if ! execute_silently "wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh"; then
         log_error "Failed to download Netdata installer"
         return 1
     fi
     
     log_info "Installing Netdata (this may take a few minutes)..."
     # Use non-interactive installation with auto-update disabled
-    if ! sudo bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab --dont-wait; then
+    if ! execute_silently "sudo bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab --dont-wait"; then
         log_error "Netdata installation failed"
         return 1
     fi
