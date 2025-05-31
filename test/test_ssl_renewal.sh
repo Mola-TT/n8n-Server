@@ -131,8 +131,8 @@ test_certificate_validation_missing_files() {
     local script_path="$(dirname "${BASH_SOURCE[0]}")/../setup/ssl_renewal.sh"
     source "$script_path"
     
-    # Test with non-existent files
-    ! validate_certificate "/nonexistent/cert.crt" "/nonexistent/key.key"
+    # Test with non-existent files (suppress expected error output)
+    ! validate_certificate "/nonexistent/cert.crt" "/nonexistent/key.key" >/dev/null 2>&1
 }
 
 test_certificate_validation_invalid_format() {
@@ -146,9 +146,9 @@ test_certificate_validation_invalid_format() {
     echo "invalid certificate content" > "$temp_cert"
     echo "invalid key content" > "$temp_key"
     
-    # Test validation should fail
+    # Test validation should fail (suppress expected error output)
     local result=1
-    if ! validate_certificate "$temp_cert" "$temp_key"; then
+    if ! validate_certificate "$temp_cert" "$temp_key" >/dev/null 2>&1; then
         result=0
     fi
     
@@ -371,13 +371,13 @@ test_ssl_log_levels() {
     local script_path="$(dirname "${BASH_SOURCE[0]}")/../setup/ssl_renewal.sh"
     source "$script_path"
     
-    # Test different log levels
-    log_ssl "INFO" "Info test"
-    log_ssl "WARN" "Warning test"
-    log_ssl "ERROR" "Error test"
-    log_ssl "DEBUG" "Debug test"
+    # Test different log levels (suppress console output for cleaner test results)
+    log_ssl "INFO" "Info test" >/dev/null 2>&1
+    log_ssl "WARN" "Warning test" >/dev/null 2>&1
+    log_ssl "ERROR" "Error test" >/dev/null 2>&1
+    log_ssl "DEBUG" "Debug test" >/dev/null 2>&1
     
-    # Check if all log levels are present
+    # Check if all log levels are present in the log file
     grep -q "Info test" "$SSL_LOG_FILE" && \
     grep -q "Warning test" "$SSL_LOG_FILE" && \
     grep -q "Error test" "$SSL_LOG_FILE" && \
