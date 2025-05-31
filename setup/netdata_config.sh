@@ -304,11 +304,24 @@ EOF
 configure_netdata_health_monitoring() {
     log_info "Configuring Netdata health monitoring and alerts..."
     
+    # Detect correct health directory based on installation type
+    local health_dir=""
+    if [ -d "/etc/netdata" ]; then
+        health_dir="/etc/netdata/health.d"
+    elif [ -d "/opt/netdata/etc/netdata" ]; then
+        health_dir="/opt/netdata/etc/netdata/health.d"
+    else
+        log_error "Could not find Netdata configuration directory"
+        return 1
+    fi
+    
+    log_info "Using health configuration directory: $health_dir"
+    
     # Create health configuration directory
-    sudo mkdir -p /etc/netdata/health.d
+    sudo mkdir -p "$health_dir"
     
     # CPU Usage Alert - Fixed chart name to system.cpu
-    sudo tee /etc/netdata/health.d/cpu_usage.conf > /dev/null << 'EOF'
+    sudo tee "$health_dir/cpu_usage.conf" > /dev/null << 'EOF'
 # CPU Usage Alert Configuration - Milestone 4
 
  alarm: cpu_usage_high
@@ -324,7 +337,7 @@ lookup: average -3m unaligned of user,system,nice,iowait
 EOF
 
     # Memory Usage Alert - Fixed chart name to system.ram
-    sudo tee /etc/netdata/health.d/memory_usage.conf > /dev/null << 'EOF'
+    sudo tee "$health_dir/memory_usage.conf" > /dev/null << 'EOF'
 # Memory Usage Alert Configuration - Milestone 4
 
  alarm: memory_usage_high
@@ -340,7 +353,7 @@ lookup: average -3m unaligned of used
 EOF
 
     # RAM Usage Alert (alternative name for compatibility)
-    sudo tee /etc/netdata/health.d/ram_usage.conf > /dev/null << 'EOF'
+    sudo tee "$health_dir/ram_usage.conf" > /dev/null << 'EOF'
 # RAM Usage Alert Configuration - Milestone 4
 
  alarm: ram_usage_high
@@ -356,7 +369,7 @@ lookup: average -3m unaligned of used
 EOF
 
     # Disk Usage Alert - Fixed chart name to disk_space./
-    sudo tee /etc/netdata/health.d/disk_usage.conf > /dev/null << 'EOF'
+    sudo tee "$health_dir/disk_usage.conf" > /dev/null << 'EOF'
 # Disk Usage Alert Configuration - Milestone 4
 
  alarm: disk_usage_high
@@ -372,7 +385,7 @@ lookup: average -3m unaligned of used
 EOF
 
     # Load Average Alert - Chart name confirmed as system.load
-    sudo tee /etc/netdata/health.d/load_average.conf > /dev/null << 'EOF'
+    sudo tee "$health_dir/load_average.conf" > /dev/null << 'EOF'
 # Load Average Alert Configuration - Milestone 4
 
  alarm: load_average_high
@@ -388,10 +401,46 @@ lookup: average -3m unaligned of load1
 EOF
 
     # Set proper permissions for health configuration files
-    sudo chmod 644 /etc/netdata/health.d/*.conf
-    sudo chown netdata:netdata /etc/netdata/health.d/*.conf 2>/dev/null || true
+    sudo chmod 644 "$health_dir"/*.conf
+    sudo chown netdata:netdata "$health_dir"/*.conf 2>/dev/null || true
+    
+    # Configure email notifications
+    local notification_config=""
+    if [ -d "/etc/netdata" ]; then
+        notification_config="/etc/netdata/health_alarm_notify.conf"
+    elif [ -d "/opt/netdata/etc/netdata" ]; then
+        notification_config="/opt/netdata/etc/netdata/health_alarm_notify.conf"
+    else
+        log_error "Could not determine notification config path"
+        return 1
+    fi
+    
+    log_info "Configuring email notifications at: $notification_config"
+    configure_netdata_email_notifications "$notification_config"
     
     log_info "Health monitoring alerts configured successfully"
+    
+    # CRITICAL: Restart Netdata to reload health configurations
+    log_info "Restarting Netdata to reload health configurations..."
+    if sudo systemctl restart netdata; then
+        log_info "Netdata restarted successfully"
+        
+        # Wait for service to be ready
+        sleep 10
+        
+        # Verify health alerts are now loaded
+        local alert_count=$(curl -s --connect-timeout 10 "http://127.0.0.1:19999/api/v1/alarms?all" 2>/dev/null | grep -o '"[^"]*_high"' | wc -l || echo "0")
+        if [ "$alert_count" -gt 0 ]; then
+            log_info "✓ Health alerts loaded successfully ($alert_count alerts found)"
+        else
+            log_warn "Health alerts may not be loaded yet (found $alert_count alerts)"
+        fi
+    else
+        log_error "Failed to restart Netdata service"
+        return 1
+    fi
+    
+    return 0
 }
 
 configure_netdata_email_notifications() {
