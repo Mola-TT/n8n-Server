@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Milestone
 
-## Milestone 5 (In Progress)
+## Milestone 5 (Completed)
 - Created `ssl_renewal.sh` under setup folder that:
   - Set up automatic renewal of Let's Encrypt SSL certificates for production environments
   - Handle self-signed certificate management when PRODUCTION=false
