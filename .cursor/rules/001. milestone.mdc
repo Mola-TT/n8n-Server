@@ -5,6 +5,89 @@ alwaysApply: true
 ---
 # Milestone
 
+## Milestone 6 (In Progress)
+- Create `dynamic_optimization.sh` under setup folder that:
+  - Detects hardware specifications (CPU cores, memory, disk size)
+  - Dynamically calculates optimal n8n configuration parameters
+  - Dynamically calculates optimal Docker resource limits and allocations
+  - Dynamically calculates optimal Nginx worker processes and connections
+  - Dynamically calculates optimal Redis memory configuration
+  - Implements intelligent resource allocation based on available hardware
+  - Provides performance recommendations based on n8n workload patterns
+  - Creates monitoring hooks to detect performance bottlenecks
+  - Optimizes PostgreSQL connection parameters for external database
+- Create `hardware_change_detector.sh` under setup folder that:
+  - Implements a service to monitor for hardware changes (CPU, RAM, disk)
+  - Triggers automatic reconfiguration when hardware changes are detected
+  - Records previous vs. new hardware specifications for comparison
+  - Performs gradual/phased optimization during production hours
+  - Creates backup of previous configuration before applying changes
+  - Implements robust email notification system for hardware changes
+  - Provides multiple fallback methods for n8n data directory detection
+  - Includes test email functionality to verify email configuration
+- Update n8n configuration for dynamic scaling:
+  - Implement dynamic N8N_EXECUTION_PROCESS based on CPU cores
+  - Configure N8N_EXECUTION_TIMEOUT based on available memory
+  - Adjust Docker memory limits based on total system memory
+  - Optimize worker processes for workflow execution
+  - Configure queue settings based on Redis memory allocation
+  - Implement dynamic webhook timeout configuration
+  - Tune database connection pool size for external PostgreSQL
+- Update Docker configuration for dynamic scaling:
+  - Dynamically adjust container memory limits based on available RAM
+  - Calculate optimal CPU limits based on core count
+  - Implement dynamic shared memory configuration
+  - Configure restart policies based on system stability
+  - Optimize volume mount performance based on disk I/O capabilities
+  - Implement dynamic logging configuration to prevent disk overflow
+- Update Nginx configuration for dynamic scaling:
+  - Dynamically adjust worker_processes based on CPU cores
+  - Calculate optimal worker_connections based on system resources
+  - Implement dynamic client_max_body_size for file uploads
+  - Configure proxy timeouts based on n8n execution patterns
+  - Optimize SSL session cache based on available memory
+  - Tune keepalive settings based on connection patterns
+- Update Redis configuration for dynamic scaling:
+  - Dynamically adjust maxmemory based on available RAM
+  - Calculate optimal maxmemory-policy for n8n queue management
+  - Implement dynamic save configuration based on disk I/O
+  - Configure timeout settings based on n8n workflow patterns
+  - Optimize persistence settings based on reliability requirements
+- Update Netdata configuration for dynamic scaling:
+  - Dynamically adjust update frequency based on system load
+  - Configure memory usage limits based on available RAM
+  - Implement dynamic alert thresholds based on hardware capacity
+  - Optimize data retention based on disk space
+  - Configure streaming settings for multi-server environments
+- Create comprehensive test script (`test_dynamic_optimization.sh`) to validate:
+  - Correct parameter calculations for different hardware profiles
+  - Proper configuration file generation and application
+  - Performance improvements after optimization
+  - Correct behavior during hardware change simulations
+  - Resource utilization before and after optimization
+  - n8n workflow execution performance improvements
+- Create comprehensive test script (`test_email_notification.sh`) to validate:
+  - Email notifications for hardware changes
+  - Email notifications for optimization completion
+  - Basic test email functionality
+  - Proper email tool installation and configuration
+  - Fallback mechanisms for email sending
+- Create analytics and reporting for optimization:
+  - Generate optimization reports with before/after comparisons
+  - Visualize performance metrics through Netdata dashboards
+  - Implement predictive analysis for future resource needs
+  - Create alerting system for approaching resource limits
+  - Document optimization decisions and rationale
+  - Monitor n8n workflow execution performance trends
+  - Track Docker container resource utilization patterns
+- Enhanced environment configuration:
+  - Added email notification settings to environment files
+  - Added TEST_EMAIL_SUBJECT variable for email testing
+  - Implemented backward compatibility with existing email settings
+  - Unified email configuration across different components
+  - Added hardware optimization preferences and thresholds
+  - Configured performance monitoring and alerting parameters
+
 ## Milestone 5 (Completed)
 - Created `ssl_renewal.sh` under setup folder that:
   - Set up automatic renewal of Let's Encrypt SSL certificates for production environments
