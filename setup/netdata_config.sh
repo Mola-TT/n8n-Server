@@ -302,129 +302,96 @@ EOF
 }
 
 configure_netdata_health_monitoring() {
-    log_info "Configuring Netdata health monitoring alerts..."
+    log_info "Configuring Netdata health monitoring and alerts..."
     
-    # Use installation-type-specific paths from detection
-    local health_dir
-    local notification_config
+    # Create health configuration directory
+    sudo mkdir -p /etc/netdata/health.d
     
-    # Detect installation type and set correct paths
-    if [ -f "/usr/sbin/netdata" ] && [ -d "/etc/netdata" ]; then
-        # System package installation
-        health_dir="/etc/netdata/health.d"
-        notification_config="/etc/netdata/health_alarm_notify.conf"
-    elif [ -f "/opt/netdata/usr/sbin/netdata" ] || [ -d "/opt/netdata" ]; then
-        # Official installer installation
-        health_dir="/opt/netdata/etc/netdata/health.d"
-        notification_config="/opt/netdata/etc/netdata/health_alarm_notify.conf"
-    else
-        log_error "Could not detect Netdata installation type for health configuration"
-        return 1
-    fi
-    
-    # Create health.d directory if it doesn't exist
-    sudo mkdir -p "$health_dir"
-    log_info "Using health configuration directory: $health_dir"
-    
-    # Configure CPU usage alerts
-    sudo tee "$health_dir/cpu_usage.conf" > /dev/null << EOF
+    # CPU Usage Alert - Fixed chart name to system.cpu
+    sudo tee /etc/netdata/health.d/cpu_usage.conf > /dev/null << 'EOF'
 # CPU Usage Alert Configuration - Milestone 4
 
  alarm: cpu_usage_high
-    on: netdata.server_cpu
-lookup: average -3m unaligned of user,system
+    on: system.cpu
+lookup: average -3m unaligned of user,system,nice,iowait
  units: %
  every: 10s
-  warn: \$this > ${NETDATA_CPU_THRESHOLD:-80}
-  crit: \$this > 95
+  warn: $this > 80
+  crit: $this > 95
  delay: down 15m multiplier 1.5 max 1h
-  info: Average CPU utilization over the last 3 minutes
+  info: CPU utilization is too high
     to: sysadmin
-
 EOF
-    
-    # Configure RAM usage alerts (create both ram_usage.conf and memory_usage.conf for compatibility)
-    sudo tee "$health_dir/ram_usage.conf" > /dev/null << EOF
+
+    # Memory Usage Alert - Fixed chart name to system.ram
+    sudo tee /etc/netdata/health.d/memory_usage.conf > /dev/null << 'EOF'
+# Memory Usage Alert Configuration - Milestone 4
+
+ alarm: memory_usage_high
+    on: system.ram
+lookup: average -3m unaligned of used
+ units: %
+ every: 10s
+  warn: $this > 80
+  crit: $this > 95
+ delay: down 15m multiplier 1.5 max 1h
+  info: Memory utilization is too high
+    to: sysadmin
+EOF
+
+    # RAM Usage Alert (alternative name for compatibility)
+    sudo tee /etc/netdata/health.d/ram_usage.conf > /dev/null << 'EOF'
 # RAM Usage Alert Configuration - Milestone 4
 
  alarm: ram_usage_high
-    on: netdata.memory
+    on: system.ram
 lookup: average -3m unaligned of used
-  calc: \$this * 100 / (\$this + \$free + \$buffers + \$cached)
  units: %
  every: 10s
-  warn: \$this > ${NETDATA_RAM_THRESHOLD:-80}
-  crit: \$this > 95
+  warn: $this > 80
+  crit: $this > 95
  delay: down 15m multiplier 1.5 max 1h
-  info: RAM utilization over the last 3 minutes
+  info: RAM utilization is too high
     to: sysadmin
-
 EOF
 
-    # Create memory_usage.conf as an alias for compatibility with tests
-    sudo tee "$health_dir/memory_usage.conf" > /dev/null << EOF
-# Memory Usage Alert Configuration - Milestone 4 (Alias for RAM)
-
- alarm: memory_usage_high
-    on: netdata.memory
-lookup: average -3m unaligned of used
-  calc: \$this * 100 / (\$this + \$free + \$buffers + \$cached)
- units: %
- every: 10s
-  warn: \$this > ${NETDATA_RAM_THRESHOLD:-80}
-  crit: \$this > 95
- delay: down 15m multiplier 1.5 max 1h
-  info: Memory utilization over the last 3 minutes
-    to: sysadmin
-
-EOF
-    
-    # Configure disk usage alerts (using available disk chart)
-    sudo tee "$health_dir/disk_usage.conf" > /dev/null << EOF
+    # Disk Usage Alert - Fixed chart name to disk_space./
+    sudo tee /etc/netdata/health.d/disk_usage.conf > /dev/null << 'EOF'
 # Disk Usage Alert Configuration - Milestone 4
 
- alarm: disk_space_usage_high
-    on: disk_space._
-lookup: average -1m unaligned of used
-  calc: \$this * 100 / (\$this + \$avail)
+ alarm: disk_usage_high
+    on: disk_space./
+lookup: average -3m unaligned of used
  units: %
  every: 10s
-  warn: \$this > ${NETDATA_DISK_THRESHOLD:-80}
-  crit: \$this > 95
+  warn: $this > 80
+  crit: $this > 95
  delay: down 15m multiplier 1.5 max 1h
-  info: Disk space utilization
+  info: Disk space utilization is too high
     to: sysadmin
-
 EOF
-    
-    # Configure load average alerts
-    sudo tee "$health_dir/load_average.conf" > /dev/null << EOF
+
+    # Load Average Alert - Chart name confirmed as system.load
+    sudo tee /etc/netdata/health.d/load_average.conf > /dev/null << 'EOF'
 # Load Average Alert Configuration - Milestone 4
 
  alarm: load_average_high
     on: system.load
 lookup: average -3m unaligned of load1
- units: load
+ units: 
  every: 10s
-  warn: \$this > ${NETDATA_LOAD_THRESHOLD:-3.0}
-  crit: \$this > 5.0
+  warn: $this > 2
+  crit: $this > 4
  delay: down 15m multiplier 1.5 max 1h
-  info: System load average over the last 3 minutes
+  info: System load average is too high
     to: sysadmin
-
 EOF
-    
-    # Set proper ownership for health configuration files
-    sudo chown -R netdata:netdata "$health_dir" 2>/dev/null || sudo chown -R root:root "$health_dir"
-    sudo chmod -R 644 "$health_dir"/*.conf
-    
-    # Configure email notifications if enabled
-    if [ "${NETDATA_EMAIL_ALERTS:-true}" = "true" ]; then
-        configure_netdata_email_notifications "$notification_config"
-    fi
+
+    # Set proper permissions for health configuration files
+    sudo chmod 644 /etc/netdata/health.d/*.conf
+    sudo chown netdata:netdata /etc/netdata/health.d/*.conf 2>/dev/null || true
     
     log_info "Health monitoring alerts configured successfully"
-    return 0
 }
 
 configure_netdata_email_notifications() {
