@@ -513,7 +513,7 @@ restart_services() {
     local services_failed=0
     
     # Restart n8n (Docker Compose)
-    if cd /opt/n8n/docker && docker-compose restart n8n >/dev/null 2>&1; then
+    if cd /opt/n8n/docker 2>/dev/null && docker-compose restart n8n >/dev/null 2>&1; then
         log_info "✓ n8n service restarted successfully"
         services_restarted=$((services_restarted + 1))
     else
@@ -521,27 +521,30 @@ restart_services() {
         services_failed=$((services_failed + 1))
     fi
     
-    # Restart Nginx
-    if systemctl restart nginx >/dev/null 2>&1; then
-        log_info "✓ Nginx service restarted successfully"
-        services_restarted=$((services_restarted + 1))
+    # Test Nginx configuration before restart
+    if nginx -t >/dev/null 2>&1; then
+        if systemctl restart nginx >/dev/null 2>&1; then
+            log_info "✓ Nginx service restarted successfully"
+            services_restarted=$((services_restarted + 1))
+        else
+            log_warn "✗ Failed to restart Nginx service"
+            services_failed=$((services_failed + 1))
+        fi
     else
-        log_warn "✗ Failed to restart Nginx service"
+        log_warn "✗ Nginx configuration test failed, skipping restart"
         services_failed=$((services_failed + 1))
     fi
     
-    # Restart Redis (if system service)
-    if systemctl is-active redis >/dev/null 2>&1; then
-        if systemctl restart redis >/dev/null 2>&1; then
-            log_info "✓ Redis service restarted successfully"
-            services_restarted=$((services_restarted + 1))
-        else
-            log_warn "✗ Failed to restart Redis service"
-            services_failed=$((services_failed + 1))
-        fi
-    elif cd /opt/n8n/docker && docker-compose restart redis >/dev/null 2>&1; then
+    # Restart Redis (Docker container first, then system service)
+    if cd /opt/n8n/docker 2>/dev/null && docker-compose restart redis >/dev/null 2>&1; then
         log_info "✓ Redis container restarted successfully"
         services_restarted=$((services_restarted + 1))
+    elif systemctl is-active redis >/dev/null 2>&1 && systemctl restart redis >/dev/null 2>&1; then
+        log_info "✓ Redis system service restarted successfully"
+        services_restarted=$((services_restarted + 1))
+    else
+        log_warn "✗ Failed to restart Redis service (tried both Docker and system)"
+        services_failed=$((services_failed + 1))
     fi
     
     # Restart Netdata
@@ -575,8 +578,8 @@ verify_optimization() {
         verification_failed=$((verification_failed + 1))
     fi
     
-    # Verify Nginx is responding
-    if curl -s --connect-timeout 10 "http://localhost" >/dev/null 2>&1; then
+    # Verify Nginx is responding (try both HTTP and HTTPS)
+    if curl -s --connect-timeout 10 "http://localhost" >/dev/null 2>&1 || curl -s --connect-timeout 10 -k "https://localhost" >/dev/null 2>&1; then
         log_info "✓ Nginx service is responding"
         verification_passed=$((verification_passed + 1))
     else
@@ -584,12 +587,23 @@ verify_optimization() {
         verification_failed=$((verification_failed + 1))
     fi
     
-    # Verify Redis is responding
-    if redis-cli ping >/dev/null 2>&1 || docker exec -it n8n-docker_redis_1 redis-cli ping >/dev/null 2>&1; then
-        log_info "✓ Redis service is responding"
+    # Verify Redis is responding (try Docker first, then system service)
+    local redis_responding=false
+    
+    # Try Docker Redis first
+    if cd /opt/n8n/docker 2>/dev/null && docker-compose exec -T redis redis-cli ping >/dev/null 2>&1; then
+        log_info "✓ Redis Docker container is responding"
+        redis_responding=true
+    # Try system Redis as fallback
+    elif redis-cli ping >/dev/null 2>&1; then
+        log_info "✓ Redis system service is responding"
+        redis_responding=true
+    fi
+    
+    if $redis_responding; then
         verification_passed=$((verification_passed + 1))
     else
-        log_warn "✗ Redis service is not responding"
+        log_warn "✗ Redis service is not responding (tried both Docker and system)"
         verification_failed=$((verification_failed + 1))
     fi
     

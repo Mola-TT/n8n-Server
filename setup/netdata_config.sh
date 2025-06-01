@@ -595,7 +595,7 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
     ssl_prefer_server_ciphers off;
-    ssl_session_cache shared:SSL:10m;
+    ssl_session_cache shared:NETDATA_SSL:6m;
     ssl_session_timeout 10m;
     
     # Security Headers - CRITICAL: Add 'always' directive for auth responses
