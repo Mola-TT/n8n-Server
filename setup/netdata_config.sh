@@ -190,18 +190,51 @@ install_netdata_dependencies() {
     # Fix Ubuntu repositories first if needed
     fix_ubuntu_repositories
     
+    # Wait for any package manager locks to clear
+    log_info "Checking for package manager locks..."
+    local max_wait=60
+    local wait_count=0
+    
+    while [ $wait_count -lt $max_wait ]; do
+        if ! sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1 && \
+           ! sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && \
+           ! sudo fuser /var/cache/apt/archives/lock >/dev/null 2>&1; then
+            log_info "Package manager is available"
+            break
+        fi
+        log_info "Waiting for package manager to become available... ($wait_count/$max_wait)"
+        sleep 2
+        wait_count=$((wait_count + 1))
+    done
+    
     # Configure postfix for non-interactive installation
     log_info "Configuring postfix for non-interactive installation..."
     echo "postfix postfix/main_mailer_type select Local only" | sudo debconf-set-selections
     echo "postfix postfix/mailname string $(hostname -f)" | sudo debconf-set-selections
     
-    # Try to install postfix with enhanced error handling
+    # Check if postfix is already installed
+    if dpkg -l | grep -q "^ii.*postfix"; then
+        log_info "Postfix is already installed, skipping postfix installation"
+        postfix_installed=true
+    else
+        postfix_installed=false
+    fi
+    
+    # Try to install postfix with other dependencies
     log_info "Installing postfix and other dependencies..."
     
     # First attempt: Install postfix with other dependencies
-    if execute_silently "sudo apt-get update && sudo apt-get install -y postfix curl wget apache2-utils" "Installing dependencies with postfix"; then
-        log_info "✓ Successfully installed all dependencies including postfix"
-        return 0
+    if [ "$postfix_installed" = true ]; then
+        log_info "Installing dependencies without postfix (already installed)..."
+        if execute_silently "sudo apt-get update && sudo apt-get install -y curl wget apache2-utils" "Installing basic dependencies"; then
+            log_info "✓ Successfully installed dependencies"
+            return 0
+        fi
+    else
+        if execute_silently "sudo apt-get update && sudo apt-get install -y postfix curl wget apache2-utils" "Installing dependencies with postfix"; then
+            log_info "✓ Successfully installed all dependencies including postfix"
+            return 0
+        fi
     fi
     
     log_warn "Failed to install dependencies with postfix, trying alternative approaches..."
@@ -212,52 +245,54 @@ install_netdata_dependencies() {
         log_info "✓ Basic dependencies installed successfully"
         
         # Now try postfix separately with more specific configuration
-        log_info "Attempting postfix installation separately..."
-        
-        # Set additional postfix configuration to avoid prompts
-        echo "postfix postfix/protocols select all" | sudo debconf-set-selections
-        echo "postfix postfix/chattr boolean false" | sudo debconf-set-selections
-        echo "postfix postfix/mailbox_limit string 0" | sudo debconf-set-selections
-        echo "postfix postfix/recipient_delim string +" | sudo debconf-set-selections
-        echo "postfix postfix/mynetworks string 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128" | sudo debconf-set-selections
-        echo "postfix postfix/destinations string $(hostname -f), localhost.localdomain, localhost" | sudo debconf-set-selections
-        
-        if execute_silently "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postfix" "Installing postfix with enhanced configuration"; then
-            log_info "✓ Successfully installed postfix separately"
-            return 0
-        fi
-        
-        # Third attempt: Try alternative mail solutions
-        log_warn "Postfix installation failed, trying alternative mail solutions..."
-        
-        # Try exim4 as alternative
-        log_info "Attempting exim4 installation as postfix alternative..."
-        if execute_silently "sudo apt-get install -y exim4" "Installing exim4 as mail alternative"; then
-            log_info "✓ Successfully installed exim4 as mail solution"
+        if [ "$postfix_installed" = false ]; then
+            log_info "Attempting postfix installation separately..."
             
-            # Configure exim4 for local delivery
-            echo "exim4-config exim4/dc_eximconfig_configtype select local delivery only; not on a network" | sudo debconf-set-selections
-            echo "exim4-config exim4/dc_local_interfaces string 127.0.0.1" | sudo debconf-set-selections
-            echo "exim4-config exim4/dc_other_hostnames string" | sudo debconf-set-selections
-            echo "exim4-config exim4/dc_relay_domains string" | sudo debconf-set-selections
-            echo "exim4-config exim4/dc_relay_nets string" | sudo debconf-set-selections
+            # Set additional postfix configuration to avoid prompts
+            echo "postfix postfix/protocols select all" | sudo debconf-set-selections
+            echo "postfix postfix/chattr boolean false" | sudo debconf-set-selections
+            echo "postfix postfix/mailbox_limit string 0" | sudo debconf-set-selections
+            echo "postfix postfix/recipient_delim string +" | sudo debconf-set-selections
+            echo "postfix postfix/mynetworks string 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128" | sudo debconf-set-selections
+            echo "postfix postfix/destinations string $(hostname -f), localhost.localdomain, localhost" | sudo debconf-set-selections
             
-            execute_silently "sudo dpkg-reconfigure -f noninteractive exim4-config" "Configuring exim4"
-            return 0
-        fi
-        
-        # Fourth attempt: Try sendmail
-        log_info "Attempting sendmail installation as mail alternative..."
-        if execute_silently "sudo apt-get install -y sendmail" "Installing sendmail as mail alternative"; then
-            log_info "✓ Successfully installed sendmail as mail solution"
-            return 0
-        fi
-        
-        # Fifth attempt: Try mailutils (lightweight option)
-        log_info "Attempting mailutils installation as lightweight mail solution..."
-        if execute_silently "sudo apt-get install -y mailutils" "Installing mailutils as lightweight mail solution"; then
-            log_info "✓ Successfully installed mailutils as mail solution"
-            return 0
+            if execute_silently "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postfix" "Installing postfix with enhanced configuration"; then
+                log_info "✓ Successfully installed postfix separately"
+                return 0
+            fi
+            
+            # Third attempt: Try alternative mail solutions
+            log_warn "Postfix installation failed, trying alternative mail solutions..."
+            
+            # Try exim4 as alternative
+            log_info "Attempting exim4 installation as postfix alternative..."
+            if execute_silently "sudo apt-get install -y exim4" "Installing exim4 as mail alternative"; then
+                log_info "✓ Successfully installed exim4 as mail solution"
+                
+                # Configure exim4 for local delivery
+                echo "exim4-config exim4/dc_eximconfig_configtype select local delivery only; not on a network" | sudo debconf-set-selections
+                echo "exim4-config exim4/dc_local_interfaces string 127.0.0.1" | sudo debconf-set-selections
+                echo "exim4-config exim4/dc_other_hostnames string" | sudo debconf-set-selections
+                echo "exim4-config exim4/dc_relay_domains string" | sudo debconf-set-selections
+                echo "exim4-config exim4/dc_relay_nets string" | sudo debconf-set-selections
+                
+                execute_silently "sudo dpkg-reconfigure -f noninteractive exim4-config" "Configuring exim4"
+                return 0
+            fi
+            
+            # Fourth attempt: Try sendmail
+            log_info "Attempting sendmail installation as mail alternative..."
+            if execute_silently "sudo apt-get install -y sendmail" "Installing sendmail as mail alternative"; then
+                log_info "✓ Successfully installed sendmail as mail solution"
+                return 0
+            fi
+            
+            # Fifth attempt: Try mailutils (lightweight option)
+            log_info "Attempting mailutils installation as lightweight mail solution..."
+            if execute_silently "sudo apt-get install -y mailutils" "Installing mailutils as lightweight mail solution"; then
+                log_info "✓ Successfully installed mailutils as mail solution"
+                return 0
+            fi
         fi
         
         # If all mail solutions fail, continue without email (Netdata can work without it)
