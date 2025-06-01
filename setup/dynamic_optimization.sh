@@ -637,39 +637,39 @@ Generated: $(date)
 Backup Location: ${BACKUP_PATH:-"Not created"}
 
 HARDWARE SPECIFICATIONS:
-- CPU Cores: ${HW_CPU_CORES}
-- Memory: ${HW_MEMORY_GB}GB
-- Disk Space: ${HW_DISK_GB}GB
+- CPU Cores: ${HW_CPU_CORES:-"Unknown"}
+- Memory: ${HW_MEMORY_GB:-"Unknown"}GB
+- Disk Space: ${HW_DISK_GB:-"Unknown"}GB
 
 OPTIMIZATION PARAMETERS:
 ================================================================================
 
 n8n Configuration:
-- Execution Processes: ${N8N_EXECUTION_PROCESS}
-- Memory Limit: ${N8N_MEMORY_LIMIT_MB}MB
-- Execution Timeout: ${N8N_EXECUTION_TIMEOUT}s
-- Webhook Timeout: ${N8N_WEBHOOK_TIMEOUT}s
+- Execution Processes: ${N8N_EXECUTION_PROCESS:-"Not set"}
+- Memory Limit: ${N8N_MEMORY_LIMIT_MB:-"Not set"}MB
+- Execution Timeout: ${N8N_EXECUTION_TIMEOUT:-"Not set"}s
+- Webhook Timeout: ${N8N_WEBHOOK_TIMEOUT:-"Not set"}s
 
 Docker Configuration:
-- Memory Limit: ${DOCKER_MEMORY_LIMIT}
-- CPU Limit: ${DOCKER_CPU_LIMIT}
-- Shared Memory: ${DOCKER_SHM_SIZE}
+- Memory Limit: ${DOCKER_MEMORY_LIMIT:-"Not set"}
+- CPU Limit: ${DOCKER_CPU_LIMIT:-"Not set"}
+- Shared Memory: ${DOCKER_SHM_SIZE:-"Not set"}
 
 Nginx Configuration:
-- Worker Processes: ${NGINX_WORKER_PROCESSES}
-- Worker Connections: ${NGINX_WORKER_CONNECTIONS}
-- Client Max Body Size: ${NGINX_CLIENT_MAX_BODY}
-- SSL Session Cache: ${NGINX_SSL_SESSION_CACHE}
+- Worker Processes: ${NGINX_WORKER_PROCESSES:-"Not set"}
+- Worker Connections: ${NGINX_WORKER_CONNECTIONS:-"Not set"}
+- Client Max Body Size: ${NGINX_CLIENT_MAX_BODY:-"Not set"}
+- SSL Session Cache: ${NGINX_SSL_SESSION_CACHE:-"Not set"}
 
 Redis Configuration:
-- Max Memory: ${REDIS_MAXMEMORY}
-- Memory Policy: ${REDIS_MAXMEMORY_POLICY}
-- Save Interval: ${REDIS_SAVE_INTERVAL}
+- Max Memory: ${REDIS_MAXMEMORY:-"Not set"}
+- Memory Policy: ${REDIS_MAXMEMORY_POLICY:-"Not set"}
+- Save Interval: ${REDIS_SAVE_INTERVAL:-"Not set"}
 
 Netdata Configuration:
-- Update Frequency: ${NETDATA_UPDATE_EVERY}s
-- Memory Limit: ${NETDATA_MEMORY_LIMIT}MB
-- History Retention: ${NETDATA_HISTORY_HOURS}h
+- Update Frequency: ${NETDATA_UPDATE_EVERY:-"Not set"}s
+- Memory Limit: ${NETDATA_MEMORY_LIMIT:-"Not set"}MB
+- History Retention: ${NETDATA_HISTORY_HOURS:-"Not set"}h
 
 PERFORMANCE RECOMMENDATIONS:
 ================================================================================

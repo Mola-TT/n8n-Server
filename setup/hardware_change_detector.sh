@@ -164,6 +164,12 @@ check_email_cooldown() {
     
     current_time=$(date +%s)
     
+    # Ensure the directory exists and has proper permissions
+    if ! mkdir -p "/opt/n8n/data" 2>/dev/null; then
+        log_warn "Cannot create /opt/n8n/data directory - using temporary cooldown"
+        cooldown_file="/tmp/last_email_notification_$(whoami)"
+    fi
+    
     if [[ -f "$cooldown_file" ]]; then
         last_email_time=$(cat "$cooldown_file" 2>/dev/null || echo "0")
         time_diff=$((current_time - last_email_time))
@@ -176,7 +182,9 @@ check_email_cooldown() {
     fi
     
     # Update last email time
-    echo "$current_time" > "$cooldown_file"
+    if ! echo "$current_time" > "$cooldown_file" 2>/dev/null; then
+        log_warn "Cannot write to cooldown file - email cooldown disabled for this session"
+    fi
     return 0
 }
 
@@ -204,13 +212,18 @@ send_hardware_change_notification() {
         return 0
     fi
     
+    # Set default values for potentially unbound variables
+    local change_summary="${CHANGE_SUMMARY:-"Hardware configuration changes detected"}"
+    local previous_specs="${PREVIOUS_HARDWARE_SPECS:-"{}"}"
+    local current_specs="${CURRENT_HARDWARE_SPECS:-"{}"}"
+    
     # Prepare email content based on change type
     case "$change_type" in
         "detected")
-            subject="${EMAIL_SUBJECT_PREFIX} Hardware Change Detected"
+            subject="${EMAIL_SUBJECT_PREFIX:-"[n8n Server]"} Hardware Change Detected"
             body="Hardware changes have been detected on your n8n server:
 
-$(echo -e "$CHANGE_SUMMARY")
+$(echo -e "$change_summary")
 
 Server: $(hostname)
 Detection Time: $(date)
@@ -218,18 +231,18 @@ Detection Time: $(date)
 Automatic optimization will begin shortly to adapt to the new hardware configuration.
 
 Previous Hardware:
-$(echo "$PREVIOUS_HARDWARE_SPECS" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /')
+$(echo "$previous_specs" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /' || echo "- Information not available")
 
 Current Hardware:
-$(echo "$CURRENT_HARDWARE_SPECS" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /')
+$(echo "$current_specs" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /' || echo "- Information not available")
 
 This is an automated notification from your n8n server monitoring system."
             ;;
         "optimized")
-            subject="${EMAIL_SUBJECT_PREFIX} Hardware Optimization Completed"
+            subject="${EMAIL_SUBJECT_PREFIX:-"[n8n Server]"} Hardware Optimization Completed"
             body="Hardware optimization has been completed on your n8n server.
 
-$(echo -e "$CHANGE_SUMMARY")
+$(echo -e "$change_summary")
 
 Server: $(hostname)
 Optimization Time: $(date)
@@ -237,7 +250,7 @@ Optimization Time: $(date)
 All services have been reconfigured and restarted to take advantage of the new hardware specifications.
 
 Current Configuration:
-$(echo "$CURRENT_HARDWARE_SPECS" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /')
+$(echo "$current_specs" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /' || echo "- Information not available")
 
 You can view detailed optimization results in the Netdata dashboard at:
 https://$(hostname)/netdata/
