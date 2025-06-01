@@ -805,7 +805,12 @@ setup_dynamic_optimization() {
     
     # Set up hardware change detector service
     log_info "Setting up hardware change detection service..."
-    bash "$SCRIPT_DIR/hardware_change_detector.sh" --install-service >/dev/null 2>&1 || true
+    local detector_script="$(dirname "$SCRIPT_DIR")/setup/hardware_change_detector.sh"
+    if [[ -f "$detector_script" ]]; then
+        bash "$detector_script" --install-service >/dev/null 2>&1 || true
+    else
+        log_warn "Hardware change detector script not found: $detector_script"
+    fi
     
     # Generate initial optimization report
     local report_file
@@ -823,7 +828,7 @@ setup_dynamic_optimization() {
     fi
     
     log_info "Hardware change detection service installed and ready"
-    log_info "Optimization can be re-run manually with: bash $SCRIPT_DIR/dynamic_optimization.sh --optimize"
+    log_info "Optimization can be re-run manually with: bash $(dirname "$SCRIPT_DIR")/setup/dynamic_optimization.sh --optimize"
 }
 
 # =============================================================================
