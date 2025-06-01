@@ -52,7 +52,6 @@ readonly REDIS_MEMORY_MIN_MB=64            # Minimum Redis memory
 
 # Backup directory for configurations
 readonly BACKUP_DIR="/opt/n8n/backups/optimization"
-readonly LOG_FILE="/opt/n8n/logs/optimization.log"
 
 # =============================================================================
 # HARDWARE DETECTION FUNCTIONS
