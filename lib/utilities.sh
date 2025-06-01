@@ -3,7 +3,7 @@
 # Part of Milestone 1
 
 # Create log file if it doesn't exist
-if [ -z "$LOG_FILE" ]; then
+if [ -z "${LOG_FILE:-}" ]; then
     LOG_FILE="/var/log/server_init.log"
     log_warn "LOG_FILE not defined in environment, using default: $LOG_FILE"
 fi
