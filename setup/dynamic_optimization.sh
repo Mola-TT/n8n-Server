@@ -773,6 +773,60 @@ run_optimization() {
 }
 
 # =============================================================================
+# INITIALIZATION SETUP FUNCTION
+# =============================================================================
+
+setup_dynamic_optimization() {
+    log_info "Setting up dynamic hardware optimization infrastructure..."
+    
+    # Create necessary directories
+    mkdir -p "$BACKUP_DIR" "/opt/n8n/logs" "/opt/n8n/data"
+    
+    # Run initial hardware detection and optimization
+    log_info "Running initial hardware detection and optimization..."
+    get_hardware_specs
+    
+    # Calculate optimization parameters
+    calculate_n8n_parameters
+    calculate_docker_parameters
+    calculate_nginx_parameters
+    calculate_redis_parameters
+    calculate_netdata_parameters
+    
+    # Create configuration backups
+    backup_configurations
+    
+    # Apply optimizations
+    update_n8n_configuration
+    update_docker_configuration
+    update_nginx_configuration
+    update_redis_configuration
+    update_netdata_configuration
+    
+    # Set up hardware change detector service
+    log_info "Setting up hardware change detection service..."
+    bash "$PROJECT_ROOT/setup/hardware_change_detector.sh" --install-service >/dev/null 2>&1 || true
+    
+    # Generate initial optimization report
+    local report_file
+    report_file=$(generate_optimization_report)
+    log_info "Initial optimization report generated: $report_file"
+    
+    # Restart services to apply optimizations
+    restart_services
+    
+    # Verify optimization results
+    if verify_optimization; then
+        log_info "✓ Dynamic hardware optimization setup completed successfully"
+    else
+        log_warn "⚠ Dynamic hardware optimization setup completed with some verification failures"
+    fi
+    
+    log_info "Hardware change detection service installed and ready"
+    log_info "Optimization can be re-run manually with: bash $PROJECT_ROOT/setup/dynamic_optimization.sh --optimize"
+}
+
+# =============================================================================
 # COMMAND LINE INTERFACE
 # =============================================================================
 

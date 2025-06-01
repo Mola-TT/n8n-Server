@@ -35,6 +35,10 @@ source "$SCRIPT_DIR/setup/netdata_config.sh"
 # Source SSL renewal configuration (Milestone 5)
 source "$SCRIPT_DIR/setup/ssl_renewal.sh"
 
+# Source dynamic optimization configuration (Milestone 6)
+source "$SCRIPT_DIR/setup/dynamic_optimization.sh"
+source "$SCRIPT_DIR/setup/hardware_change_detector.sh"
+
 # Display init banner
 display_banner() {
     echo "-----------------------------------------------"
@@ -127,6 +131,13 @@ main() {
     log_info "Note: SSL certificates will be configured for automatic renewal"
     setup_ssl_certificate_management
     
+    # Set up dynamic hardware optimization (Milestone 6)
+    echo "-----------------------------------------------"
+    echo "MILESTONE 6: Dynamic Hardware Optimization Setup"
+    echo "-----------------------------------------------"
+    log_info "Note: Dynamic optimization will be configured for automatic hardware-based tuning"
+    setup_dynamic_optimization
+    
     # Print setup summary
     echo "-----------------------------------------------"
     echo "SETUP SUMMARY"
@@ -140,6 +151,7 @@ main() {
     log_info "✓ Nginx reverse proxy: SUCCESS"
     log_info "✓ Netdata monitoring: SUCCESS"
     log_info "✓ SSL certificate management: SUCCESS"
+    log_info "✓ Dynamic hardware optimization: SUCCESS"
     echo "-----------------------------------------------"
     
     log_info "Initialization COMPLETE"

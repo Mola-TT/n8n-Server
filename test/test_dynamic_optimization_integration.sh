@@ -141,8 +141,8 @@ test_hardware_detector_script_availability() {
 }
 
 test_required_utilities_availability() {
-    [[ -f "$PROJECT_ROOT/utils/logger.sh" ]] &&
-    [[ -f "$PROJECT_ROOT/utils/utilities.sh" ]]
+    [[ -f "$PROJECT_ROOT/lib/logger.sh" ]] &&
+    [[ -f "$PROJECT_ROOT/lib/utilities.sh" ]]
 }
 
 # =============================================================================
