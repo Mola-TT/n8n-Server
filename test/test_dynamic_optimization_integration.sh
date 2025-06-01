@@ -14,9 +14,9 @@ source "$SCRIPT_DIR/../lib/logger.sh"
 source "$SCRIPT_DIR/../lib/utilities.sh"
 
 # Test configuration
-readonly OPTIMIZATION_SCRIPT="$PROJECT_ROOT/setup/dynamic_optimization.sh"
-readonly HARDWARE_DETECTOR_SCRIPT="$PROJECT_ROOT/setup/hardware_change_detector.sh"
-readonly TEST_BACKUP_DIR="/tmp/dynamic_optimization_integration_backup"
+OPTIMIZATION_SCRIPT="$PROJECT_ROOT/setup/dynamic_optimization.sh"
+HARDWARE_DETECTOR_SCRIPT="$PROJECT_ROOT/setup/hardware_change_detector.sh"
+TEST_BACKUP_DIR="/tmp/dynamic_optimization_integration_backup"
 
 # =============================================================================
 # TEST SETUP AND TEARDOWN

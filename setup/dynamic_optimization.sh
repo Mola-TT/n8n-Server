@@ -51,6 +51,8 @@ BACKUP_DIR="/opt/n8n/backups/optimization"
 # =============================================================================
 
 detect_cpu_cores() {
+    log_info "Detecting CPU cores..."
+    
     local cores
     cores=$(nproc 2>/dev/null || echo "1")
     
@@ -61,10 +63,15 @@ detect_cpu_cores() {
         cores=$CPU_CORES_MAX
     fi
     
-    echo "$cores"
+    CPU_CORES="$cores"
+    log_info "CPU cores detected: $CPU_CORES"
+    
+    return 0
 }
 
 detect_memory_gb() {
+    log_info "Detecting memory..."
+    
     local memory_kb memory_gb
     memory_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "1048576")
     memory_gb=$((memory_kb / 1024 / 1024))
@@ -76,31 +83,47 @@ detect_memory_gb() {
         memory_gb=$MEMORY_MAX_GB
     fi
     
-    echo "$memory_gb"
+    MEMORY_GB="$memory_gb"
+    log_info "Memory detected: ${MEMORY_GB}GB"
+    
+    return 0
 }
 
 detect_disk_gb() {
-    local disk_gb
-    disk_gb=$(df /opt/n8n 2>/dev/null | tail -1 | awk '{print int($2/1024/1024)}' || echo "20")
+    log_info "Detecting disk space..."
     
-    # Validate disk space within reasonable bounds
-    if [[ "$disk_gb" -lt "$DISK_MIN_GB" ]]; then
-        disk_gb=$DISK_MIN_GB
-    elif [[ "$disk_gb" -gt "$DISK_MAX_GB" ]]; then
-        disk_gb=$DISK_MAX_GB
+    # Get disk size in GB for root filesystem
+    local disk_size_gb=$(df -BG / | tail -1 | awk '{print $2}' | sed 's/G//')
+    
+    # Validate disk size
+    if [[ ! "$disk_size_gb" =~ ^[0-9]+$ ]] || [ "$disk_size_gb" -lt 1 ] || [ "$disk_size_gb" -gt 10000 ]; then
+        log_warn "Invalid disk size detected: ${disk_size_gb}GB, using default"
+        disk_size_gb=50
     fi
     
-    echo "$disk_gb"
+    DISK_GB="$disk_size_gb"
+    log_info "Disk space detected: ${DISK_GB}GB"
+    
+    return 0
+}
+
+# Alias function for test compatibility
+detect_hardware_disk() {
+    detect_disk_gb
 }
 
 get_hardware_specs() {
-    local cpu_cores memory_gb disk_gb
-    
     log_info "Detecting hardware specifications..."
     
-    cpu_cores=$(detect_cpu_cores)
-    memory_gb=$(detect_memory_gb)
-    disk_gb=$(detect_disk_gb)
+    # Call detection functions
+    detect_cpu_cores
+    detect_memory_gb
+    detect_disk_gb
+    
+    # Use the global variables set by detection functions
+    local cpu_cores="$CPU_CORES"
+    local memory_gb="$MEMORY_GB"
+    local disk_gb="$DISK_GB"
     
     log_info "Hardware detected: ${cpu_cores} CPU cores, ${memory_gb}GB RAM, ${disk_gb}GB disk"
     

@@ -500,6 +500,112 @@ trigger_optimization() {
 }
 
 # =============================================================================
+# Hardware Specs Backup and Restore Functions
+# =============================================================================
+
+backup_hardware_specs() {
+    local specs_file="$1"
+    local backup_dir="$2"
+    
+    if [ ! -f "$specs_file" ]; then
+        log_warn "Hardware specs file not found: $specs_file"
+        return 1
+    fi
+    
+    if [ ! -d "$backup_dir" ]; then
+        mkdir -p "$backup_dir" || {
+            log_error "Failed to create backup directory: $backup_dir"
+            return 1
+        }
+    fi
+    
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_file="$backup_dir/hardware_specs_${timestamp}.json"
+    
+    if cp "$specs_file" "$backup_file"; then
+        log_info "Hardware specs backed up to: $backup_file"
+        return 0
+    else
+        log_error "Failed to backup hardware specs"
+        return 1
+    fi
+}
+
+restore_hardware_specs() {
+    local specs_file="$1"
+    local backup_dir="$2"
+    
+    if [ ! -d "$backup_dir" ]; then
+        log_error "Backup directory not found: $backup_dir"
+        return 1
+    fi
+    
+    # Find the most recent backup file
+    local latest_backup=$(ls -t "$backup_dir"/hardware_specs_*.json 2>/dev/null | head -1)
+    
+    if [ -z "$latest_backup" ]; then
+        log_error "No backup files found in: $backup_dir"
+        return 1
+    fi
+    
+    if cp "$latest_backup" "$specs_file"; then
+        log_info "Hardware specs restored from: $latest_backup"
+        return 0
+    else
+        log_error "Failed to restore hardware specs"
+        return 1
+    fi
+}
+
+# =============================================================================
+# Systemd Service Management Functions
+# =============================================================================
+
+create_hardware_detector_service() {
+    log_info "Creating hardware change detector systemd service..."
+    
+    local service_file="/etc/systemd/system/n8n-hardware-detector.service"
+    local script_path="$PROJECT_ROOT/setup/hardware_change_detector.sh"
+    
+    # Create systemd service file
+    sudo tee "$service_file" > /dev/null << EOF
+[Unit]
+Description=n8n Hardware Change Detector
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=$script_path --daemon
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=n8n-hardware-detector
+
+# Environment variables
+Environment=PROJECT_ROOT=$PROJECT_ROOT
+Environment=HARDWARE_SPEC_FILE=/opt/n8n/hardware_specs.json
+Environment=CHECK_INTERVAL_MINUTES=${HARDWARE_CHECK_INTERVAL_MINUTES:-60}
+Environment=EMAIL_COOLDOWN_HOURS=${EMAIL_COOLDOWN_HOURS:-24}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Set proper permissions
+    sudo chmod 644 "$service_file"
+    
+    # Reload systemd daemon
+    sudo systemctl daemon-reload
+    
+    log_info "Hardware change detector service created: $service_file"
+    return 0
+}
+
+# =============================================================================
 # SERVICE MANAGEMENT FUNCTIONS
 # =============================================================================
 
@@ -738,7 +844,7 @@ main() {
             fi
             ;;
         "install-service")
-            create_systemd_service
+            create_hardware_detector_service
             log_info "Service installed. Use --start-service to start monitoring."
             ;;
         "start-service")
