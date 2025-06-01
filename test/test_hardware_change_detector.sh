@@ -14,6 +14,7 @@ source "$SCRIPT_DIR/../lib/logger.sh"
 source "$SCRIPT_DIR/../lib/utilities.sh"
 
 # Test configuration
+readonly TEST_HARDWARE_SPEC_FILE="/tmp/test_hardware_specs.json"
 HARDWARE_DETECTOR_SCRIPT="$PROJECT_ROOT/setup/hardware_change_detector.sh"
 
 # =============================================================================

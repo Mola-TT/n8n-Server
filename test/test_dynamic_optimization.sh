@@ -333,6 +333,9 @@ test_full_optimization_dry_run() {
 test_optimization_report_generation() {
     source "$OPTIMIZATION_SCRIPT"
     
+    # Create required directories
+    mkdir -p "/opt/n8n/logs" "/opt/n8n/backups/optimization/test"
+    
     # Set test hardware specs and parameters
     export HW_CPU_CORES=4
     export HW_MEMORY_GB=8
@@ -375,18 +378,35 @@ test_hardware_detection_performance() {
     source "$OPTIMIZATION_SCRIPT"
     
     local start_time end_time duration
-    start_time=$(date +%s%N)
-    
-    # Run hardware detection multiple times
-    for i in {1..10}; do
-        get_hardware_specs >/dev/null 2>&1
-    done
-    
-    end_time=$(date +%s%N)
-    duration=$(((end_time - start_time) / 1000000))  # Convert to milliseconds
-    
-    # Hardware detection should complete within reasonable time (< 1 second total)
-    [[ "$duration" -lt 1000 ]]
+    # Use seconds if nanoseconds not available
+    if date +%s%N >/dev/null 2>&1; then
+        start_time=$(date +%s%N)
+        
+        # Run hardware detection multiple times
+        for i in {1..10}; do
+            get_hardware_specs >/dev/null 2>&1
+        done
+        
+        end_time=$(date +%s%N)
+        duration=$(((end_time - start_time) / 1000000))  # Convert to milliseconds
+        
+        # Hardware detection should complete within reasonable time (< 1 second total)
+        [[ "$duration" -lt 1000 ]]
+    else
+        # Fallback to seconds precision
+        start_time=$(date +%s)
+        
+        # Run hardware detection multiple times
+        for i in {1..10}; do
+            get_hardware_specs >/dev/null 2>&1
+        done
+        
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        
+        # Hardware detection should complete within reasonable time (< 5 seconds total)
+        [[ "$duration" -lt 5 ]]
+    fi
 }
 
 test_parameter_calculation_performance() {
@@ -398,22 +418,43 @@ test_parameter_calculation_performance() {
     export HW_DISK_GB=500
     
     local start_time end_time duration
-    start_time=$(date +%s%N)
-    
-    # Run parameter calculations multiple times
-    for i in {1..10}; do
-        calculate_n8n_parameters >/dev/null 2>&1
-        calculate_docker_parameters >/dev/null 2>&1
-        calculate_nginx_parameters >/dev/null 2>&1
-        calculate_redis_parameters >/dev/null 2>&1
-        calculate_netdata_parameters >/dev/null 2>&1
-    done
-    
-    end_time=$(date +%s%N)
-    duration=$(((end_time - start_time) / 1000000))  # Convert to milliseconds
-    
-    # Parameter calculations should complete within reasonable time (< 500ms total)
-    [[ "$duration" -lt 500 ]]
+    # Use seconds if nanoseconds not available
+    if date +%s%N >/dev/null 2>&1; then
+        start_time=$(date +%s%N)
+        
+        # Run parameter calculations multiple times
+        for i in {1..10}; do
+            calculate_n8n_parameters >/dev/null 2>&1
+            calculate_docker_parameters >/dev/null 2>&1
+            calculate_nginx_parameters >/dev/null 2>&1
+            calculate_redis_parameters >/dev/null 2>&1
+            calculate_netdata_parameters >/dev/null 2>&1
+        done
+        
+        end_time=$(date +%s%N)
+        duration=$(((end_time - start_time) / 1000000))  # Convert to milliseconds
+        
+        # Parameter calculations should complete within reasonable time (< 500ms total)
+        [[ "$duration" -lt 500 ]]
+    else
+        # Fallback to seconds precision
+        start_time=$(date +%s)
+        
+        # Run parameter calculations multiple times
+        for i in {1..10}; do
+            calculate_n8n_parameters >/dev/null 2>&1
+            calculate_docker_parameters >/dev/null 2>&1
+            calculate_nginx_parameters >/dev/null 2>&1
+            calculate_redis_parameters >/dev/null 2>&1
+            calculate_netdata_parameters >/dev/null 2>&1
+        done
+        
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        
+        # Parameter calculations should complete within reasonable time (< 3 seconds total)
+        [[ "$duration" -lt 3 ]]
+    fi
 }
 
 # =============================================================================
