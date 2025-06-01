@@ -8,3 +8,11 @@ sudo ./init.sh
 
 
 
+# For Updating
+git fetch origin
+git reset --hard origin/master
+cd n8n-Server
+chmod +x init.sh
+clear
+sudo ./init.sh
+
