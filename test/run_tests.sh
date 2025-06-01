@@ -12,6 +12,18 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # Source logger
 source "$PROJECT_DIR/lib/logger.sh"
 
+# Load environment configuration for tests
+log_info "Loading environment configuration for tests..."
+set -a  # Export all variables
+source "$PROJECT_DIR/conf/default.env"
+if [[ -f "$PROJECT_DIR/conf/user.env" ]]; then
+    source "$PROJECT_DIR/conf/user.env"
+    log_info "User environment loaded for tests"
+else
+    log_info "No user.env found, using defaults only"
+fi
+set +a  # Stop exporting variables
+
 # Source test suites
 source "$PROJECT_DIR/test/test_docker.sh"
 source "$PROJECT_DIR/test/test_n8n.sh"

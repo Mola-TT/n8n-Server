@@ -333,8 +333,9 @@ test_full_optimization_dry_run() {
 test_optimization_report_generation() {
     source "$OPTIMIZATION_SCRIPT"
     
-    # Create required directories
-    mkdir -p "/opt/n8n/logs" "/opt/n8n/backups/optimization/test"
+    # Create required directories with proper permissions
+    sudo mkdir -p "/opt/n8n/logs" "/opt/n8n/backups/optimization/test" 2>/dev/null || true
+    sudo chown -R "$(whoami):docker" "/opt/n8n/logs" "/opt/n8n/backups" 2>/dev/null || true
     
     # Set test hardware specs and parameters
     export HW_CPU_CORES=4
@@ -360,7 +361,7 @@ test_optimization_report_generation() {
     export BACKUP_PATH="/opt/n8n/backups/optimization/test"
     
     local report_file
-    report_file=$(generate_optimization_report)
+    report_file=$(generate_optimization_report 2>/dev/null) || return 1
     
     # Verify report was generated and contains expected content
     [[ -f "$report_file" ]] &&
