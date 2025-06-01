@@ -12,6 +12,66 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 
 # =============================================================================
+# Repository Management Functions
+# =============================================================================
+
+fix_ubuntu_repositories() {
+    log_info "Checking Ubuntu repository accessibility..."
+    
+    # Test current repositories
+    if apt-get update >/dev/null 2>&1; then
+        log_info "Ubuntu repositories are accessible"
+        return 0
+    fi
+    
+    log_warn "Ubuntu repositories are not accessible, attempting to fix..."
+    
+    # Backup current sources.list
+    cp /etc/apt/sources.list /etc/apt/sources.list.backup.$(date +%Y%m%d_%H%M%S)
+    
+    # Get Ubuntu codename
+    local codename=$(lsb_release -cs)
+    
+    # Try different Ubuntu mirrors in order of preference
+    local mirrors=(
+        "archive.ubuntu.com"
+        "us.archive.ubuntu.com"
+        "mirror.ubuntu.com"
+        "old-releases.ubuntu.com"
+    )
+    
+    for mirror in "${mirrors[@]}"; do
+        log_info "Testing Ubuntu mirror: $mirror"
+        
+        # Create new sources.list with this mirror
+        cat > /etc/apt/sources.list << EOF
+# Ubuntu repositories - Auto-configured by n8n server setup
+deb http://$mirror/ubuntu/ $codename main restricted universe multiverse
+deb http://$mirror/ubuntu/ $codename-updates main restricted universe multiverse
+deb http://$mirror/ubuntu/ $codename-backports main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu $codename-security main restricted universe multiverse
+EOF
+        
+        # Test this mirror
+        if apt-get update >/dev/null 2>&1; then
+            log_info "✓ Successfully configured Ubuntu mirror: $mirror"
+            return 0
+        else
+            log_warn "✗ Mirror $mirror failed, trying next..."
+        fi
+    done
+    
+    # If all mirrors failed, restore backup and continue
+    log_warn "All Ubuntu mirrors failed, restoring original configuration"
+    mv /etc/apt/sources.list.backup.$(date +%Y%m%d_%H%M%S) /etc/apt/sources.list
+    
+    # Try one more update with original configuration
+    apt-get update >/dev/null 2>&1 || true
+    
+    return 1
+}
+
+# =============================================================================
 # Docker Installation Functions
 # =============================================================================
 
@@ -37,6 +97,9 @@ install_docker() {
         fi
     fi
     
+    # Fix Ubuntu repositories before proceeding
+    fix_ubuntu_repositories
+    
     # Remove any conflicting packages that might interfere
     log_info "Removing any conflicting Docker packages..."
     # Use direct command execution for cleanup operations that may legitimately fail
@@ -45,17 +108,36 @@ install_docker() {
     # Clean up any previous failed installations
     apt-get autoremove -y >> "$LOG_FILE" 2>&1 || true
     
-    # Update package index
-    if ! execute_silently "apt-get update"; then
-        log_error "Failed to update package index"
-        return 1
-    fi
+    # Update package index with retry logic
+    log_info "Updating package index..."
+    local update_attempts=3
+    local attempt=1
     
-    # Install prerequisites
+    while [ $attempt -le $update_attempts ]; do
+        if apt-get update >/dev/null 2>&1; then
+            log_info "Package index updated successfully"
+            break
+        else
+            log_warn "Package update attempt $attempt failed"
+            if [ $attempt -eq $update_attempts ]; then
+                log_error "Failed to update package index after $update_attempts attempts"
+                return 1
+            fi
+            sleep 5
+            ((attempt++))
+        fi
+    done
+    
+    # Install prerequisites with fallback options
     log_info "Installing Docker prerequisites..."
-    if ! execute_silently "apt-get install -y ca-certificates curl gnupg lsb-release"; then
-        log_error "Failed to install Docker prerequisites"
-        return 1
+    local prereq_packages="ca-certificates curl gnupg lsb-release"
+    
+    if ! execute_silently "apt-get install -y $prereq_packages"; then
+        log_warn "Standard prerequisite installation failed, trying with --fix-missing"
+        if ! execute_silently "apt-get install -y --fix-missing $prereq_packages"; then
+            log_error "Failed to install Docker prerequisites"
+            return 1
+        fi
     fi
     
     # Add Docker's official GPG key
@@ -65,10 +147,27 @@ install_docker() {
         return 1
     fi
     
-    if ! execute_silently "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg"; then
+    # Try multiple methods to get the GPG key
+    local gpg_success=false
+    
+    # Method 1: Direct curl and gpg
+    if curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null; then
+        gpg_success=true
+        log_info "Docker GPG key added successfully (method 1)"
+    # Method 2: Download to temp file first
+    elif curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.gpg && gpg --dearmor /tmp/docker.gpg && mv /tmp/docker.gpg.gpg /etc/apt/keyrings/docker.gpg 2>/dev/null; then
+        gpg_success=true
+        log_info "Docker GPG key added successfully (method 2)"
+        rm -f /tmp/docker.gpg
+    fi
+    
+    if [ "$gpg_success" = false ]; then
         log_error "Failed to add Docker GPG key"
         return 1
     fi
+    
+    # Set proper permissions on GPG key
+    chmod 644 /etc/apt/keyrings/docker.gpg
     
     # Set up the repository
     log_info "Setting up Docker repository..."
@@ -78,15 +177,38 @@ install_docker() {
         return 1
     fi
     
-    # Update package index again
-    if ! execute_silently "apt-get update"; then
-        log_error "Failed to update package index after adding Docker repository"
-        return 1
-    fi
+    # Update package index again with retry
+    log_info "Updating package index with Docker repository..."
+    attempt=1
+    while [ $attempt -le $update_attempts ]; do
+        if apt-get update >/dev/null 2>&1; then
+            log_info "Package index updated successfully with Docker repository"
+            break
+        else
+            log_warn "Package update attempt $attempt failed"
+            if [ $attempt -eq $update_attempts ]; then
+                log_error "Failed to update package index after adding Docker repository"
+                return 1
+            fi
+            sleep 5
+            ((attempt++))
+        fi
+    done
     
-    # Install Docker Engine
+    # Install Docker Engine with retry and fallback options
     log_info "Installing Docker Engine..."
-    if ! execute_silently "apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"; then
+    local docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+    
+    # Try standard installation first
+    if apt-get install -y $docker_packages >/dev/null 2>&1; then
+        log_info "Docker Engine installed successfully"
+    # Try with --fix-missing if standard fails
+    elif apt-get install -y --fix-missing $docker_packages >/dev/null 2>&1; then
+        log_info "Docker Engine installed successfully (with --fix-missing)"
+    # Try installing core packages only if full installation fails
+    elif apt-get install -y docker-ce docker-ce-cli containerd.io >/dev/null 2>&1; then
+        log_info "Docker core packages installed successfully (plugins may be missing)"
+    else
         log_error "Failed to install Docker Engine"
         return 1
     fi
