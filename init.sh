@@ -37,7 +37,6 @@ source "$SCRIPT_DIR/setup/ssl_renewal.sh"
 
 # Source dynamic optimization configuration (Milestone 6)
 source "$SCRIPT_DIR/setup/dynamic_optimization.sh"
-source "$SCRIPT_DIR/setup/hardware_change_detector.sh"
 
 # Display init banner
 display_banner() {
