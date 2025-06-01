@@ -22,8 +22,8 @@ fix_ubuntu_repositories() {
     if apt-get update >/dev/null 2>&1; then
         log_info "Repository metadata accessible, testing package downloads..."
         
-        # Test actual package download capability
-        if apt-get install -y --dry-run --download-only curl >/dev/null 2>&1; then
+        # Test actual package download capability with postfix specifically
+        if apt-get install -y --dry-run --download-only postfix >/dev/null 2>&1; then
             log_info "Ubuntu repositories are fully accessible"
             return 0
         else
@@ -35,11 +35,24 @@ fix_ubuntu_repositories() {
     
     log_warn "Ubuntu repositories have issues, attempting to fix..."
     
-    # Backup current sources.list
-    cp /etc/apt/sources.list /etc/apt/sources.list.backup.$(date +%Y%m%d_%H%M%S)
-    
     # Get Ubuntu codename
     local codename=$(lsb_release -cs)
+    
+    # Detect repository format (Ubuntu 24.04+ uses new format)
+    local ubuntu_sources_file="/etc/apt/sources.list.d/ubuntu.sources"
+    local traditional_sources="/etc/apt/sources.list"
+    local using_new_format=false
+    
+    if [ -f "$ubuntu_sources_file" ]; then
+        log_info "Detected Ubuntu 24.04+ new repository format"
+        using_new_format=true
+        # Backup the new format file
+        cp "$ubuntu_sources_file" "${ubuntu_sources_file}.backup.$(date +%Y%m%d_%H%M%S)"
+    else
+        log_info "Detected traditional repository format"
+        # Backup current sources.list
+        cp "$traditional_sources" "${traditional_sources}.backup.$(date +%Y%m%d_%H%M%S)"
+    fi
     
     # Try different Ubuntu mirrors in order of preference
     local mirrors=(
@@ -52,19 +65,37 @@ fix_ubuntu_repositories() {
     for mirror in "${mirrors[@]}"; do
         log_info "Testing Ubuntu mirror: $mirror"
         
-        # Create new sources.list with this mirror
-        cat > /etc/apt/sources.list << EOF
+        if [ "$using_new_format" = true ]; then
+            # Create new ubuntu.sources file with this mirror
+            cat > "$ubuntu_sources_file" << EOF
+# Ubuntu repositories - Auto-configured by n8n server setup
+Types: deb
+URIs: http://$mirror/ubuntu/
+Suites: $codename $codename-updates $codename-backports
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+Types: deb
+URIs: http://security.ubuntu.com/ubuntu
+Suites: $codename-security
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOF
+        else
+            # Create traditional sources.list with this mirror
+            cat > "$traditional_sources" << EOF
 # Ubuntu repositories - Auto-configured by n8n server setup
 deb http://$mirror/ubuntu/ $codename main restricted universe multiverse
 deb http://$mirror/ubuntu/ $codename-updates main restricted universe multiverse
 deb http://$mirror/ubuntu/ $codename-backports main restricted universe multiverse
 deb http://security.ubuntu.com/ubuntu $codename-security main restricted universe multiverse
 EOF
+        fi
         
         # Test this mirror with both metadata and package downloads
         if apt-get update >/dev/null 2>&1; then
             log_info "Testing package download capability for mirror: $mirror"
-            if apt-get install -y --dry-run --download-only curl >/dev/null 2>&1; then
+            if apt-get install -y --dry-run --download-only postfix >/dev/null 2>&1; then
                 log_info "✓ Successfully configured Ubuntu mirror: $mirror"
                 return 0
             else
@@ -77,7 +108,11 @@ EOF
     
     # If all mirrors failed, restore backup and continue
     log_warn "All Ubuntu mirrors failed, restoring original configuration"
-    mv /etc/apt/sources.list.backup.$(date +%Y%m%d_%H%M%S) /etc/apt/sources.list
+    if [ "$using_new_format" = true ]; then
+        mv "${ubuntu_sources_file}.backup.$(date +%Y%m%d_%H%M%S)" "$ubuntu_sources_file"
+    else
+        mv "${traditional_sources}.backup.$(date +%Y%m%d_%H%M%S)" "$traditional_sources"
+    fi
     
     # Try one more update with original configuration
     apt-get update >/dev/null 2>&1 || true
