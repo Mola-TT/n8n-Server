@@ -220,6 +220,68 @@ main() {
     echo "=========================================="
     echo ""
     
+    # =============================================================================
+    # MILESTONE 6 TESTS - Dynamic Hardware Optimization
+    # =============================================================================
+
+    run_milestone_6_tests() {
+        log_info "=================================================================================="
+        log_info "MILESTONE 6 TESTS - Dynamic Hardware Optimization"
+        log_info "=================================================================================="
+        
+        local milestone_6_passed=0
+        local milestone_6_failed=0
+        
+        # Dynamic Optimization Tests
+        log_info "Running Dynamic Optimization Tests..."
+        if source "$TEST_DIR/test_dynamic_optimization.sh" && run_dynamic_optimization_tests; then
+            log_pass "Dynamic Optimization Tests: PASSED"
+            milestone_6_passed=$((milestone_6_passed + 1))
+        else
+            log_error "Dynamic Optimization Tests: FAILED"
+            milestone_6_failed=$((milestone_6_failed + 1))
+        fi
+        
+        # Email Notification Tests
+        log_info "Running Email Notification Tests..."
+        if source "$TEST_DIR/test_email_notification.sh" && run_email_notification_tests; then
+            log_pass "Email Notification Tests: PASSED"
+            milestone_6_passed=$((milestone_6_passed + 1))
+        else
+            log_error "Email Notification Tests: FAILED"
+            milestone_6_failed=$((milestone_6_failed + 1))
+        fi
+        
+        # Hardware Change Detector Tests
+        log_info "Running Hardware Change Detector Tests..."
+        if source "$TEST_DIR/test_hardware_change_detector.sh" && run_hardware_change_detector_tests; then
+            log_pass "Hardware Change Detector Tests: PASSED"
+            milestone_6_passed=$((milestone_6_passed + 1))
+        else
+            log_error "Hardware Change Detector Tests: FAILED"
+            milestone_6_failed=$((milestone_6_failed + 1))
+        fi
+        
+        # Dynamic Optimization Integration Tests
+        log_info "Running Dynamic Optimization Integration Tests..."
+        if source "$TEST_DIR/test_dynamic_optimization_integration.sh" && run_dynamic_optimization_integration_tests; then
+            log_pass "Dynamic Optimization Integration Tests: PASSED"
+            milestone_6_passed=$((milestone_6_passed + 1))
+        else
+            log_error "Dynamic Optimization Integration Tests: FAILED"
+            milestone_6_failed=$((milestone_6_failed + 1))
+        fi
+        
+        local milestone_6_total=$((milestone_6_passed + milestone_6_failed))
+        log_info "Milestone 6 Summary: $milestone_6_passed/$milestone_6_total test suites passed"
+        
+        # Update global counters
+        TOTAL_PASSED=$((TOTAL_PASSED + milestone_6_passed))
+        TOTAL_FAILED=$((TOTAL_FAILED + milestone_6_failed))
+        
+        return $milestone_6_failed
+    }
+    
     # Print summary
     echo "=========================================="
     echo "Test Summary:"

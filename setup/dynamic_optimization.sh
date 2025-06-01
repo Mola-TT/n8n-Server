@@ -1,0 +1,890 @@
+#!/bin/bash
+
+# dynamic_optimization.sh - Dynamic Hardware Optimization for n8n Server
+# Part of Milestone 6: Dynamic Hardware Optimization
+# 
+# This script detects hardware specifications and dynamically optimizes:
+# - n8n configuration parameters
+# - Docker resource limits and allocations
+# - Nginx worker processes and connections
+# - Redis memory configuration
+# - PostgreSQL connection parameters
+# - Netdata monitoring settings
+
+set -euo pipefail
+
+# Get script directory for relative imports
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Source required utilities
+source "$SCRIPT_DIR/../lib/logger.sh"
+source "$SCRIPT_DIR/../lib/utilities.sh"
+
+# =============================================================================
+# CONFIGURATION AND CONSTANTS
+# =============================================================================
+
+# Optimization thresholds and ratios
+readonly CPU_CORES_MIN=1
+readonly CPU_CORES_MAX=64
+readonly MEMORY_MIN_GB=1
+readonly MEMORY_MAX_GB=256
+readonly DISK_MIN_GB=10
+readonly DISK_MAX_GB=10240
+
+# n8n optimization ratios
+readonly N8N_EXECUTION_PROCESS_RATIO=0.75  # 75% of CPU cores
+readonly N8N_MEMORY_RATIO=0.4              # 40% of total memory
+readonly N8N_TIMEOUT_BASE=300              # Base timeout in seconds
+
+# Docker optimization ratios
+readonly DOCKER_MEMORY_RATIO=0.8           # 80% of total memory for containers
+readonly DOCKER_CPU_RATIO=0.9              # 90% of CPU cores
+
+# Nginx optimization ratios
+readonly NGINX_WORKER_RATIO=1.0            # 1 worker per CPU core
+readonly NGINX_CONNECTIONS_PER_WORKER=1024 # Base connections per worker
+
+# Redis optimization ratios
+readonly REDIS_MEMORY_RATIO=0.15           # 15% of total memory
+readonly REDIS_MEMORY_MIN_MB=64            # Minimum Redis memory
+
+# Backup directory for configurations
+readonly BACKUP_DIR="/opt/n8n/backups/optimization"
+readonly LOG_FILE="/opt/n8n/logs/optimization.log"
+
+# =============================================================================
+# HARDWARE DETECTION FUNCTIONS
+# =============================================================================
+
+detect_cpu_cores() {
+    local cores
+    cores=$(nproc 2>/dev/null || echo "1")
+    
+    # Validate CPU cores within reasonable bounds
+    if [[ "$cores" -lt "$CPU_CORES_MIN" ]]; then
+        cores=$CPU_CORES_MIN
+    elif [[ "$cores" -gt "$CPU_CORES_MAX" ]]; then
+        cores=$CPU_CORES_MAX
+    fi
+    
+    echo "$cores"
+}
+
+detect_memory_gb() {
+    local memory_kb memory_gb
+    memory_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "1048576")
+    memory_gb=$((memory_kb / 1024 / 1024))
+    
+    # Validate memory within reasonable bounds
+    if [[ "$memory_gb" -lt "$MEMORY_MIN_GB" ]]; then
+        memory_gb=$MEMORY_MIN_GB
+    elif [[ "$memory_gb" -gt "$MEMORY_MAX_GB" ]]; then
+        memory_gb=$MEMORY_MAX_GB
+    fi
+    
+    echo "$memory_gb"
+}
+
+detect_disk_gb() {
+    local disk_gb
+    disk_gb=$(df /opt/n8n 2>/dev/null | tail -1 | awk '{print int($2/1024/1024)}' || echo "20")
+    
+    # Validate disk space within reasonable bounds
+    if [[ "$disk_gb" -lt "$DISK_MIN_GB" ]]; then
+        disk_gb=$DISK_MIN_GB
+    elif [[ "$disk_gb" -gt "$DISK_MAX_GB" ]]; then
+        disk_gb=$DISK_MAX_GB
+    fi
+    
+    echo "$disk_gb"
+}
+
+get_hardware_specs() {
+    local cpu_cores memory_gb disk_gb
+    
+    log_info "Detecting hardware specifications..."
+    
+    cpu_cores=$(detect_cpu_cores)
+    memory_gb=$(detect_memory_gb)
+    disk_gb=$(detect_disk_gb)
+    
+    log_info "Hardware detected: ${cpu_cores} CPU cores, ${memory_gb}GB RAM, ${disk_gb}GB disk"
+    
+    # Export for use by other functions
+    export HW_CPU_CORES="$cpu_cores"
+    export HW_MEMORY_GB="$memory_gb"
+    export HW_DISK_GB="$disk_gb"
+}
+
+# =============================================================================
+# OPTIMIZATION CALCULATION FUNCTIONS
+# =============================================================================
+
+calculate_n8n_parameters() {
+    local cpu_cores="$HW_CPU_CORES"
+    local memory_gb="$HW_MEMORY_GB"
+    
+    # Calculate execution processes (75% of CPU cores, minimum 1)
+    local execution_processes
+    execution_processes=$(echo "$cpu_cores * $N8N_EXECUTION_PROCESS_RATIO" | bc -l | cut -d. -f1)
+    [[ "$execution_processes" -lt 1 ]] && execution_processes=1
+    
+    # Calculate memory limit (40% of total memory in MB)
+    local memory_limit_mb
+    memory_limit_mb=$(echo "$memory_gb * 1024 * $N8N_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    
+    # Calculate timeout based on memory (more memory = longer timeout)
+    local execution_timeout
+    execution_timeout=$(echo "$N8N_TIMEOUT_BASE + ($memory_gb * 30)" | bc -l | cut -d. -f1)
+    
+    # Calculate webhook timeout
+    local webhook_timeout
+    webhook_timeout=$(echo "$execution_timeout * 0.8" | bc -l | cut -d. -f1)
+    
+    # Export calculated values
+    export N8N_EXECUTION_PROCESS="$execution_processes"
+    export N8N_MEMORY_LIMIT_MB="$memory_limit_mb"
+    export N8N_EXECUTION_TIMEOUT="$execution_timeout"
+    export N8N_WEBHOOK_TIMEOUT="$webhook_timeout"
+    
+    log_info "n8n parameters: ${execution_processes} processes, ${memory_limit_mb}MB memory, ${execution_timeout}s timeout"
+}
+
+calculate_docker_parameters() {
+    local cpu_cores="$HW_CPU_CORES"
+    local memory_gb="$HW_MEMORY_GB"
+    
+    # Calculate Docker memory limit (80% of total memory)
+    local docker_memory_gb
+    docker_memory_gb=$(echo "$memory_gb * $DOCKER_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    
+    # Calculate CPU limit (90% of CPU cores)
+    local docker_cpu_limit
+    docker_cpu_limit=$(echo "$cpu_cores * $DOCKER_CPU_RATIO" | bc -l)
+    
+    # Calculate shared memory (1/8 of container memory, minimum 64MB)
+    local shm_size_mb
+    shm_size_mb=$(echo "$docker_memory_gb * 1024 / 8" | bc -l | cut -d. -f1)
+    [[ "$shm_size_mb" -lt 64 ]] && shm_size_mb=64
+    
+    # Export calculated values
+    export DOCKER_MEMORY_LIMIT="${docker_memory_gb}g"
+    export DOCKER_CPU_LIMIT="$docker_cpu_limit"
+    export DOCKER_SHM_SIZE="${shm_size_mb}m"
+    
+    log_info "Docker parameters: ${docker_memory_gb}GB memory, ${docker_cpu_limit} CPU limit, ${shm_size_mb}MB shared memory"
+}
+
+calculate_nginx_parameters() {
+    local cpu_cores="$HW_CPU_CORES"
+    local memory_gb="$HW_MEMORY_GB"
+    
+    # Calculate worker processes (1 per CPU core)
+    local worker_processes
+    worker_processes=$(echo "$cpu_cores * $NGINX_WORKER_RATIO" | bc -l | cut -d. -f1)
+    [[ "$worker_processes" -lt 1 ]] && worker_processes=1
+    
+    # Calculate worker connections (base * memory factor)
+    local memory_factor
+    memory_factor=$(echo "scale=2; 1 + ($memory_gb / 8)" | bc -l)
+    local worker_connections
+    worker_connections=$(echo "$NGINX_CONNECTIONS_PER_WORKER * $memory_factor" | bc -l | cut -d. -f1)
+    
+    # Calculate client max body size (based on available memory)
+    local client_max_body_mb
+    if [[ "$memory_gb" -ge 8 ]]; then
+        client_max_body_mb=100
+    elif [[ "$memory_gb" -ge 4 ]]; then
+        client_max_body_mb=50
+    else
+        client_max_body_mb=25
+    fi
+    
+    # Calculate SSL session cache (based on memory)
+    local ssl_session_cache_mb
+    ssl_session_cache_mb=$(echo "$memory_gb * 2" | bc -l | cut -d. -f1)
+    [[ "$ssl_session_cache_mb" -lt 1 ]] && ssl_session_cache_mb=1
+    [[ "$ssl_session_cache_mb" -gt 10 ]] && ssl_session_cache_mb=10
+    
+    # Export calculated values
+    export NGINX_WORKER_PROCESSES="$worker_processes"
+    export NGINX_WORKER_CONNECTIONS="$worker_connections"
+    export NGINX_CLIENT_MAX_BODY="${client_max_body_mb}m"
+    export NGINX_SSL_SESSION_CACHE="${ssl_session_cache_mb}m"
+    
+    log_info "Nginx parameters: ${worker_processes} workers, ${worker_connections} connections, ${client_max_body_mb}MB max body"
+}
+
+calculate_redis_parameters() {
+    local memory_gb="$HW_MEMORY_GB"
+    
+    # Calculate Redis memory (15% of total memory)
+    local redis_memory_mb
+    redis_memory_mb=$(echo "$memory_gb * 1024 * $REDIS_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    [[ "$redis_memory_mb" -lt "$REDIS_MEMORY_MIN_MB" ]] && redis_memory_mb=$REDIS_MEMORY_MIN_MB
+    
+    # Calculate save intervals based on memory
+    local save_interval
+    if [[ "$redis_memory_mb" -ge 512 ]]; then
+        save_interval="900 1 300 10 60 10000"  # More frequent saves for larger memory
+    else
+        save_interval="900 1 300 10"           # Less frequent saves for smaller memory
+    fi
+    
+    # Set memory policy for n8n queue management
+    local maxmemory_policy="allkeys-lru"
+    
+    # Export calculated values
+    export REDIS_MAXMEMORY="${redis_memory_mb}mb"
+    export REDIS_SAVE_INTERVAL="$save_interval"
+    export REDIS_MAXMEMORY_POLICY="$maxmemory_policy"
+    
+    log_info "Redis parameters: ${redis_memory_mb}MB memory, policy: ${maxmemory_policy}"
+}
+
+calculate_netdata_parameters() {
+    local cpu_cores="$HW_CPU_CORES"
+    local memory_gb="$HW_MEMORY_GB"
+    local disk_gb="$HW_DISK_GB"
+    
+    # Calculate update frequency (higher for more powerful systems)
+    local update_every
+    if [[ "$cpu_cores" -ge 4 && "$memory_gb" -ge 4 ]]; then
+        update_every=1  # 1 second for powerful systems
+    elif [[ "$cpu_cores" -ge 2 && "$memory_gb" -ge 2 ]]; then
+        update_every=2  # 2 seconds for medium systems
+    else
+        update_every=3  # 3 seconds for low-end systems
+    fi
+    
+    # Calculate memory limit (5% of total memory, max 512MB)
+    local memory_limit_mb
+    memory_limit_mb=$(echo "$memory_gb * 1024 * 0.05" | bc -l | cut -d. -f1)
+    [[ "$memory_limit_mb" -gt 512 ]] && memory_limit_mb=512
+    [[ "$memory_limit_mb" -lt 32 ]] && memory_limit_mb=32
+    
+    # Calculate history retention (based on disk space)
+    local history_hours
+    if [[ "$disk_gb" -ge 100 ]]; then
+        history_hours=168  # 7 days for large disks
+    elif [[ "$disk_gb" -ge 50 ]]; then
+        history_hours=72   # 3 days for medium disks
+    else
+        history_hours=24   # 1 day for small disks
+    fi
+    
+    # Export calculated values
+    export NETDATA_UPDATE_EVERY="$update_every"
+    export NETDATA_MEMORY_LIMIT="${memory_limit_mb}"
+    export NETDATA_HISTORY_HOURS="$history_hours"
+    
+    log_info "Netdata parameters: ${update_every}s updates, ${memory_limit_mb}MB memory, ${history_hours}h history"
+}
+
+# =============================================================================
+# CONFIGURATION UPDATE FUNCTIONS
+# =============================================================================
+
+backup_configurations() {
+    log_info "Creating configuration backups..."
+    
+    # Create backup directory with timestamp
+    local backup_timestamp
+    backup_timestamp=$(date +"%Y%m%d_%H%M%S")
+    local backup_path="$BACKUP_DIR/$backup_timestamp"
+    
+    mkdir -p "$backup_path"
+    
+    # Backup n8n environment file
+    [[ -f "/opt/n8n/docker/.env" ]] && cp "/opt/n8n/docker/.env" "$backup_path/n8n.env.backup"
+    
+    # Backup Docker Compose file
+    [[ -f "/opt/n8n/docker/docker-compose.yml" ]] && cp "/opt/n8n/docker/docker-compose.yml" "$backup_path/docker-compose.yml.backup"
+    
+    # Backup Nginx configuration
+    [[ -f "/etc/nginx/sites-available/n8n" ]] && cp "/etc/nginx/sites-available/n8n" "$backup_path/nginx.conf.backup"
+    
+    # Backup Redis configuration
+    [[ -f "/etc/redis/redis.conf" ]] && cp "/etc/redis/redis.conf" "$backup_path/redis.conf.backup"
+    
+    # Backup Netdata configuration
+    [[ -f "/etc/netdata/netdata.conf" ]] && cp "/etc/netdata/netdata.conf" "$backup_path/netdata.conf.backup"
+    
+    # Create backup manifest
+    cat > "$backup_path/manifest.txt" << EOF
+Backup created: $(date)
+Hardware specs: ${HW_CPU_CORES} cores, ${HW_MEMORY_GB}GB RAM, ${HW_DISK_GB}GB disk
+Backup contents:
+$(ls -la "$backup_path")
+EOF
+    
+    log_info "Configuration backup created: $backup_path"
+    export BACKUP_PATH="$backup_path"
+}
+
+update_n8n_configuration() {
+    log_info "Updating n8n configuration..."
+    
+    local env_file="/opt/n8n/docker/.env"
+    
+    if [[ ! -f "$env_file" ]]; then
+        log_error "n8n environment file not found: $env_file"
+        return 1
+    fi
+    
+    # Update n8n execution parameters
+    sed -i "s/^N8N_EXECUTION_PROCESS=.*/N8N_EXECUTION_PROCESS=${N8N_EXECUTION_PROCESS}/" "$env_file" || \
+        echo "N8N_EXECUTION_PROCESS=${N8N_EXECUTION_PROCESS}" >> "$env_file"
+    
+    sed -i "s/^N8N_EXECUTION_TIMEOUT=.*/N8N_EXECUTION_TIMEOUT=${N8N_EXECUTION_TIMEOUT}/" "$env_file" || \
+        echo "N8N_EXECUTION_TIMEOUT=${N8N_EXECUTION_TIMEOUT}" >> "$env_file"
+    
+    sed -i "s/^WEBHOOK_TIMEOUT=.*/WEBHOOK_TIMEOUT=${N8N_WEBHOOK_TIMEOUT}/" "$env_file" || \
+        echo "WEBHOOK_TIMEOUT=${N8N_WEBHOOK_TIMEOUT}" >> "$env_file"
+    
+    log_info "n8n configuration updated successfully"
+}
+
+update_docker_configuration() {
+    log_info "Updating Docker configuration..."
+    
+    local compose_file="/opt/n8n/docker/docker-compose.yml"
+    
+    if [[ ! -f "$compose_file" ]]; then
+        log_error "Docker Compose file not found: $compose_file"
+        return 1
+    fi
+    
+    # Create temporary file for updates
+    local temp_file
+    temp_file=$(mktemp)
+    
+    # Update Docker Compose with calculated limits
+    awk -v mem_limit="$DOCKER_MEMORY_LIMIT" \
+        -v cpu_limit="$DOCKER_CPU_LIMIT" \
+        -v shm_size="$DOCKER_SHM_SIZE" '
+    /^[[:space:]]*deploy:/ {
+        print $0
+        getline
+        while ($0 ~ /^[[:space:]]*resources:/ || $0 ~ /^[[:space:]]*limits:/ || $0 ~ /^[[:space:]]*memory:/ || $0 ~ /^[[:space:]]*cpus:/) {
+            getline
+        }
+        print "      resources:"
+        print "        limits:"
+        print "          memory: " mem_limit
+        print "          cpus: \"" cpu_limit "\""
+        print $0
+        next
+    }
+    /^[[:space:]]*shm_size:/ {
+        print "    shm_size: " shm_size
+        next
+    }
+    { print }
+    ' "$compose_file" > "$temp_file"
+    
+    # Replace original file if changes were made
+    if ! cmp -s "$compose_file" "$temp_file"; then
+        mv "$temp_file" "$compose_file"
+        log_info "Docker configuration updated successfully"
+    else
+        rm "$temp_file"
+        log_info "Docker configuration already optimal"
+    fi
+}
+
+update_nginx_configuration() {
+    log_info "Updating Nginx configuration..."
+    
+    local nginx_conf="/etc/nginx/sites-available/n8n"
+    
+    if [[ ! -f "$nginx_conf" ]]; then
+        log_warn "Nginx configuration file not found: $nginx_conf"
+        return 0
+    fi
+    
+    # Update main nginx.conf for worker processes
+    local main_conf="/etc/nginx/nginx.conf"
+    if [[ -f "$main_conf" ]]; then
+        sed -i "s/^worker_processes.*/worker_processes ${NGINX_WORKER_PROCESSES};/" "$main_conf"
+        
+        # Update worker_connections in events block
+        sed -i "/events {/,/}/ s/worker_connections.*/worker_connections ${NGINX_WORKER_CONNECTIONS};/" "$main_conf"
+    fi
+    
+    # Update site-specific configuration
+    sed -i "s/client_max_body_size.*/client_max_body_size ${NGINX_CLIENT_MAX_BODY};/" "$nginx_conf"
+    
+    # Update SSL session cache if SSL is configured
+    if grep -q "ssl_session_cache" "$nginx_conf"; then
+        sed -i "s/ssl_session_cache.*/ssl_session_cache shared:SSL:${NGINX_SSL_SESSION_CACHE};/" "$nginx_conf"
+    fi
+    
+    log_info "Nginx configuration updated successfully"
+}
+
+update_redis_configuration() {
+    log_info "Updating Redis configuration..."
+    
+    # Check if Redis is running in Docker (part of our compose)
+    if docker-compose -f /opt/n8n/docker/docker-compose.yml ps redis >/dev/null 2>&1; then
+        log_info "Redis is running in Docker container - configuration managed via compose"
+        
+        # Update Redis configuration in Docker Compose
+        local compose_file="/opt/n8n/docker/docker-compose.yml"
+        local temp_file
+        temp_file=$(mktemp)
+        
+        # Add Redis configuration to compose file
+        awk -v maxmem="$REDIS_MAXMEMORY" -v policy="$REDIS_MAXMEMORY_POLICY" '
+        /^[[:space:]]*redis:/ {
+            in_redis = 1
+            print $0
+            next
+        }
+        in_redis && /^[[:space:]]*[a-zA-Z]/ && !/^[[:space:]]*command:/ && !/^[[:space:]]*image:/ && !/^[[:space:]]*volumes:/ && !/^[[:space:]]*networks:/ {
+            in_redis = 0
+        }
+        in_redis && /^[[:space:]]*command:/ {
+            print "    command: redis-server --maxmemory " maxmem " --maxmemory-policy " policy
+            next
+        }
+        !in_redis || !/^[[:space:]]*command:/ {
+            print $0
+        }
+        ' "$compose_file" > "$temp_file"
+        
+        mv "$temp_file" "$compose_file"
+    else
+        # Update system Redis configuration
+        local redis_conf="/etc/redis/redis.conf"
+        if [[ -f "$redis_conf" ]]; then
+            sed -i "s/^maxmemory.*/maxmemory ${REDIS_MAXMEMORY}/" "$redis_conf"
+            sed -i "s/^maxmemory-policy.*/maxmemory-policy ${REDIS_MAXMEMORY_POLICY}/" "$redis_conf"
+            
+            # Update save configuration
+            sed -i "/^save /d" "$redis_conf"
+            echo "save $REDIS_SAVE_INTERVAL" >> "$redis_conf"
+        fi
+    fi
+    
+    log_info "Redis configuration updated successfully"
+}
+
+update_netdata_configuration() {
+    log_info "Updating Netdata configuration..."
+    
+    local netdata_conf="/etc/netdata/netdata.conf"
+    
+    if [[ ! -f "$netdata_conf" ]]; then
+        log_warn "Netdata configuration file not found: $netdata_conf"
+        return 0
+    fi
+    
+    # Update global settings
+    sed -i "s/^[[:space:]]*update every = .*/    update every = ${NETDATA_UPDATE_EVERY}/" "$netdata_conf"
+    sed -i "s/^[[:space:]]*memory mode = .*/    memory mode = ram/" "$netdata_conf"
+    sed -i "s/^[[:space:]]*history = .*/    history = ${NETDATA_HISTORY_HOURS}/" "$netdata_conf"
+    
+    # Update memory settings
+    if ! grep -q "\[global\]" "$netdata_conf"; then
+        echo -e "\n[global]" >> "$netdata_conf"
+    fi
+    
+    # Add or update memory limit
+    if grep -q "memory limit" "$netdata_conf"; then
+        sed -i "s/^[[:space:]]*memory limit = .*/    memory limit = ${NETDATA_MEMORY_LIMIT}/" "$netdata_conf"
+    else
+        sed -i "/\[global\]/a\\    memory limit = ${NETDATA_MEMORY_LIMIT}" "$netdata_conf"
+    fi
+    
+    log_info "Netdata configuration updated successfully"
+}
+
+# =============================================================================
+# SERVICE MANAGEMENT FUNCTIONS
+# =============================================================================
+
+restart_services() {
+    log_info "Restarting services to apply optimizations..."
+    
+    local services_restarted=0
+    local services_failed=0
+    
+    # Restart n8n (Docker Compose)
+    if cd /opt/n8n/docker && docker-compose restart n8n >/dev/null 2>&1; then
+        log_info "✓ n8n service restarted successfully"
+        services_restarted=$((services_restarted + 1))
+    else
+        log_warn "✗ Failed to restart n8n service"
+        services_failed=$((services_failed + 1))
+    fi
+    
+    # Restart Nginx
+    if systemctl restart nginx >/dev/null 2>&1; then
+        log_info "✓ Nginx service restarted successfully"
+        services_restarted=$((services_restarted + 1))
+    else
+        log_warn "✗ Failed to restart Nginx service"
+        services_failed=$((services_failed + 1))
+    fi
+    
+    # Restart Redis (if system service)
+    if systemctl is-active redis >/dev/null 2>&1; then
+        if systemctl restart redis >/dev/null 2>&1; then
+            log_info "✓ Redis service restarted successfully"
+            services_restarted=$((services_restarted + 1))
+        else
+            log_warn "✗ Failed to restart Redis service"
+            services_failed=$((services_failed + 1))
+        fi
+    elif cd /opt/n8n/docker && docker-compose restart redis >/dev/null 2>&1; then
+        log_info "✓ Redis container restarted successfully"
+        services_restarted=$((services_restarted + 1))
+    fi
+    
+    # Restart Netdata
+    if systemctl restart netdata >/dev/null 2>&1; then
+        log_info "✓ Netdata service restarted successfully"
+        services_restarted=$((services_restarted + 1))
+    else
+        log_warn "✗ Failed to restart Netdata service"
+        services_failed=$((services_failed + 1))
+    fi
+    
+    log_info "Service restart summary: ${services_restarted} successful, ${services_failed} failed"
+    
+    # Wait for services to stabilize
+    log_info "Waiting for services to stabilize..."
+    sleep 10
+}
+
+verify_optimization() {
+    log_info "Verifying optimization results..."
+    
+    local verification_passed=0
+    local verification_failed=0
+    
+    # Verify n8n is responding
+    if curl -s --connect-timeout 10 "http://localhost:5678" >/dev/null 2>&1; then
+        log_info "✓ n8n service is responding"
+        verification_passed=$((verification_passed + 1))
+    else
+        log_warn "✗ n8n service is not responding"
+        verification_failed=$((verification_failed + 1))
+    fi
+    
+    # Verify Nginx is responding
+    if curl -s --connect-timeout 10 "http://localhost" >/dev/null 2>&1; then
+        log_info "✓ Nginx service is responding"
+        verification_passed=$((verification_passed + 1))
+    else
+        log_warn "✗ Nginx service is not responding"
+        verification_failed=$((verification_failed + 1))
+    fi
+    
+    # Verify Redis is responding
+    if redis-cli ping >/dev/null 2>&1 || docker exec -it n8n-docker_redis_1 redis-cli ping >/dev/null 2>&1; then
+        log_info "✓ Redis service is responding"
+        verification_passed=$((verification_passed + 1))
+    else
+        log_warn "✗ Redis service is not responding"
+        verification_failed=$((verification_failed + 1))
+    fi
+    
+    # Verify Netdata is responding
+    if curl -s --connect-timeout 10 "http://localhost:19999" >/dev/null 2>&1; then
+        log_info "✓ Netdata service is responding"
+        verification_passed=$((verification_passed + 1))
+    else
+        log_warn "✗ Netdata service is not responding"
+        verification_failed=$((verification_failed + 1))
+    fi
+    
+    log_info "Verification summary: ${verification_passed} passed, ${verification_failed} failed"
+    
+    return $verification_failed
+}
+
+# =============================================================================
+# REPORTING FUNCTIONS
+# =============================================================================
+
+generate_optimization_report() {
+    log_info "Generating optimization report..."
+    
+    local report_file="/opt/n8n/logs/optimization_report_$(date +%Y%m%d_%H%M%S).txt"
+    
+    cat > "$report_file" << EOF
+================================================================================
+n8n Server Dynamic Optimization Report
+================================================================================
+Generated: $(date)
+Backup Location: ${BACKUP_PATH:-"Not created"}
+
+HARDWARE SPECIFICATIONS:
+- CPU Cores: ${HW_CPU_CORES}
+- Memory: ${HW_MEMORY_GB}GB
+- Disk Space: ${HW_DISK_GB}GB
+
+OPTIMIZATION PARAMETERS:
+================================================================================
+
+n8n Configuration:
+- Execution Processes: ${N8N_EXECUTION_PROCESS}
+- Memory Limit: ${N8N_MEMORY_LIMIT_MB}MB
+- Execution Timeout: ${N8N_EXECUTION_TIMEOUT}s
+- Webhook Timeout: ${N8N_WEBHOOK_TIMEOUT}s
+
+Docker Configuration:
+- Memory Limit: ${DOCKER_MEMORY_LIMIT}
+- CPU Limit: ${DOCKER_CPU_LIMIT}
+- Shared Memory: ${DOCKER_SHM_SIZE}
+
+Nginx Configuration:
+- Worker Processes: ${NGINX_WORKER_PROCESSES}
+- Worker Connections: ${NGINX_WORKER_CONNECTIONS}
+- Client Max Body Size: ${NGINX_CLIENT_MAX_BODY}
+- SSL Session Cache: ${NGINX_SSL_SESSION_CACHE}
+
+Redis Configuration:
+- Max Memory: ${REDIS_MAXMEMORY}
+- Memory Policy: ${REDIS_MAXMEMORY_POLICY}
+- Save Interval: ${REDIS_SAVE_INTERVAL}
+
+Netdata Configuration:
+- Update Frequency: ${NETDATA_UPDATE_EVERY}s
+- Memory Limit: ${NETDATA_MEMORY_LIMIT}MB
+- History Retention: ${NETDATA_HISTORY_HOURS}h
+
+PERFORMANCE RECOMMENDATIONS:
+================================================================================
+$(generate_performance_recommendations)
+
+MONITORING SUGGESTIONS:
+================================================================================
+- Monitor CPU usage through Netdata dashboard
+- Watch memory consumption patterns
+- Track n8n workflow execution times
+- Monitor Redis queue performance
+- Check Nginx connection handling
+
+For detailed metrics, visit: https://$(hostname)/netdata/
+================================================================================
+EOF
+    
+    log_info "Optimization report generated: $report_file"
+    echo "$report_file"
+}
+
+generate_performance_recommendations() {
+    local cpu_cores="$HW_CPU_CORES"
+    local memory_gb="$HW_MEMORY_GB"
+    local disk_gb="$HW_DISK_GB"
+    
+    echo "Based on your hardware configuration:"
+    echo
+    
+    if [[ "$cpu_cores" -le 2 ]]; then
+        echo "- Consider upgrading CPU for better workflow parallel processing"
+        echo "- Limit concurrent workflow executions to prevent overload"
+    elif [[ "$cpu_cores" -ge 8 ]]; then
+        echo "- Excellent CPU capacity for high-throughput workflow processing"
+        echo "- Consider enabling more aggressive parallel execution"
+    fi
+    
+    if [[ "$memory_gb" -le 2 ]]; then
+        echo "- Memory is limited - monitor for out-of-memory conditions"
+        echo "- Consider reducing workflow complexity or upgrading RAM"
+    elif [[ "$memory_gb" -ge 16 ]]; then
+        echo "- Excellent memory capacity for complex workflows"
+        echo "- Consider increasing execution timeout for memory-intensive tasks"
+    fi
+    
+    if [[ "$disk_gb" -le 20 ]]; then
+        echo "- Disk space is limited - enable log rotation and cleanup"
+        echo "- Monitor disk usage regularly"
+    elif [[ "$disk_gb" -ge 100 ]]; then
+        echo "- Ample disk space for extensive logging and data retention"
+        echo "- Consider increasing Netdata history retention"
+    fi
+    
+    echo
+    echo "Next optimization should be run when hardware changes are detected."
+}
+
+# =============================================================================
+# MAIN OPTIMIZATION FUNCTION
+# =============================================================================
+
+run_optimization() {
+    local start_time
+    start_time=$(date +%s)
+    
+    log_info "Starting dynamic hardware optimization..."
+    
+    # Create necessary directories
+    mkdir -p "$BACKUP_DIR" "/opt/n8n/logs"
+    
+    # Detect hardware specifications
+    get_hardware_specs
+    
+    # Calculate optimization parameters
+    calculate_n8n_parameters
+    calculate_docker_parameters
+    calculate_nginx_parameters
+    calculate_redis_parameters
+    calculate_netdata_parameters
+    
+    # Create configuration backups
+    backup_configurations
+    
+    # Update configurations
+    update_n8n_configuration
+    update_docker_configuration
+    update_nginx_configuration
+    update_redis_configuration
+    update_netdata_configuration
+    
+    # Restart services to apply changes
+    restart_services
+    
+    # Verify optimization results
+    if verify_optimization; then
+        log_info "✓ Optimization completed successfully"
+    else
+        log_warn "⚠ Optimization completed with some verification failures"
+    fi
+    
+    # Generate optimization report
+    local report_file
+    report_file=$(generate_optimization_report)
+    
+    local end_time duration
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    
+    log_info "Optimization completed in ${duration} seconds"
+    log_info "Report available at: $report_file"
+    
+    return 0
+}
+
+# =============================================================================
+# COMMAND LINE INTERFACE
+# =============================================================================
+
+show_help() {
+    cat << EOF
+Dynamic Hardware Optimization for n8n Server
+
+USAGE:
+    $0 [OPTIONS]
+
+OPTIONS:
+    --optimize          Run full optimization (default)
+    --detect-only       Only detect and display hardware specifications
+    --calculate-only    Detect hardware and calculate parameters without applying
+    --verify-only       Verify current optimization status
+    --report-only       Generate optimization report without changes
+    --help              Show this help message
+
+EXAMPLES:
+    $0                  # Run full optimization
+    $0 --detect-only    # Just show hardware specs
+    $0 --verify-only    # Check if services are optimized
+
+The script will automatically:
+1. Detect hardware specifications (CPU, memory, disk)
+2. Calculate optimal parameters for all components
+3. Backup current configurations
+4. Apply optimizations
+5. Restart services
+6. Verify results
+7. Generate detailed report
+
+All changes are logged and backed up for easy rollback if needed.
+EOF
+}
+
+main() {
+    local action="optimize"
+    
+    # Parse command line arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --optimize)
+                action="optimize"
+                shift
+                ;;
+            --detect-only)
+                action="detect"
+                shift
+                ;;
+            --calculate-only)
+                action="calculate"
+                shift
+                ;;
+            --verify-only)
+                action="verify"
+                shift
+                ;;
+            --report-only)
+                action="report"
+                shift
+                ;;
+            --help)
+                show_help
+                exit 0
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Execute requested action
+    case $action in
+        "detect")
+            get_hardware_specs
+            log_info "Hardware: ${HW_CPU_CORES} cores, ${HW_MEMORY_GB}GB RAM, ${HW_DISK_GB}GB disk"
+            ;;
+        "calculate")
+            get_hardware_specs
+            calculate_n8n_parameters
+            calculate_docker_parameters
+            calculate_nginx_parameters
+            calculate_redis_parameters
+            calculate_netdata_parameters
+            log_info "Optimization parameters calculated (not applied)"
+            ;;
+        "verify")
+            verify_optimization
+            ;;
+        "report")
+            get_hardware_specs
+            calculate_n8n_parameters
+            calculate_docker_parameters
+            calculate_nginx_parameters
+            calculate_redis_parameters
+            calculate_netdata_parameters
+            generate_optimization_report
+            ;;
+        "optimize")
+            run_optimization
+            ;;
+        *)
+            log_error "Invalid action: $action"
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function if script is executed directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi 
