@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# test_hardware_change_detector.sh - Tests for Hardware Change Detector
+# test_hardware_change_detector.sh - Tests for Hardware Change Detection
 # Part of Milestone 6: Dynamic Hardware Optimization
 
 set -euo pipefail
@@ -10,12 +10,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Source required utilities
-source "$SCRIPT_DIR/../utils/logger.sh"
-source "$SCRIPT_DIR/../utils/utilities.sh"
+source "$SCRIPT_DIR/../lib/logger.sh"
+source "$SCRIPT_DIR/../lib/utilities.sh"
 
 # Test configuration
-readonly TEST_HARDWARE_SPEC_FILE="/tmp/test_hardware_specs.json"
-readonly HARDWARE_DETECTOR_SCRIPT="$PROJECT_ROOT/setup/hardware_change_detector.sh"
+HARDWARE_DETECTOR_SCRIPT="$PROJECT_ROOT/setup/hardware_change_detector.sh"
 
 # =============================================================================
 # TEST SETUP AND TEARDOWN

@@ -10,8 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Source required utilities
-source "$SCRIPT_DIR/../utils/logger.sh"
-source "$SCRIPT_DIR/../utils/utilities.sh"
+source "$SCRIPT_DIR/../lib/logger.sh"
+source "$SCRIPT_DIR/../lib/utilities.sh"
 
 # Test configuration
 readonly TEST_EMAIL_CONFIG="/tmp/test_email_config.env"
