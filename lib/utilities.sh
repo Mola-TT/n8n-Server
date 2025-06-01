@@ -14,8 +14,8 @@ touch "$LOG_FILE" 2>/dev/null || true
 # Only debug logs and errors are displayed, all other output is redirected to log file
 execute_silently() {
     local cmd="$1"
-    local msg="$2"
-    local err_msg="$3"
+    local msg="${2:-}"
+    local err_msg="${3:-}"
     
     log_debug "Executing: $cmd"
     
