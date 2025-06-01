@@ -12,11 +12,74 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 
 # =============================================================================
+# Repository Management Functions
+# =============================================================================
+
+fix_ubuntu_repositories() {
+    log_info "Checking Ubuntu repository accessibility..."
+    
+    # Test current repositories
+    if apt-get update >/dev/null 2>&1; then
+        log_info "Ubuntu repositories are accessible"
+        return 0
+    fi
+    
+    log_warn "Ubuntu repositories are not accessible, attempting to fix..."
+    
+    # Backup current sources.list
+    cp /etc/apt/sources.list /etc/apt/sources.list.backup.$(date +%Y%m%d_%H%M%S)
+    
+    # Get Ubuntu codename
+    local codename=$(lsb_release -cs)
+    
+    # Try different Ubuntu mirrors in order of preference
+    local mirrors=(
+        "archive.ubuntu.com"
+        "us.archive.ubuntu.com"
+        "mirror.ubuntu.com"
+        "old-releases.ubuntu.com"
+    )
+    
+    for mirror in "${mirrors[@]}"; do
+        log_info "Testing Ubuntu mirror: $mirror"
+        
+        # Create new sources.list with this mirror
+        cat > /etc/apt/sources.list << EOF
+# Ubuntu repositories - Auto-configured by n8n server setup
+deb http://$mirror/ubuntu/ $codename main restricted universe multiverse
+deb http://$mirror/ubuntu/ $codename-updates main restricted universe multiverse
+deb http://$mirror/ubuntu/ $codename-backports main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu $codename-security main restricted universe multiverse
+EOF
+        
+        # Test this mirror
+        if apt-get update >/dev/null 2>&1; then
+            log_info "✓ Successfully configured Ubuntu mirror: $mirror"
+            return 0
+        else
+            log_warn "✗ Mirror $mirror failed, trying next..."
+        fi
+    done
+    
+    # If all mirrors failed, restore backup and continue
+    log_warn "All Ubuntu mirrors failed, restoring original configuration"
+    mv /etc/apt/sources.list.backup.$(date +%Y%m%d_%H%M%S) /etc/apt/sources.list
+    
+    # Try one more update with original configuration
+    apt-get update >/dev/null 2>&1 || true
+    
+    return 1
+}
+
+# =============================================================================
 # Netdata Installation Functions
 # =============================================================================
 
 install_netdata() {
     log_info "Installing Netdata system monitoring..."
+    
+    # Fix Ubuntu repositories before proceeding
+    fix_ubuntu_repositories
     
     # Install dependencies including mail system
     log_info "Installing Netdata dependencies..."
