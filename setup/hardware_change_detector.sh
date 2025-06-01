@@ -158,23 +158,124 @@ detect_hardware_changes() {
 # EMAIL NOTIFICATION FUNCTIONS
 # =============================================================================
 
+validate_email_configuration() {
+    local missing_vars=()
+    
+    [[ -z "${EMAIL_SENDER:-}" ]] && missing_vars+=("EMAIL_SENDER")
+    [[ -z "${EMAIL_RECIPIENT:-}" ]] && missing_vars+=("EMAIL_RECIPIENT")
+    [[ -z "${SMTP_SERVER:-}" ]] && missing_vars+=("SMTP_SERVER")
+    [[ -z "${SMTP_PORT:-}" ]] && missing_vars+=("SMTP_PORT")
+    [[ -z "${SMTP_USERNAME:-}" ]] && missing_vars+=("SMTP_USERNAME")
+    [[ -z "${SMTP_PASSWORD:-}" ]] && missing_vars+=("SMTP_PASSWORD")
+    
+    if [[ ${#missing_vars[@]} -gt 0 ]]; then
+        echo "Missing email configuration: ${missing_vars[*]}"
+        return 1
+    fi
+    
+    return 0
+}
+
+generate_hardware_change_email_subject() {
+    local old_specs="$1"
+    local new_specs="$2"
+    
+    echo "${EMAIL_SUBJECT_PREFIX} Hardware Change Detected"
+}
+
+generate_hardware_change_email_body() {
+    local old_specs="$1"
+    local new_specs="$2"
+    
+    local old_cpu old_memory old_disk
+    local new_cpu new_memory new_disk
+    
+    # Extract values from JSON specs
+    old_cpu=$(echo "$old_specs" | grep -o '"cpu_cores": *[0-9]*' | grep -o '[0-9]*$')
+    old_memory=$(echo "$old_specs" | grep -o '"memory_gb": *[0-9]*' | grep -o '[0-9]*$')
+    old_disk=$(echo "$old_specs" | grep -o '"disk_gb": *[0-9]*' | grep -o '[0-9]*$')
+    
+    new_cpu=$(echo "$new_specs" | grep -o '"cpu_cores": *[0-9]*' | grep -o '[0-9]*$')
+    new_memory=$(echo "$new_specs" | grep -o '"memory_gb": *[0-9]*' | grep -o '[0-9]*$')
+    new_disk=$(echo "$new_specs" | grep -o '"disk_gb": *[0-9]*' | grep -o '[0-9]*$')
+    
+    cat << EOF
+Hardware change detected on n8n server:
+
+Previous Hardware:
+- CPU cores: ${old_cpu}
+- Memory: ${old_memory}GB
+- Disk: ${old_disk}GB
+
+New Hardware:
+- CPU cores: ${new_cpu}
+- Memory: ${new_memory}GB
+- Disk: ${new_disk}GB
+
+Changes:
+- CPU cores: ${old_cpu} → ${new_cpu}
+- Memory: ${old_memory}GB → ${new_memory}GB
+- Disk: ${old_disk}GB → ${new_disk}GB
+
+Automatic optimization will be triggered shortly.
+
+Server: $(hostname)
+Timestamp: $(date)
+EOF
+}
+
+generate_optimization_email_subject() {
+    local status="$1"
+    
+    case "$status" in
+        "completed")
+            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Completed"
+            ;;
+        "failed")
+            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Failed"
+            ;;
+        *)
+            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Update"
+            ;;
+    esac
+}
+
+generate_optimization_email_body() {
+    local message="$1"
+    
+    cat << EOF
+n8n Server Hardware Optimization Update:
+
+$message
+
+Server: $(hostname)
+Timestamp: $(date)
+
+For detailed information, check the optimization logs at:
+/opt/n8n/logs/
+
+Dashboard: https://$(hostname)/netdata/
+EOF
+}
+
 check_email_cooldown() {
-    local cooldown_file="/opt/n8n/data/last_email_notification"
+    local cooldown_file="${1:-/opt/n8n/data/last_email_notification}"
     local current_time last_email_time time_diff
     
     current_time=$(date +%s)
     
     # Ensure the directory exists and has proper permissions
-    if ! mkdir -p "/opt/n8n/data" 2>/dev/null; then
-        log_warn "Cannot create /opt/n8n/data directory - using temporary cooldown"
+    local cooldown_dir=$(dirname "$cooldown_file")
+    if ! mkdir -p "$cooldown_dir" 2>/dev/null; then
+        log_warn "Cannot create $cooldown_dir directory - using temporary cooldown"
         cooldown_file="/tmp/last_email_notification_$(whoami)"
     else
         # Fix ownership if directory exists but we can't write to it
-        if [[ ! -w "/opt/n8n/data" ]]; then
-            if sudo chown -R "$(whoami):$(id -gn)" "/opt/n8n/data" 2>/dev/null && sudo chmod -R 755 "/opt/n8n/data" 2>/dev/null; then
-                log_debug "Fixed /opt/n8n/data directory permissions"
+        if [[ ! -w "$cooldown_dir" ]]; then
+            if sudo chown -R "$(whoami):$(id -gn)" "$cooldown_dir" 2>/dev/null && sudo chmod -R 755 "$cooldown_dir" 2>/dev/null; then
+                log_debug "Fixed $cooldown_dir directory permissions"
             else
-                log_warn "Cannot fix /opt/n8n/data permissions - using temporary cooldown"
+                log_warn "Cannot fix $cooldown_dir permissions - using temporary cooldown"
                 cooldown_file="/tmp/last_email_notification_$(whoami)"
             fi
         fi
@@ -198,93 +299,36 @@ check_email_cooldown() {
     return 0
 }
 
-send_hardware_change_notification() {
-    local change_type="$1"  # "detected" or "optimized"
-    local subject body
+send_email_notification() {
+    local notification_type="$1"
+    local message="$2"
+    local subject body temp_file
     
-    # Check email cooldown
-    if ! check_email_cooldown; then
-        log_debug "Skipping email notification due to cooldown"
-        return 0
+    # Validate email configuration
+    if ! validate_email_configuration >/dev/null 2>&1; then
+        echo "Email configuration missing"
+        return 1
     fi
     
-    # Load email configuration
-    local email_config
-    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
-        source "$PROJECT_ROOT/conf/user.env"
-    elif [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
-        source "$PROJECT_ROOT/conf/default.env"
-    fi
-    
-    # Check if email is configured
-    if [[ -z "${EMAIL_SENDER:-}" || -z "${EMAIL_RECIPIENT:-}" ]]; then
-        log_warn "Email not configured - skipping notification"
-        return 0
-    fi
-    
-    # Set default values for potentially unbound variables
-    local change_summary="${CHANGE_SUMMARY:-"Hardware configuration changes detected"}"
-    local previous_specs="${PREVIOUS_HARDWARE_SPECS:-"{}"}"
-    local current_specs="${CURRENT_HARDWARE_SPECS:-"{}"}"
-    
-    # Prepare email content based on change type
-    case "$change_type" in
-        "detected")
-            subject="${EMAIL_SUBJECT_PREFIX:-"[n8n Server]"} Hardware Change Detected"
-            body="Hardware changes have been detected on your n8n server:
-
-$(echo -e "$change_summary")
-
-Server: $(hostname)
-Detection Time: $(date)
-
-Automatic optimization will begin shortly to adapt to the new hardware configuration.
-
-Previous Hardware:
-$(echo "$previous_specs" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /' || echo "- Information not available")
-
-Current Hardware:
-$(echo "$current_specs" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /' || echo "- Information not available")
-
-This is an automated notification from your n8n server monitoring system."
+    # Generate subject and body based on notification type
+    case "$notification_type" in
+        "test")
+            subject="${EMAIL_SUBJECT_PREFIX} Test Email"
+            body="$message"
             ;;
-        "optimized")
-            subject="${EMAIL_SUBJECT_PREFIX:-"[n8n Server]"} Hardware Optimization Completed"
-            body="Hardware optimization has been completed on your n8n server.
-
-$(echo -e "$change_summary")
-
-Server: $(hostname)
-Optimization Time: $(date)
-
-All services have been reconfigured and restarted to take advantage of the new hardware specifications.
-
-Current Configuration:
-$(echo "$current_specs" | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /' || echo "- Information not available")
-
-You can view detailed optimization results in the Netdata dashboard at:
-https://$(hostname)/netdata/
-
-This is an automated notification from your n8n server monitoring system."
+        "hardware_change")
+            subject=$(generate_hardware_change_email_subject "$message" "")
+            body=$(generate_hardware_change_email_body "$message" "")
+            ;;
+        "optimization_completed")
+            subject=$(generate_optimization_email_subject "completed")
+            body=$(generate_optimization_email_body "$message")
             ;;
         *)
-            log_error "Invalid email notification type: $change_type"
+            echo "Invalid notification type: $notification_type"
             return 1
             ;;
     esac
-    
-    # Send email notification
-    if send_email_notification "$subject" "$body"; then
-        log_info "Email notification sent successfully"
-    else
-        log_warn "Failed to send email notification"
-    fi
-}
-
-send_email_notification() {
-    local subject="$1"
-    local body="$2"
-    local temp_file
     
     temp_file=$(mktemp)
     
@@ -325,33 +369,10 @@ EOF
     rm -f "$temp_file"
     
     if [[ "$email_sent" == "true" ]]; then
+        echo "Email notification sent successfully"
         return 0
     else
-        return 1
-    fi
-}
-
-test_email_functionality() {
-    local test_subject="${EMAIL_SUBJECT_PREFIX} Hardware Detector Test Email"
-    local test_body="This is a test email from the n8n server hardware change detector.
-
-Server: $(hostname)
-Test Time: $(date)
-
-If you receive this email, the notification system is working correctly.
-
-Current Hardware:
-$(get_current_hardware_specs | grep -E '(cpu_cores|memory_gb|disk_gb)' | sed 's/[",]//g' | sed 's/^[[:space:]]*/- /')
-
-This is an automated test from your n8n server monitoring system."
-    
-    log_info "Sending test email notification..."
-    
-    if send_email_notification "$test_subject" "$test_body"; then
-        log_info "✓ Test email sent successfully"
-        return 0
-    else
-        log_error "✗ Failed to send test email"
+        echo "Failed to send email notification"
         return 1
     fi
 }

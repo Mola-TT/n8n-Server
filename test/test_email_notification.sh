@@ -322,6 +322,24 @@ test_email_notification_with_cooldown() {
     [[ $exit_code -ne 0 ]]
 }
 
+test_partial_email_configuration() {
+    source "$HARDWARE_DETECTOR_SCRIPT"
+    
+    # Test with partial email configuration (missing password)
+    local original_password="$SMTP_PASSWORD"
+    unset SMTP_PASSWORD
+    
+    local result
+    result=$(validate_email_configuration 2>&1)
+    local exit_code=$?
+    
+    # Restore configuration
+    export SMTP_PASSWORD="$original_password"
+    
+    # Should detect missing configuration
+    [[ $exit_code -ne 0 ]] || echo "$result" | grep -q "SMTP_PASSWORD"
+}
+
 # =============================================================================
 # EMAIL CONFIGURATION VALIDATION TESTS
 # =============================================================================
