@@ -18,13 +18,22 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 fix_ubuntu_repositories() {
     log_info "Checking Ubuntu repository accessibility..."
     
-    # Test current repositories
+    # Test current repositories with both metadata and package download
     if apt-get update >/dev/null 2>&1; then
-        log_info "Ubuntu repositories are accessible"
-        return 0
+        log_info "Repository metadata accessible, testing package downloads..."
+        
+        # Test actual package download capability
+        if apt-get install -y --dry-run --download-only curl >/dev/null 2>&1; then
+            log_info "Ubuntu repositories are fully accessible"
+            return 0
+        else
+            log_warn "Repository metadata accessible but package downloads failing"
+        fi
+    else
+        log_warn "Repository metadata not accessible"
     fi
     
-    log_warn "Ubuntu repositories are not accessible, attempting to fix..."
+    log_warn "Ubuntu repositories have issues, attempting to fix..."
     
     # Backup current sources.list
     cp /etc/apt/sources.list /etc/apt/sources.list.backup.$(date +%Y%m%d_%H%M%S)
@@ -52,12 +61,17 @@ deb http://$mirror/ubuntu/ $codename-backports main restricted universe multiver
 deb http://security.ubuntu.com/ubuntu $codename-security main restricted universe multiverse
 EOF
         
-        # Test this mirror
+        # Test this mirror with both metadata and package downloads
         if apt-get update >/dev/null 2>&1; then
-            log_info "✓ Successfully configured Ubuntu mirror: $mirror"
-            return 0
+            log_info "Testing package download capability for mirror: $mirror"
+            if apt-get install -y --dry-run --download-only curl >/dev/null 2>&1; then
+                log_info "✓ Successfully configured Ubuntu mirror: $mirror"
+                return 0
+            else
+                log_warn "✗ Mirror $mirror metadata OK but package downloads fail"
+            fi
         else
-            log_warn "✗ Mirror $mirror failed, trying next..."
+            log_warn "✗ Mirror $mirror metadata failed"
         fi
     done
     
