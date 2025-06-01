@@ -14,12 +14,11 @@
 set -euo pipefail
 
 # Get script directory for relative imports
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
 
 # Source required utilities
-source "$SCRIPT_DIR/../lib/logger.sh"
-source "$SCRIPT_DIR/../lib/utilities.sh"
+source "$PROJECT_ROOT/lib/logger.sh"
+source "$PROJECT_ROOT/lib/utilities.sh"
 
 # =============================================================================
 # CONFIGURATION AND CONSTANTS
@@ -818,7 +817,7 @@ setup_dynamic_optimization() {
     
     # Set up hardware change detector service
     log_info "Setting up hardware change detection service..."
-    local detector_script="$(dirname "$SCRIPT_DIR")/setup/hardware_change_detector.sh"
+    local detector_script="$PROJECT_ROOT/setup/hardware_change_detector.sh"
     if [[ -f "$detector_script" ]]; then
         bash "$detector_script" --install-service >/dev/null 2>&1 || true
     else
@@ -841,7 +840,7 @@ setup_dynamic_optimization() {
     fi
     
     log_info "Hardware change detection service installed and ready"
-    log_info "Optimization can be re-run manually with: bash $(dirname "$SCRIPT_DIR")/setup/dynamic_optimization.sh --optimize"
+    log_info "Optimization can be re-run manually with: bash $PROJECT_ROOT/setup/dynamic_optimization.sh --optimize"
 }
 
 # =============================================================================

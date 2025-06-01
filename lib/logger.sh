@@ -6,7 +6,19 @@
 LOG_LEVEL=${LOG_LEVEL:-INFO}
 
 # Set default log file if not already set
-LOG_FILE=${LOG_FILE:-/var/log/server_init.log}
+if [[ -z "${LOG_FILE:-}" ]]; then
+  # Try to use system log directory first
+  if [[ -w "/var/log" ]] || sudo touch "/var/log/server_init.log" 2>/dev/null; then
+    LOG_FILE="/var/log/server_init.log"
+    # Ensure proper ownership if we created it with sudo
+    if [[ -f "$LOG_FILE" ]] && [[ "$(stat -c '%U' "$LOG_FILE")" == "root" ]]; then
+      sudo chown "$(whoami):$(whoami)" "$LOG_FILE" 2>/dev/null || true
+    fi
+  else
+    # Fall back to user's home directory
+    LOG_FILE="$HOME/server_init.log"
+  fi
+fi
 
 # ANSI color codes
 RESET='\033[0m'
@@ -128,10 +140,24 @@ log_pass() {
   log "PASS" "$1"
 }
 
-# Ensure log file directory exists
-mkdir -p "$(dirname "${LOG_FILE}")" 2>/dev/null
+# Ensure log file directory exists and is writable
+log_dir="$(dirname "${LOG_FILE}")"
+if [[ ! -d "$log_dir" ]]; then
+  mkdir -p "$log_dir" 2>/dev/null || true
+fi
 
-# Initialize log file if it doesn't exist
-if [ ! -f "${LOG_FILE}" ]; then
-  touch "${LOG_FILE}" 2>/dev/null || true
+# Initialize log file if it doesn't exist or ensure it's writable
+if [[ ! -f "${LOG_FILE}" ]]; then
+  if [[ -w "$log_dir" ]]; then
+    touch "${LOG_FILE}" 2>/dev/null || true
+  elif [[ "$log_dir" == "/var/log" ]]; then
+    # Try with sudo for system log directory
+    sudo touch "${LOG_FILE}" 2>/dev/null || true
+    sudo chown "$(whoami):$(whoami)" "${LOG_FILE}" 2>/dev/null || true
+  fi
+elif [[ ! -w "${LOG_FILE}" ]] && [[ -f "${LOG_FILE}" ]]; then
+  # File exists but not writable, try to fix ownership
+  if [[ "$(stat -c '%U' "$LOG_FILE")" == "root" ]]; then
+    sudo chown "$(whoami):$(whoami)" "${LOG_FILE}" 2>/dev/null || true
+  fi
 fi 

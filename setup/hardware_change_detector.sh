@@ -8,13 +8,12 @@
 
 set -euo pipefail
 
-# Get script directory for relative imports
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Get project root directory for relative imports
+PROJECT_ROOT="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
 
 # Source required utilities
-source "$SCRIPT_DIR/../lib/logger.sh"
-source "$SCRIPT_DIR/../lib/utilities.sh"
+source "$PROJECT_ROOT/lib/logger.sh"
+source "$PROJECT_ROOT/lib/utilities.sh"
 
 # =============================================================================
 # CONFIGURATION AND CONSTANTS
@@ -349,7 +348,7 @@ trigger_optimization() {
     sleep "$OPTIMIZATION_DELAY_SECONDS"
     
     # Run optimization script
-    local optimization_script="$SCRIPT_DIR/dynamic_optimization.sh"
+    local optimization_script="$PROJECT_ROOT/setup/dynamic_optimization.sh"
     
     if [[ -f "$optimization_script" ]]; then
         log_info "Running dynamic optimization..."
@@ -392,7 +391,7 @@ Wants=network.target
 Type=simple
 User=root
 Group=root
-ExecStart=$SCRIPT_DIR/hardware_change_detector.sh --daemon
+ExecStart=$PROJECT_ROOT/setup/hardware_change_detector.sh --daemon
 ExecStop=/bin/kill -TERM \$MAINPID
 Restart=always
 RestartSec=10
