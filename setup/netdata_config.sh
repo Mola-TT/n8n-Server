@@ -429,11 +429,12 @@ EOF
         sleep 10
         
         # Verify health alerts are now loaded
-        local alert_count=$(curl -s --connect-timeout 10 "http://127.0.0.1:19999/api/v1/alarms?all" 2>/dev/null | grep -o '"[^"]*_high"' | wc -l || echo "0")
-        if [ "$alert_count" -gt 0 ]; then
+        local alert_count=$(curl -s --connect-timeout 10 "http://127.0.0.1:19999/api/v1/alarms?all" 2>/dev/null | grep -o '"[^"]*_high"' | wc -l 2>/dev/null | tr -d '\n' || echo "0")
+        alert_count=${alert_count:-0}  # Ensure it's not empty
+        if [[ "$alert_count" =~ ^[0-9]+$ ]] && [ "$alert_count" -gt 0 ]; then
             log_info "✓ Health alerts loaded successfully ($alert_count alerts found)"
         else
-            log_info "ℹ Health alerts are initializing (found $alert_count alerts) - this is normal after restart"
+            log_info "ℹ Health alerts are initializing (found ${alert_count:-0} alerts) - this is normal after restart"
         fi
     else
         log_error "Failed to restart Netdata service"
@@ -928,13 +929,14 @@ setup_netdata_monitoring() {
     log_info "Netdata monitoring infrastructure setup completed successfully"
     
     # Add local hosts entry for testing (if domain is configured)
-    if [ -n "${NETDATA_DOMAIN}" ] && [ "${NETDATA_DOMAIN}" != "localhost" ]; then
-        log_info "Adding local hosts entry for testing: ${NETDATA_DOMAIN}"
+    local netdata_domain="${NGINX_SERVER_NAME:-localhost}"
+    if [ -n "$netdata_domain" ] && [ "$netdata_domain" != "localhost" ]; then
+        log_info "Adding local hosts entry for testing: $netdata_domain"
         # Remove existing entry if present
-        sudo sed -i "/${NETDATA_DOMAIN}/d" /etc/hosts 2>/dev/null || true
+        sudo sed -i "/$netdata_domain/d" /etc/hosts 2>/dev/null || true
         # Add new entry
-        echo "127.0.0.1 ${NETDATA_DOMAIN}" | sudo tee -a /etc/hosts
-        log_info "Added hosts entry: 127.0.0.1 ${NETDATA_DOMAIN}"
+        echo "127.0.0.1 $netdata_domain" | sudo tee -a /etc/hosts
+        log_info "Added hosts entry: 127.0.0.1 $netdata_domain"
     fi
     
     return 0
