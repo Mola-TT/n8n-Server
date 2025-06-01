@@ -805,7 +805,7 @@ setup_dynamic_optimization() {
     
     # Set up hardware change detector service
     log_info "Setting up hardware change detection service..."
-    bash "$PROJECT_ROOT/setup/hardware_change_detector.sh" --install-service >/dev/null 2>&1 || true
+    bash "$SCRIPT_DIR/hardware_change_detector.sh" --install-service >/dev/null 2>&1 || true
     
     # Generate initial optimization report
     local report_file
@@ -823,7 +823,7 @@ setup_dynamic_optimization() {
     fi
     
     log_info "Hardware change detection service installed and ready"
-    log_info "Optimization can be re-run manually with: bash $PROJECT_ROOT/setup/dynamic_optimization.sh --optimize"
+    log_info "Optimization can be re-run manually with: bash $SCRIPT_DIR/dynamic_optimization.sh --optimize"
 }
 
 # =============================================================================
