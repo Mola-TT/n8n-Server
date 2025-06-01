@@ -619,9 +619,13 @@ verify_optimization() {
 # =============================================================================
 
 generate_optimization_report() {
-    log_info "Generating optimization report..."
+    local report_file="/opt/n8n/reports/optimization_report_$(date +%Y%m%d).txt"
+    local summary_file="/opt/n8n/reports/optimization_summary.json"
     
-    local report_file="/opt/n8n/logs/optimization_report_$(date +%Y%m%d_%H%M%S).txt"
+    # Create reports directory if it doesn't exist
+    mkdir -p "$(dirname "$report_file")"
+    
+    log_info "Generating optimization report..."
     
     cat > "$report_file" << EOF
 ================================================================================

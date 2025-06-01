@@ -6,7 +6,10 @@
 # This script implements a service to monitor for hardware changes and
 # automatically trigger optimization when changes are detected.
 
-set -euo pipefail
+# Only apply strict error handling when running as main script, not when sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    set -euo pipefail
+fi
 
 # Get project root directory for relative imports
 PROJECT_ROOT="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
@@ -372,6 +375,86 @@ EOF
         return 0
     else
         echo "Failed to send email notification"
+        return 1
+    fi
+}
+
+send_hardware_change_notification() {
+    local notification_type="$1"
+    
+    # Check email cooldown before sending
+    if ! check_email_cooldown; then
+        log_debug "Email notification skipped due to cooldown"
+        return 0
+    fi
+    
+    case "$notification_type" in
+        "detected")
+            local message="Hardware changes detected and optimization will begin shortly."
+            if send_email_notification "hardware_change" "$PREVIOUS_HARDWARE_SPECS" >/dev/null 2>&1; then
+                log_info "Hardware change notification sent successfully"
+            else
+                log_warn "Failed to send hardware change notification"
+            fi
+            ;;
+        "optimized")
+            local message="Hardware optimization completed successfully. System has been reconfigured for optimal performance."
+            if send_email_notification "optimization_completed" "$message" >/dev/null 2>&1; then
+                log_info "Optimization completion notification sent successfully"
+            else
+                log_warn "Failed to send optimization completion notification"
+            fi
+            ;;
+        *)
+            log_warn "Unknown notification type: $notification_type"
+            return 1
+            ;;
+    esac
+    
+    return 0
+}
+
+test_email_functionality() {
+    log_info "Testing email functionality..."
+    
+    # Load environment configuration
+    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
+        source "$PROJECT_ROOT/conf/user.env"
+        log_info "Loaded email configuration from user.env"
+    elif [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
+        source "$PROJECT_ROOT/conf/default.env"
+        log_info "Loaded email configuration from default.env"
+    else
+        log_error "No environment configuration found"
+        return 1
+    fi
+    
+    # Validate email configuration
+    if validate_email_configuration; then
+        log_info "✓ Email configuration is valid"
+    else
+        log_error "✗ Email configuration is invalid or incomplete"
+        return 1
+    fi
+    
+    # Send test email
+    local test_message="This is a test email from the n8n hardware change detector.
+
+Test details:
+- Server: $(hostname)
+- Timestamp: $(date)
+- User: $(whoami)
+- Script: $0
+
+If you receive this email, the email notification system is working correctly."
+    
+    log_info "Sending test email to $EMAIL_RECIPIENT..."
+    
+    if send_email_notification "test" "$test_message"; then
+        log_info "✓ Test email sent successfully"
+        return 0
+    else
+        log_error "✗ Failed to send test email"
         return 1
     fi
 }
