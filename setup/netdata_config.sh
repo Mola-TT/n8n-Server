@@ -93,28 +93,48 @@ EOF
         fi
         
         # Test this mirror with both metadata and package downloads
+        log_info "Testing repository metadata update for mirror: $mirror"
         if apt-get update >/dev/null 2>&1; then
             log_info "Testing package download capability for mirror: $mirror"
-            if apt-get install -y --dry-run --download-only postfix >/dev/null 2>&1; then
+            # Test with multiple critical packages to ensure downloads work
+            if apt-get install -y --dry-run --download-only postfix curl wget >/dev/null 2>&1; then
                 log_info "✓ Successfully configured Ubuntu mirror: $mirror"
-                return 0
+                
+                # Additional verification: try to actually download a small package list
+                log_info "Performing final verification with package cache refresh..."
+                if apt-get update >/dev/null 2>&1; then
+                    log_info "✓ Mirror $mirror fully operational"
+                    return 0
+                else
+                    log_warn "✗ Mirror $mirror failed final verification"
+                fi
             else
                 log_warn "✗ Mirror $mirror metadata OK but package downloads fail"
             fi
         else
             log_warn "✗ Mirror $mirror metadata failed"
         fi
+        
+        # Small delay between mirror attempts
+        sleep 2
     done
     
     # If all mirrors failed, restore backup and continue
     log_warn "All Ubuntu mirrors failed, restoring original configuration"
     if [ "$using_new_format" = true ]; then
-        mv "${ubuntu_sources_file}.backup.$(date +%Y%m%d_%H%M%S)" "$ubuntu_sources_file"
+        local backup_file=$(ls -t "${ubuntu_sources_file}.backup."* 2>/dev/null | head -1)
+        if [ -n "$backup_file" ]; then
+            mv "$backup_file" "$ubuntu_sources_file"
+        fi
     else
-        mv "${traditional_sources}.backup.$(date +%Y%m%d_%H%M%S)" "$traditional_sources"
+        local backup_file=$(ls -t "${traditional_sources}.backup."* 2>/dev/null | head -1)
+        if [ -n "$backup_file" ]; then
+            mv "$backup_file" "$traditional_sources"
+        fi
     fi
     
     # Try one more update with original configuration
+    log_info "Attempting final repository update with original configuration..."
     apt-get update >/dev/null 2>&1 || true
     
     return 1
@@ -127,74 +147,22 @@ EOF
 install_netdata() {
     log_info "Installing Netdata system monitoring..."
     
-    # Fix Ubuntu repositories before proceeding
-    fix_ubuntu_repositories
-    
-    # Install dependencies including mail system
-    log_info "Installing Netdata dependencies..."
-    
-    # Check if we have sudo privileges
-    if ! sudo -n true 2>/dev/null; then
-        log_error "This script requires sudo privileges for package installation"
+    # Install dependencies with enhanced error handling
+    if ! install_netdata_dependencies; then
+        log_error "Failed to install Netdata dependencies"
         return 1
     fi
-    
-    # Wait for any running package operations to complete
-    local wait_count=0
-    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-        if [ $wait_count -ge 30 ]; then
-            log_error "Timeout waiting for package manager to become available"
-            return 1
-        fi
-        log_info "Waiting for package manager to become available... ($wait_count/30)"
-        sleep 10
-        wait_count=$((wait_count + 1))
-    done
-    
-    # Update package lists
-    if ! execute_silently "sudo apt-get update"; then
-        log_error "Failed to update package lists"
-        return 1
-    fi
-    
-    # Check if postfix is already installed
-    if dpkg -l postfix 2>/dev/null | grep -q "^ii"; then
-        log_info "Postfix is already installed, skipping installation"
-        # Just install other dependencies
-        if ! execute_silently "sudo apt-get install -y curl wget gnupg lsb-release mailutils"; then
-            log_error "Failed to install basic dependencies"
-            return 1
-        fi
-    else
-        log_info "Installing postfix and other dependencies..."
-        # Configure postfix for local mail delivery (non-interactive)
-        echo "postfix postfix/main_mailer_type select Local only" | sudo debconf-set-selections
-        echo "postfix postfix/mailname string $(hostname -f)" | sudo debconf-set-selections
-        
-        # Install all dependencies including postfix
-        if ! execute_silently "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl wget gnupg lsb-release postfix mailutils"; then
-            log_error "Failed to install dependencies including postfix"
-            return 1
-        fi
-        
-        # Reconfigure postfix non-interactively
-        if ! execute_silently "sudo DEBIAN_FRONTEND=noninteractive dpkg-reconfigure postfix"; then
-            log_warn "Failed to reconfigure postfix, but continuing..."
-        fi
-    fi
-    
-    log_info "Dependencies installed successfully"
     
     # Download and run official Netdata installer
     log_info "Downloading Netdata installer..."
-    if ! execute_silently "wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh"; then
+    if ! execute_silently "wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh" "Downloading Netdata installer"; then
         log_error "Failed to download Netdata installer"
         return 1
     fi
     
     log_info "Installing Netdata (this may take a few minutes)..."
     # Use non-interactive installation with auto-update disabled
-    if ! execute_silently "sudo bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab --dont-wait"; then
+    if ! execute_silently "sudo bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab --dont-wait" "Installing Netdata"; then
         log_error "Netdata installation failed"
         return 1
     fi
@@ -208,6 +176,99 @@ install_netdata() {
     configure_netdata_systemd_override
     
     return 0
+}
+
+install_netdata_dependencies() {
+    log_info "Installing Netdata dependencies..."
+    
+    # Check if we have sudo privileges
+    if ! sudo -n true 2>/dev/null; then
+        log_error "This script requires sudo privileges for package installation"
+        return 1
+    fi
+    
+    # Fix Ubuntu repositories first if needed
+    fix_ubuntu_repositories
+    
+    # Configure postfix for non-interactive installation
+    log_info "Configuring postfix for non-interactive installation..."
+    echo "postfix postfix/main_mailer_type select Local only" | sudo debconf-set-selections
+    echo "postfix postfix/mailname string $(hostname -f)" | sudo debconf-set-selections
+    
+    # Try to install postfix with enhanced error handling
+    log_info "Installing postfix and other dependencies..."
+    
+    # First attempt: Install postfix with other dependencies
+    if execute_silently "sudo apt-get update && sudo apt-get install -y postfix curl wget apache2-utils" "Installing dependencies with postfix"; then
+        log_info "✓ Successfully installed all dependencies including postfix"
+        return 0
+    fi
+    
+    log_warn "Failed to install dependencies with postfix, trying alternative approaches..."
+    
+    # Second attempt: Install dependencies without postfix first
+    log_info "Installing basic dependencies without postfix..."
+    if execute_silently "sudo apt-get install -y curl wget apache2-utils gnupg lsb-release" "Installing basic dependencies"; then
+        log_info "✓ Basic dependencies installed successfully"
+        
+        # Now try postfix separately with more specific configuration
+        log_info "Attempting postfix installation separately..."
+        
+        # Set additional postfix configuration to avoid prompts
+        echo "postfix postfix/protocols select all" | sudo debconf-set-selections
+        echo "postfix postfix/chattr boolean false" | sudo debconf-set-selections
+        echo "postfix postfix/mailbox_limit string 0" | sudo debconf-set-selections
+        echo "postfix postfix/recipient_delim string +" | sudo debconf-set-selections
+        echo "postfix postfix/mynetworks string 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128" | sudo debconf-set-selections
+        echo "postfix postfix/destinations string $(hostname -f), localhost.localdomain, localhost" | sudo debconf-set-selections
+        
+        if execute_silently "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postfix" "Installing postfix with enhanced configuration"; then
+            log_info "✓ Successfully installed postfix separately"
+            return 0
+        fi
+        
+        # Third attempt: Try alternative mail solutions
+        log_warn "Postfix installation failed, trying alternative mail solutions..."
+        
+        # Try exim4 as alternative
+        log_info "Attempting exim4 installation as postfix alternative..."
+        if execute_silently "sudo apt-get install -y exim4" "Installing exim4 as mail alternative"; then
+            log_info "✓ Successfully installed exim4 as mail solution"
+            
+            # Configure exim4 for local delivery
+            echo "exim4-config exim4/dc_eximconfig_configtype select local delivery only; not on a network" | sudo debconf-set-selections
+            echo "exim4-config exim4/dc_local_interfaces string 127.0.0.1" | sudo debconf-set-selections
+            echo "exim4-config exim4/dc_other_hostnames string" | sudo debconf-set-selections
+            echo "exim4-config exim4/dc_relay_domains string" | sudo debconf-set-selections
+            echo "exim4-config exim4/dc_relay_nets string" | sudo debconf-set-selections
+            
+            execute_silently "sudo dpkg-reconfigure -f noninteractive exim4-config" "Configuring exim4"
+            return 0
+        fi
+        
+        # Fourth attempt: Try sendmail
+        log_info "Attempting sendmail installation as mail alternative..."
+        if execute_silently "sudo apt-get install -y sendmail" "Installing sendmail as mail alternative"; then
+            log_info "✓ Successfully installed sendmail as mail solution"
+            return 0
+        fi
+        
+        # Fifth attempt: Try mailutils (lightweight option)
+        log_info "Attempting mailutils installation as lightweight mail solution..."
+        if execute_silently "sudo apt-get install -y mailutils" "Installing mailutils as lightweight mail solution"; then
+            log_info "✓ Successfully installed mailutils as mail solution"
+            return 0
+        fi
+        
+        # If all mail solutions fail, continue without email (Netdata can work without it)
+        log_warn "All mail solutions failed, continuing without email notifications"
+        log_warn "Netdata will be installed but email alerts will not be available"
+        return 0
+        
+    else
+        log_error "Failed to install basic dependencies"
+        return 1
+    fi
 }
 
 # =============================================================================
