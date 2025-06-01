@@ -19,24 +19,24 @@ source "$PROJECT_ROOT/lib/utilities.sh"
 # CONFIGURATION AND CONSTANTS
 # =============================================================================
 
-# Hardware monitoring configuration
-readonly HARDWARE_SPEC_FILE="/opt/n8n/data/hardware_specs.json"
-readonly DETECTOR_LOG_FILE="/opt/n8n/logs/hardware_detector.log"
-readonly DETECTOR_PID_FILE="/var/run/n8n_hardware_detector.pid"
-readonly DETECTOR_SERVICE_FILE="/etc/systemd/system/n8n-hardware-detector.service"
+# Configuration files and paths
+HARDWARE_SPEC_FILE="/opt/n8n/hardware_specs.json"
+DETECTOR_LOG_FILE="/opt/n8n/logs/hardware_detector.log"
+DETECTOR_PID_FILE="/opt/n8n/hardware_detector.pid"
+DETECTOR_SERVICE_FILE="/etc/systemd/system/n8n-hardware-detector.service"
 
-# Monitoring intervals
-readonly CHECK_INTERVAL_SECONDS=300  # Check every 5 minutes
-readonly OPTIMIZATION_DELAY_SECONDS=60  # Wait 1 minute before optimization
+# Detection and optimization settings
+CHECK_INTERVAL_SECONDS=3600  # Check every hour
+OPTIMIZATION_DELAY_SECONDS=300  # Wait 5 minutes before optimization
 
-# Change detection thresholds
-readonly CPU_CHANGE_THRESHOLD=1      # Minimum CPU core change to trigger
-readonly MEMORY_CHANGE_THRESHOLD_GB=1  # Minimum memory change in GB
-readonly DISK_CHANGE_THRESHOLD_GB=5    # Minimum disk change in GB
+# Change thresholds
+CPU_CHANGE_THRESHOLD=1  # Minimum CPU core change
+MEMORY_CHANGE_THRESHOLD_GB=1  # Minimum memory change in GB
+DISK_CHANGE_THRESHOLD_GB=5  # Minimum disk change in GB
 
 # Email notification settings
-readonly EMAIL_SUBJECT_PREFIX="[n8n Server]"
-readonly EMAIL_COOLDOWN_HOURS=1      # Minimum hours between email notifications
+EMAIL_SUBJECT_PREFIX="[n8n Server]"
+EMAIL_COOLDOWN_HOURS=24  # Send emails at most once per day
 
 # =============================================================================
 # HARDWARE DETECTION FUNCTIONS

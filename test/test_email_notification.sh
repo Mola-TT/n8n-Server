@@ -77,14 +77,23 @@ test_email_configuration_loading() {
 
 test_email_configuration_missing() {
     source "$HARDWARE_DETECTOR_SCRIPT"
-
-    # Test with missing email configuration
-    unset EMAIL_SENDER EMAIL_RECIPIENT SMTP_SERVER SMTP_PORT SMTP_USERNAME SMTP_PASSWORD
-
-    # Should handle missing configuration gracefully
+    
+    # Temporarily unset email configuration
+    local original_sender="$EMAIL_SENDER"
+    local original_recipient="$EMAIL_RECIPIENT"
+    unset EMAIL_SENDER EMAIL_RECIPIENT
+    
+    # Test should handle missing configuration gracefully
     local result
-    result=$(send_hardware_change_notification "detected" 2>&1 || echo "handled_gracefully")
-    [[ "$result" == *"handled_gracefully"* ]] || [[ "$result" == *"Email not configured"* ]] || [[ "$result" == *"skipping notification"* ]] || [[ "$result" == *"Missing email configuration"* ]]
+    result=$(send_email_notification "test" "Test message" 2>&1)
+    local exit_code=$?
+    
+    # Restore original configuration
+    export EMAIL_SENDER="$original_sender"
+    export EMAIL_RECIPIENT="$original_recipient"
+    
+    # Should fail gracefully with missing configuration
+    [[ $exit_code -ne 0 ]] || echo "$result" | grep -q "Email configuration missing"
 }
 
 # =============================================================================
@@ -146,65 +155,45 @@ test_email_cooldown_file_creation() {
 test_hardware_change_detected_email_content() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
-    # Create required directories
-    mkdir -p "/opt/n8n/data"
+    # Mock hardware change data
+    local old_specs='{"cpu_cores": 2, "memory_gb": 4, "disk_gb": 50}'
+    local new_specs='{"cpu_cores": 4, "memory_gb": 8, "disk_gb": 100}'
     
-    # Set up test environment
-    export CHANGE_SUMMARY="CPU: 2 → 4 cores (+2)\nMemory: 4GB → 8GB (+4GB)"
-    export CURRENT_HARDWARE_SPECS='{"cpu_cores": 4, "memory_gb": 8, "disk_gb": 100}'
-    export PREVIOUS_HARDWARE_SPECS='{"cpu_cores": 2, "memory_gb": 4, "disk_gb": 100}'
+    # Test email content generation
+    local subject body
+    subject=$(generate_hardware_change_email_subject "$old_specs" "$new_specs" 2>/dev/null)
+    body=$(generate_hardware_change_email_body "$old_specs" "$new_specs" 2>/dev/null)
     
-    # Mock email configuration
-    export EMAIL_SENDER="test@example.com"
-    export EMAIL_RECIPIENT="admin@example.com"
-    export SMTP_SERVER="smtp.example.com"
-    export SMTP_PORT="587"
-    
-    # Test email content generation (without actually sending)
-    local email_content
-    email_content=$(send_hardware_change_notification "detected" 2>&1 || echo "content_generated")
-    
-    # Should contain expected content or handle gracefully
-    [[ "$email_content" == *"content_generated"* ]] || [[ "$email_content" == *"Hardware Change Detected"* ]] || [[ "$email_content" == *"Email notification sent"* ]] || [[ "$email_content" == *"Failed to send"* ]] || [[ "$email_content" == *"Email not configured"* ]]
+    # Verify content contains expected information
+    [[ "$subject" =~ "Hardware Change Detected" ]] && 
+    [[ "$body" =~ "CPU cores: 2 → 4" ]] && 
+    [[ "$body" =~ "Memory: 4GB → 8GB" ]] && 
+    [[ "$body" =~ "Disk: 50GB → 100GB" ]]
 }
 
 test_hardware_optimization_completed_email_content() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
-    # Create required directories
-    mkdir -p "/opt/n8n/data"
+    # Test optimization completion email
+    local subject body
+    subject=$(generate_optimization_email_subject "completed" 2>/dev/null)
+    body=$(generate_optimization_email_body "Hardware optimization completed successfully" 2>/dev/null)
     
-    # Set up test environment
-    export CHANGE_SUMMARY="CPU: 2 → 4 cores (+2)\nMemory: 4GB → 8GB (+4GB)"
-    export CURRENT_HARDWARE_SPECS='{"cpu_cores": 4, "memory_gb": 8, "disk_gb": 100}'
-    
-    # Mock email configuration
-    export EMAIL_SENDER="test@example.com"
-    export EMAIL_RECIPIENT="admin@example.com"
-    export SMTP_SERVER="smtp.example.com"
-    export SMTP_PORT="587"
-    
-    # Test email content generation (without actually sending)
-    local email_content
-    email_content=$(send_hardware_change_notification "optimized" 2>&1 || echo "content_generated")
-    
-    # Should contain expected content or handle gracefully
-    [[ "$email_content" == *"content_generated"* ]] || [[ "$email_content" == *"Hardware Optimization Completed"* ]] || [[ "$email_content" == *"Email notification sent"* ]] || [[ "$email_content" == *"Failed to send"* ]] || [[ "$email_content" == *"Email not configured"* ]]
+    # Verify content
+    [[ "$subject" =~ "Optimization Completed" ]] && 
+    [[ "$body" =~ "optimization completed successfully" ]]
 }
 
 test_invalid_email_notification_type() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
-    # Mock email configuration
-    export EMAIL_SENDER="test@example.com"
-    export EMAIL_RECIPIENT="admin@example.com"
-    export SMTP_SERVER="smtp.example.com"
-    export SMTP_PORT="587"
-    
-    # Test with invalid notification type (should fail)
+    # Test with invalid notification type
     local result
-    result=$(send_hardware_change_notification "invalid_type" 2>&1 || echo "failed_as_expected")
-    [[ "$result" == *"failed_as_expected"* ]] || [[ "$result" == *"Invalid email notification type"* ]] || [[ "$result" == *"Unknown notification type"* ]]
+    result=$(send_email_notification "invalid_type" "Test message" 2>&1)
+    local exit_code=$?
+    
+    # Should handle invalid type gracefully
+    [[ $exit_code -ne 0 ]] || echo "$result" | grep -q "Invalid notification type"
 }
 
 # =============================================================================
@@ -317,25 +306,20 @@ test_hardware_change_notification_integration() {
 test_email_notification_with_cooldown() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
-    # Create required directories
-    mkdir -p "/opt/n8n/data"
+    # Create a recent email timestamp file
+    local cooldown_file="/tmp/test_email_cooldown"
+    echo "$(date +%s)" > "$cooldown_file"
     
-    # Set up email configuration
-    export EMAIL_SENDER="test@example.com"
-    export EMAIL_RECIPIENT="admin@example.com"
-    export SMTP_SERVER="smtp.example.com"
-    export SMTP_PORT="587"
-    export CHANGE_SUMMARY="Test change"
-    export CURRENT_HARDWARE_SPECS='{"cpu_cores": 4, "memory_gb": 8, "disk_gb": 100}'
-    export PREVIOUS_HARDWARE_SPECS='{"cpu_cores": 2, "memory_gb": 4, "disk_gb": 100}'
-    
-    # First notification should attempt to send
-    send_hardware_change_notification "detected" >/dev/null 2>&1 || true
-    
-    # Second notification should be blocked by cooldown
+    # Mock the cooldown check
     local result
-    result=$(send_hardware_change_notification "detected" 2>&1 || echo "cooldown_blocked")
-    [[ "$result" == *"cooldown_blocked"* ]] || [[ "$result" == *"cooldown"* ]] || [[ "$result" == *"Skipping email notification"* ]] || [[ "$result" == *"Email cooldown active"* ]]
+    result=$(check_email_cooldown "$cooldown_file" 2>/dev/null)
+    local exit_code=$?
+    
+    # Clean up
+    rm -f "$cooldown_file"
+    
+    # Should respect cooldown period
+    [[ $exit_code -ne 0 ]]
 }
 
 # =============================================================================

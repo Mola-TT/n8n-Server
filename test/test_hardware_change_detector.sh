@@ -14,8 +14,8 @@ source "$SCRIPT_DIR/../lib/logger.sh"
 source "$SCRIPT_DIR/../lib/utilities.sh"
 
 # Test configuration
-readonly TEST_HARDWARE_SPEC_FILE="/tmp/test_hardware_specs.json"
-readonly HW_DETECTOR_SCRIPT="$PROJECT_ROOT/setup/hardware_change_detector.sh"
+HARDWARE_DETECTOR_SCRIPT="$PROJECT_ROOT/setup/hardware_change_detector.sh"
+TEST_HARDWARE_SPEC_FILE="/tmp/test_hardware_specs.json"
 
 # =============================================================================
 # TEST SETUP AND TEARDOWN
@@ -65,7 +65,7 @@ cleanup_hardware_detector_test_environment() {
 # =============================================================================
 
 test_current_hardware_specs_generation() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     local specs
     specs=$(get_current_hardware_specs)
@@ -79,7 +79,7 @@ test_current_hardware_specs_generation() {
 }
 
 test_hardware_specs_loading() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="$TEST_HARDWARE_SPEC_FILE"
@@ -94,7 +94,7 @@ test_hardware_specs_loading() {
 }
 
 test_hardware_specs_saving() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     local test_specs='{"cpu_cores": 8, "memory_gb": 16, "disk_gb": 200}'
     local test_file="/tmp/test_save_specs.json"
@@ -114,7 +114,7 @@ test_hardware_specs_saving() {
 }
 
 test_hardware_specs_backup_creation() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     local test_file="/tmp/test_backup_specs.json"
     local backup_file="${test_file}.backup"
@@ -141,7 +141,7 @@ test_hardware_specs_backup_creation() {
 # =============================================================================
 
 test_spec_value_extraction() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     local test_json='{"cpu_cores": 4, "memory_gb": 8, "disk_gb": 100}'
     
@@ -157,7 +157,7 @@ test_spec_value_extraction() {
 }
 
 test_hardware_change_detection_no_changes() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file with current specs
     export HARDWARE_SPEC_FILE="$TEST_HARDWARE_SPEC_FILE"
@@ -172,7 +172,7 @@ test_hardware_change_detection_no_changes() {
 }
 
 test_hardware_change_detection_cpu_change() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="$TEST_HARDWARE_SPEC_FILE"
@@ -198,7 +198,7 @@ EOF
 }
 
 test_hardware_change_detection_memory_change() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="$TEST_HARDWARE_SPEC_FILE"
@@ -224,7 +224,7 @@ EOF
 }
 
 test_hardware_change_detection_disk_change() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="$TEST_HARDWARE_SPEC_FILE"
@@ -250,7 +250,7 @@ EOF
 }
 
 test_hardware_change_detection_multiple_changes() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="$TEST_HARDWARE_SPEC_FILE"
@@ -278,7 +278,7 @@ EOF
 }
 
 test_hardware_change_detection_threshold_cpu() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="$TEST_HARDWARE_SPEC_FILE"
@@ -306,7 +306,7 @@ EOF
 # =============================================================================
 
 test_systemd_service_creation() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Create systemd service
     create_systemd_service >/dev/null 2>&1
@@ -317,7 +317,7 @@ test_systemd_service_creation() {
 }
 
 test_detector_service_status() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Test status detection
     local status
@@ -328,7 +328,7 @@ test_detector_service_status() {
 }
 
 test_detector_service_start_stop() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Create service first
     create_systemd_service >/dev/null 2>&1
@@ -348,24 +348,24 @@ test_detector_service_start_stop() {
 # =============================================================================
 
 test_hardware_detector_help() {
-    bash "$HW_DETECTOR_SCRIPT" --help >/dev/null 2>&1
+    bash "$HARDWARE_DETECTOR_SCRIPT" --help >/dev/null 2>&1
 }
 
 test_hardware_detector_show_specs() {
-    bash "$HW_DETECTOR_SCRIPT" --show-specs >/dev/null 2>&1
+    bash "$HARDWARE_DETECTOR_SCRIPT" --show-specs >/dev/null 2>&1
 }
 
 test_hardware_detector_check_once() {
-    bash "$HW_DETECTOR_SCRIPT" --check-once >/dev/null 2>&1 || true
+    bash "$HARDWARE_DETECTOR_SCRIPT" --check-once >/dev/null 2>&1 || true
     # May return non-zero if no changes detected
 }
 
 test_hardware_detector_status() {
-    bash "$HW_DETECTOR_SCRIPT" --status >/dev/null 2>&1
+    bash "$HARDWARE_DETECTOR_SCRIPT" --status >/dev/null 2>&1
 }
 
 test_hardware_detector_invalid_option() {
-    ! bash "$HW_DETECTOR_SCRIPT" --invalid-option >/dev/null 2>&1
+    ! bash "$HARDWARE_DETECTOR_SCRIPT" --invalid-option >/dev/null 2>&1
 }
 
 # =============================================================================
@@ -373,7 +373,7 @@ test_hardware_detector_invalid_option() {
 # =============================================================================
 
 test_optimization_trigger_mock() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Mock optimization script to avoid actual execution
     local mock_optimization_script="/tmp/mock_optimization.sh"
@@ -401,7 +401,7 @@ EOF
 }
 
 test_optimization_trigger_missing_script() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test environment with non-existent script
     export HARDWARE_CHANGED="true"
@@ -420,7 +420,7 @@ test_optimization_trigger_missing_script() {
 # =============================================================================
 
 test_email_notification_integration() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set up test environment
     export EMAIL_SENDER="test@example.com"
@@ -433,7 +433,7 @@ test_email_notification_integration() {
 }
 
 test_email_test_functionality() {
-    bash "$HW_DETECTOR_SCRIPT" --test-email >/dev/null 2>&1 || true
+    bash "$HARDWARE_DETECTOR_SCRIPT" --test-email >/dev/null 2>&1 || true
     # Don't fail if email sending fails (expected in test environment)
 }
 
@@ -442,7 +442,7 @@ test_email_test_functionality() {
 # =============================================================================
 
 test_daemon_initialization() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="/tmp/test_daemon_specs.json"
@@ -486,7 +486,7 @@ test_missing_hardware_detector_script() {
 }
 
 test_invalid_hardware_specs_file() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Create invalid JSON file
     local invalid_file="/tmp/invalid_specs.json"
@@ -505,7 +505,7 @@ test_invalid_hardware_specs_file() {
 }
 
 test_missing_directories() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Test with non-existent directories
     export HARDWARE_SPEC_FILE="/nonexistent/dir/specs.json"
@@ -515,7 +515,7 @@ test_missing_directories() {
 }
 
 test_permission_errors() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Create read-only directory (if running as non-root)
     local readonly_dir="/tmp/readonly_test"
@@ -538,7 +538,7 @@ test_permission_errors() {
 # =============================================================================
 
 test_hardware_detection_performance() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     local start_time end_time duration
     start_time=$(date +%s%N)
@@ -556,7 +556,7 @@ test_hardware_detection_performance() {
 }
 
 test_change_detection_performance() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="$TEST_HARDWARE_SPEC_FILE"
@@ -581,7 +581,7 @@ test_change_detection_performance() {
 # =============================================================================
 
 test_full_change_detection_workflow() {
-    source "$HW_DETECTOR_SCRIPT"
+    source "$HARDWARE_DETECTOR_SCRIPT"
     
     # Set test hardware spec file
     export HARDWARE_SPEC_FILE="/tmp/test_workflow_specs.json"
@@ -606,7 +606,7 @@ test_full_change_detection_workflow() {
 }
 
 test_force_optimization_workflow() {
-    bash "$HW_DETECTOR_SCRIPT" --force-optimize >/dev/null 2>&1 || true
+    bash "$HARDWARE_DETECTOR_SCRIPT" --force-optimize >/dev/null 2>&1 || true
     # Don't fail if optimization fails (expected in test environment)
 }
 

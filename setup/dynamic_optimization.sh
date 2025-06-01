@@ -24,33 +24,27 @@ source "$PROJECT_ROOT/lib/utilities.sh"
 # CONFIGURATION AND CONSTANTS
 # =============================================================================
 
-# Optimization thresholds and ratios
-readonly CPU_CORES_MIN=1
-readonly CPU_CORES_MAX=64
-readonly MEMORY_MIN_GB=1
-readonly MEMORY_MAX_GB=256
-readonly DISK_MIN_GB=10
-readonly DISK_MAX_GB=10240
+# Hardware validation bounds
+CPU_CORES_MIN=1
+CPU_CORES_MAX=128
+MEMORY_MIN_GB=1
+MEMORY_MAX_GB=1024
+DISK_MIN_GB=1
+DISK_MAX_GB=10240
 
-# n8n optimization ratios
-readonly N8N_EXECUTION_PROCESS_RATIO=0.75  # 75% of CPU cores
-readonly N8N_MEMORY_RATIO=0.4              # 40% of total memory
-readonly N8N_TIMEOUT_BASE=300              # Base timeout in seconds
+# Optimization ratios and constants
+N8N_EXECUTION_PROCESS_RATIO=0.75
+N8N_MEMORY_RATIO=0.4
+N8N_TIMEOUT_BASE=180
+DOCKER_MEMORY_RATIO=0.75
+DOCKER_CPU_RATIO=0.9
+NGINX_WORKER_RATIO=1.0
+NGINX_CONNECTIONS_PER_WORKER=384
+REDIS_MEMORY_RATIO=0.15
+REDIS_MEMORY_MIN_MB=128
 
-# Docker optimization ratios
-readonly DOCKER_MEMORY_RATIO=0.8           # 80% of total memory for containers
-readonly DOCKER_CPU_RATIO=0.9              # 90% of CPU cores
-
-# Nginx optimization ratios
-readonly NGINX_WORKER_RATIO=1.0            # 1 worker per CPU core
-readonly NGINX_CONNECTIONS_PER_WORKER=1024 # Base connections per worker
-
-# Redis optimization ratios
-readonly REDIS_MEMORY_RATIO=0.15           # 15% of total memory
-readonly REDIS_MEMORY_MIN_MB=64            # Minimum Redis memory
-
-# Backup directory for configurations
-readonly BACKUP_DIR="/opt/n8n/backups/optimization"
+# Backup directory
+BACKUP_DIR="/opt/n8n/backups/optimization"
 
 # =============================================================================
 # HARDWARE DETECTION FUNCTIONS

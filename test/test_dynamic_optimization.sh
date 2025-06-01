@@ -361,12 +361,13 @@ test_optimization_report_generation() {
     export NETDATA_HISTORY_HOURS=168
     export BACKUP_PATH="/opt/n8n/backups/optimization/test"
     
-    # Test report generation
-    local report_file
-    report_file=$(generate_optimization_report 2>/dev/null)
+    # Test report generation and extract filename from output
+    local report_output report_file
+    report_output=$(generate_optimization_report 2>&1)
+    report_file=$(echo "$report_output" | grep -o '/opt/n8n/logs/optimization_report_[0-9_]*.txt' | tail -1)
     
     # Verify report was created and contains expected content
-    [[ -f "$report_file" ]] && grep -q "n8n Server Dynamic Optimization Report" "$report_file"
+    [[ -n "$report_file" ]] && [[ -f "$report_file" ]] && grep -q "n8n Server Dynamic Optimization Report" "$report_file"
 }
 
 # =============================================================================
