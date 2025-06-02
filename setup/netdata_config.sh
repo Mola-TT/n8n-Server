@@ -71,16 +71,39 @@ install_netdata() {
     fi
     
     log_info "Installing Netdata (this may take a few minutes)..."
+    log_info "Progress will be logged to /tmp/netdata_install.log"
+    
+    # Create a temporary log file for detailed output
+    local install_log="/tmp/netdata_install.log"
+    
     # Use non-interactive installation with auto-update disabled
-    if ! execute_silently "sudo bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab --dont-wait" "Installing Netdata"; then
+    # Redirect all output to log file and show progress
+    if sudo bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab --dont-wait > "$install_log" 2>&1; then
+        log_info "Netdata installation completed successfully"
+        
+        # Show key lines from installation log
+        if [ -f "$install_log" ]; then
+            log_info "Installation summary:"
+            grep -E "(Successfully|installed|completed|done)" "$install_log" | tail -5 | while read line; do
+                log_info "  $line"
+            done
+        fi
+    else
         log_error "Netdata installation failed"
+        
+        # Show error details from log
+        if [ -f "$install_log" ]; then
+            log_error "Installation errors:"
+            tail -10 "$install_log" | while read line; do
+                log_error "  $line"
+            done
+        fi
         return 1
     fi
     
-    log_info "Netdata installed successfully"
-    
-    # Clean up installer
+    # Clean up installer and log
     rm -f /tmp/netdata-kickstart.sh
+    rm -f "$install_log"
     
     # CRITICAL: Configure systemd override BEFORE any other configuration
     configure_netdata_systemd_override
