@@ -130,89 +130,53 @@ install_netdata_dependencies() {
         postfix_installed=false
     fi
     
-    # Try to install postfix with other dependencies
-    log_info "Installing postfix and other dependencies..."
-    
-    # First attempt: Install postfix with other dependencies
-    if [ "$postfix_installed" = true ]; then
-        log_info "Installing dependencies without postfix (already installed)..."
-        if execute_silently "sudo apt-get update && sudo apt-get install -y curl wget apache2-utils" "Installing basic dependencies"; then
-            log_info "✓ Successfully installed dependencies"
-            return 0
-        fi
-    else
-        if execute_silently "sudo apt-get update && sudo apt-get install -y postfix curl wget apache2-utils" "Installing dependencies with postfix"; then
-            log_info "✓ Successfully installed all dependencies including postfix"
-            return 0
-        fi
+    # Update package lists first
+    log_info "Updating package lists..."
+    if ! sudo apt-get update >/dev/null 2>&1; then
+        log_error "Failed to update package lists"
+        return 1
     fi
     
-    log_warn "Failed to install dependencies with postfix, trying alternative approaches..."
+    # Try to install dependencies with better error handling
+    log_info "Installing essential dependencies..."
     
-    # Second attempt: Install dependencies without postfix first
-    log_info "Installing basic dependencies without postfix..."
-    if execute_silently "sudo apt-get install -y curl wget apache2-utils gnupg lsb-release" "Installing basic dependencies"; then
-        log_info "✓ Basic dependencies installed successfully"
-        
-        # Now try postfix separately with more specific configuration
-        if [ "$postfix_installed" = false ]; then
-            log_info "Attempting postfix installation separately..."
+    # First attempt: Install basic dependencies (curl, wget, apache2-utils)
+    if [ "$postfix_installed" = true ]; then
+        log_info "Installing dependencies without postfix (already installed)..."
+        if sudo apt-get install -y curl wget apache2-utils; then
+            log_info "✓ Successfully installed basic dependencies"
+            return 0
+        else
+            log_error "Failed to install basic dependencies (curl, wget, apache2-utils)"
+        fi
+    else
+        # Try with postfix included
+        log_info "Installing dependencies including postfix..."
+        if sudo apt-get install -y postfix curl wget apache2-utils; then
+            log_info "✓ Successfully installed all dependencies including postfix"
+            return 0
+        else
+            log_warn "Failed to install dependencies with postfix, trying without..."
             
-            # Set additional postfix configuration to avoid prompts
-            echo "postfix postfix/protocols select all" | sudo debconf-set-selections
-            echo "postfix postfix/chattr boolean false" | sudo debconf-set-selections
-            echo "postfix postfix/mailbox_limit string 0" | sudo debconf-set-selections
-            echo "postfix postfix/recipient_delim string +" | sudo debconf-set-selections
-            echo "postfix postfix/mynetworks string 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128" | sudo debconf-set-selections
-            echo "postfix postfix/destinations string $(hostname -f), localhost.localdomain, localhost" | sudo debconf-set-selections
-            
-            if execute_silently "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postfix" "Installing postfix with enhanced configuration"; then
-                log_info "✓ Successfully installed postfix separately"
-                return 0
-            fi
-            
-            # Third attempt: Try alternative mail solutions
-            log_warn "Postfix installation failed, trying alternative mail solutions..."
-            
-            # Try exim4 as alternative
-            log_info "Attempting exim4 installation as postfix alternative..."
-            if execute_silently "sudo apt-get install -y exim4" "Installing exim4 as mail alternative"; then
-                log_info "✓ Successfully installed exim4 as mail solution"
+            # Try without postfix
+            if sudo apt-get install -y curl wget apache2-utils; then
+                log_info "✓ Successfully installed basic dependencies"
                 
-                # Configure exim4 for local delivery
-                echo "exim4-config exim4/dc_eximconfig_configtype select local delivery only; not on a network" | sudo debconf-set-selections
-                echo "exim4-config exim4/dc_local_interfaces string 127.0.0.1" | sudo debconf-set-selections
-                echo "exim4-config exim4/dc_other_hostnames string" | sudo debconf-set-selections
-                echo "exim4-config exim4/dc_relay_domains string" | sudo debconf-set-selections
-                echo "exim4-config exim4/dc_relay_nets string" | sudo debconf-set-selections
-                
-                execute_silently "sudo dpkg-reconfigure -f noninteractive exim4-config" "Configuring exim4"
-                return 0
-            fi
-            
-            # Fourth attempt: Try sendmail
-            log_info "Attempting sendmail installation as mail alternative..."
-            if execute_silently "sudo apt-get install -y sendmail" "Installing sendmail as mail alternative"; then
-                log_info "✓ Successfully installed sendmail as mail solution"
-                return 0
-            fi
-            
-            # Fifth attempt: Try mailutils (lightweight option)
-            log_info "Attempting mailutils installation as lightweight mail solution..."
-            if execute_silently "sudo apt-get install -y mailutils" "Installing mailutils as lightweight mail solution"; then
-                log_info "✓ Successfully installed mailutils as mail solution"
-                return 0
+                # Try postfix separately
+                log_info "Attempting postfix installation separately..."
+                if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postfix; then
+                    log_info "✓ Successfully installed postfix separately"
+                    return 0
+                else
+                    log_warn "Postfix installation failed, but continuing without it"
+                    log_warn "Email notifications may not work"
+                    return 0
+                fi
+            else
+                log_error "Failed to install basic dependencies"
+                return 1
             fi
         fi
-        
-        # If all mail solutions fail, continue without email (Netdata can work without it)
-        log_warn "All mail solutions failed, continuing without email notifications"
-        log_warn "Netdata will be installed but email alerts will not be available"
-        return 0
-        
-    else
-        log_error "Failed to install basic dependencies"
-        return 1
     fi
 }
 
