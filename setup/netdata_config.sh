@@ -18,126 +18,36 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
 fix_ubuntu_repositories() {
     log_info "Checking Ubuntu repository accessibility..."
     
-    # Test current repositories with both metadata and package download
-    if apt-get update >/dev/null 2>&1; then
-        log_info "Repository metadata accessible, testing package downloads..."
+    # Test current repositories
+    if ! sudo apt-get update >/dev/null 2>&1; then
+        log_warn "Current Ubuntu repositories are not accessible, switching to main mirror..."
         
-        # Test actual package download capability with postfix specifically
-        if apt-get install -y --dry-run --download-only postfix >/dev/null 2>&1; then
-            log_info "Ubuntu repositories are fully accessible"
-            return 0
-        else
-            log_warn "Repository metadata accessible but package downloads failing"
-        fi
-    else
-        log_warn "Repository metadata not accessible"
-    fi
-    
-    log_warn "Ubuntu repositories have issues, attempting to fix..."
-    
-    # Get Ubuntu codename
-    local codename=$(lsb_release -cs)
-    
-    # Detect repository format (Ubuntu 24.04+ uses new format)
-    local ubuntu_sources_file="/etc/apt/sources.list.d/ubuntu.sources"
-    local traditional_sources="/etc/apt/sources.list"
-    local using_new_format=false
-    
-    if [ -f "$ubuntu_sources_file" ]; then
-        log_info "Detected Ubuntu 24.04+ new repository format"
-        using_new_format=true
-        # Backup the new format file
-        cp "$ubuntu_sources_file" "${ubuntu_sources_file}.backup.$(date +%Y%m%d_%H%M%S)"
-    else
-        log_info "Detected traditional repository format"
         # Backup current sources.list
-        cp "$traditional_sources" "${traditional_sources}.backup.$(date +%Y%m%d_%H%M%S)"
-    fi
-    
-    # Try different Ubuntu mirrors in order of preference
-    local mirrors=(
-        "archive.ubuntu.com"
-        "us.archive.ubuntu.com"
-        "mirror.ubuntu.com"
-        "old-releases.ubuntu.com"
-    )
-    
-    for mirror in "${mirrors[@]}"; do
-        log_info "Testing Ubuntu mirror: $mirror"
+        sudo cp /etc/apt/sources.list /etc/apt/sources.list.backup
         
-        if [ "$using_new_format" = true ]; then
-            # Create new ubuntu.sources file with this mirror
-            cat > "$ubuntu_sources_file" << EOF
-# Ubuntu repositories - Auto-configured by n8n server setup
-Types: deb
-URIs: http://$mirror/ubuntu/
-Suites: $codename $codename-updates $codename-backports
-Components: main restricted universe multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-Types: deb
-URIs: http://security.ubuntu.com/ubuntu
-Suites: $codename-security
-Components: main restricted universe multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+        # Get Ubuntu codename
+        local codename=$(lsb_release -cs)
+        
+        # Replace with main Ubuntu repository
+        sudo tee /etc/apt/sources.list > /dev/null << EOF
+# Main Ubuntu repositories - replaced problematic mirror
+deb http://archive.ubuntu.com/ubuntu ${codename} main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu ${codename}-updates main restricted universe multiverse  
+deb http://archive.ubuntu.com/ubuntu ${codename}-backports main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu ${codename}-security main restricted universe multiverse
 EOF
-        else
-            # Create traditional sources.list with this mirror
-            cat > "$traditional_sources" << EOF
-# Ubuntu repositories - Auto-configured by n8n server setup
-deb http://$mirror/ubuntu/ $codename main restricted universe multiverse
-deb http://$mirror/ubuntu/ $codename-updates main restricted universe multiverse
-deb http://$mirror/ubuntu/ $codename-backports main restricted universe multiverse
-deb http://security.ubuntu.com/ubuntu $codename-security main restricted universe multiverse
-EOF
-        fi
         
-        # Test this mirror with both metadata and package downloads
-        log_info "Testing repository metadata update for mirror: $mirror"
-        if apt-get update >/dev/null 2>&1; then
-            log_info "Testing package download capability for mirror: $mirror"
-            # Test with multiple critical packages to ensure downloads work
-            if apt-get install -y --dry-run --download-only postfix curl wget >/dev/null 2>&1; then
-                log_info "✓ Successfully configured Ubuntu mirror: $mirror"
-                
-                # Additional verification: try to actually download a small package list
-                log_info "Performing final verification with package cache refresh..."
-                if apt-get update >/dev/null 2>&1; then
-                    log_info "✓ Mirror $mirror fully operational"
-                    return 0
-                else
-                    log_warn "✗ Mirror $mirror failed final verification"
-                fi
-            else
-                log_warn "✗ Mirror $mirror metadata OK but package downloads fail"
-            fi
-        else
-            log_warn "✗ Mirror $mirror metadata failed"
-        fi
+        log_info "Updated repositories to use main Ubuntu mirror"
         
-        # Small delay between mirror attempts
-        sleep 2
-    done
-    
-    # If all mirrors failed, restore backup and continue
-    log_warn "All Ubuntu mirrors failed, restoring original configuration"
-    if [ "$using_new_format" = true ]; then
-        local backup_file=$(ls -t "${ubuntu_sources_file}.backup."* 2>/dev/null | head -1)
-        if [ -n "$backup_file" ]; then
-            mv "$backup_file" "$ubuntu_sources_file"
+        # Test new repositories
+        if sudo apt-get update >/dev/null 2>&1; then
+            log_info "✓ Repository update successful with main mirror"
+        else
+            log_warn "Repository issues persist, but continuing with installation..."
         fi
     else
-        local backup_file=$(ls -t "${traditional_sources}.backup."* 2>/dev/null | head -1)
-        if [ -n "$backup_file" ]; then
-            mv "$backup_file" "$traditional_sources"
-        fi
+        log_info "✓ Ubuntu repositories are accessible"
     fi
-    
-    # Try one more update with original configuration
-    log_info "Attempting final repository update with original configuration..."
-    apt-get update >/dev/null 2>&1 || true
-    
-    return 1
 }
 
 # =============================================================================
