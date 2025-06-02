@@ -268,18 +268,20 @@ check_email_cooldown() {
     current_time=$(date +%s)
     
     # Ensure the directory exists and has proper permissions
-    if ! mkdir -p "/opt/n8n/data" 2>/dev/null; then
+    if ! sudo mkdir -p "/opt/n8n/data" 2>/dev/null; then
         log_warn "Cannot create /opt/n8n/data directory - using temporary cooldown"
         cooldown_file="/tmp/last_email_notification_$(whoami)"
+        mkdir -p "$(dirname "$cooldown_file")" 2>/dev/null || true
     else
-        # Fix ownership if directory exists but we can't write to it
+        # Fix ownership and permissions
+        sudo chown -R "$(whoami):$(id -gn)" "/opt/n8n/data" 2>/dev/null || true
+        sudo chmod -R 755 "/opt/n8n/data" 2>/dev/null || true
+        
+        # If still can't write, fall back to temp
         if [[ ! -w "/opt/n8n/data" ]]; then
-            if sudo chown -R "$(whoami):$(id -gn)" "/opt/n8n/data" 2>/dev/null && sudo chmod -R 755 "/opt/n8n/data" 2>/dev/null; then
-                log_debug "Fixed /opt/n8n/data directory permissions"
-            else
-                log_warn "Cannot fix /opt/n8n/data permissions - using temporary cooldown"
-                cooldown_file="/tmp/last_email_notification_$(whoami)"
-            fi
+            log_warn "Cannot write to /opt/n8n/data - using temporary cooldown"
+            cooldown_file="/tmp/last_email_notification_$(whoami)"
+            mkdir -p "$(dirname "$cooldown_file")" 2>/dev/null || true
         fi
     fi
     

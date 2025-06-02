@@ -310,7 +310,9 @@ backup_configurations() {
     backup_timestamp=$(date +"%Y%m%d_%H%M%S")
     local backup_path="$BACKUP_DIR/$backup_timestamp"
     
-    mkdir -p "$backup_path"
+    sudo mkdir -p "$backup_path" 2>/dev/null || mkdir -p "$backup_path"
+    sudo chown -R "$(whoami):$(id -gn)" "$backup_path" 2>/dev/null || true
+    sudo chmod -R 755 "$backup_path" 2>/dev/null || true
     
     # Backup n8n environment file
     [[ -f "/opt/n8n/docker/.env" ]] && cp "/opt/n8n/docker/.env" "$backup_path/n8n.env.backup"
@@ -645,8 +647,17 @@ generate_optimization_report() {
     local report_file="/opt/n8n/reports/optimization_report_$(date +%Y%m%d).txt"
     local summary_file="/opt/n8n/reports/optimization_summary.json"
     
-    # Create reports directory if it doesn't exist
-    mkdir -p "$(dirname "$report_file")"
+    # Create reports directory if it doesn't exist with proper permissions
+    if ! sudo mkdir -p "$(dirname "$report_file")" 2>/dev/null; then
+        log_warn "Cannot create reports directory, using temporary location"
+        report_file="/tmp/optimization_report_$(date +%Y%m%d).txt"
+        summary_file="/tmp/optimization_summary.json"
+        sudo mkdir -p "$(dirname "$report_file")"
+    else
+        # Fix ownership and permissions
+        sudo chown -R "$(whoami):$(id -gn)" "/opt/n8n/reports" 2>/dev/null || true
+        sudo chmod -R 755 "/opt/n8n/reports" 2>/dev/null || true
+    fi
     
     log_info "Generating optimization report..."
     
@@ -759,7 +770,9 @@ run_optimization() {
     log_info "Starting dynamic hardware optimization..."
     
     # Create necessary directories
-    mkdir -p "$BACKUP_DIR" "/opt/n8n/logs"
+    sudo mkdir -p "$BACKUP_DIR" "/opt/n8n/logs" 2>/dev/null || mkdir -p "$BACKUP_DIR"
+    sudo chown -R "$(whoami):$(id -gn)" "$BACKUP_DIR" "/opt/n8n/logs" 2>/dev/null || true
+    sudo chmod -R 755 "$BACKUP_DIR" "/opt/n8n/logs" 2>/dev/null || true
     
     # Detect hardware specifications
     get_hardware_specs
@@ -813,7 +826,9 @@ setup_dynamic_optimization() {
     log_info "Setting up dynamic hardware optimization infrastructure..."
     
     # Create necessary directories
-    mkdir -p "$BACKUP_DIR" "/opt/n8n/logs" "/opt/n8n/data"
+    sudo mkdir -p "$BACKUP_DIR" "/opt/n8n/logs" "/opt/n8n/data" 2>/dev/null || mkdir -p "$BACKUP_DIR"
+    sudo chown -R "$(whoami):$(id -gn)" "$BACKUP_DIR" "/opt/n8n/logs" "/opt/n8n/data" 2>/dev/null || true
+    sudo chmod -R 755 "$BACKUP_DIR" "/opt/n8n/logs" "/opt/n8n/data" 2>/dev/null || true
     
     # Run initial hardware detection and optimization
     log_info "Running initial hardware detection and optimization..."
