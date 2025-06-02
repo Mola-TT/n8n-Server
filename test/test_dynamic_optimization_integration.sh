@@ -5,15 +5,15 @@
 
 set -euo pipefail
 
-# Get script directory for relative imports
+# Source required libraries
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
+
+# Test configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Source required utilities
-source "$SCRIPT_DIR/../lib/logger.sh"
-source "$SCRIPT_DIR/../lib/utilities.sh"
-
-# Test configuration
+# Test variables - removed readonly to prevent conflicts when running multiple tests
 OPTIMIZATION_SCRIPT="$PROJECT_ROOT/setup/dynamic_optimization.sh"
 HARDWARE_DETECTOR_SCRIPT="$PROJECT_ROOT/setup/hardware_change_detector.sh"
 TEST_BACKUP_DIR="/tmp/dynamic_optimization_integration_backup"

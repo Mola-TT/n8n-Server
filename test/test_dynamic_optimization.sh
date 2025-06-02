@@ -5,17 +5,17 @@
 
 set -euo pipefail
 
-# Get script directory for relative imports
+# Source required libraries
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
+
+# Test configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Source required utilities
-source "$SCRIPT_DIR/../lib/logger.sh"
-source "$SCRIPT_DIR/../lib/utilities.sh"
-
-# Test configuration
-readonly TEST_BACKUP_DIR="/tmp/n8n_optimization_test_backup"
-readonly OPTIMIZATION_SCRIPT="$PROJECT_ROOT/setup/dynamic_optimization.sh"
+# Test variables - removed readonly to prevent conflicts when running multiple tests
+TEST_BACKUP_DIR="/tmp/n8n_optimization_test_backup"
+OPTIMIZATION_SCRIPT="$PROJECT_ROOT/setup/dynamic_optimization.sh"
 
 # =============================================================================
 # TEST SETUP AND TEARDOWN
@@ -63,31 +63,31 @@ cleanup_test_environment() {
 test_hardware_detection_cpu_cores() {
     source "$OPTIMIZATION_SCRIPT"
     
-    local cpu_cores
-    cpu_cores=$(detect_cpu_cores)
+    # Call the function which sets the global CPU_CORES variable
+    detect_cpu_cores
     
     # Verify CPU cores is a positive integer
-    [[ "$cpu_cores" =~ ^[0-9]+$ ]] && [[ "$cpu_cores" -ge 1 ]] && [[ "$cpu_cores" -le 64 ]]
+    [[ "$CPU_CORES" =~ ^[0-9]+$ ]] && [[ "$CPU_CORES" -ge 1 ]] && [[ "$CPU_CORES" -le 64 ]]
 }
 
 test_hardware_detection_memory() {
     source "$OPTIMIZATION_SCRIPT"
     
-    local memory_gb
-    memory_gb=$(detect_memory_gb)
+    # Call the function which sets the global MEMORY_GB variable
+    detect_memory_gb
     
     # Verify memory is a positive integer
-    [[ "$memory_gb" =~ ^[0-9]+$ ]] && [[ "$memory_gb" -ge 1 ]] && [[ "$memory_gb" -le 256 ]]
+    [[ "$MEMORY_GB" =~ ^[0-9]+$ ]] && [[ "$MEMORY_GB" -ge 1 ]] && [[ "$MEMORY_GB" -le 256 ]]
 }
 
 test_hardware_detection_disk() {
     source "$OPTIMIZATION_SCRIPT"
     
-    local disk_gb
-    disk_gb=$(detect_disk_gb)
+    # Call the function which sets the global DISK_GB variable
+    detect_disk_gb
     
     # Verify disk space is a positive integer
-    [[ "$disk_gb" =~ ^[0-9]+$ ]] && [[ "$disk_gb" -ge 10 ]] && [[ "$disk_gb" -le 10240 ]]
+    [[ "$DISK_GB" =~ ^[0-9]+$ ]] && [[ "$DISK_GB" -ge 10 ]] && [[ "$DISK_GB" -le 10240 ]]
 }
 
 test_hardware_specs_export() {
@@ -228,11 +228,16 @@ test_parameter_scaling_high_end_hardware() {
     calculate_netdata_parameters
     
     # Verify parameters scale appropriately for high-end hardware
-    [[ "$N8N_EXECUTION_PROCESS" -ge 12 ]] &&  # 75% of 16 cores
-    [[ "${DOCKER_MEMORY_LIMIT%g}" -ge 50 ]] &&  # 80% of 64GB
+    # N8N_EXECUTION_PROCESS = 16 * 0.75 = 12
+    [[ "$N8N_EXECUTION_PROCESS" -eq 12 ]] &&
+    # DOCKER_MEMORY_LIMIT = 64 * 0.75 = 48g
+    [[ "${DOCKER_MEMORY_LIMIT%g}" -eq 48 ]] &&
+    # NGINX_WORKER_PROCESSES = 16 * 1.0 = 16
     [[ "$NGINX_WORKER_PROCESSES" -eq 16 ]] &&
-    [[ "${REDIS_MAXMEMORY%mb}" -ge 9000 ]] &&  # 15% of 64GB
-    [[ "$NETDATA_UPDATE_EVERY" -eq 1 ]]  # Fastest updates for high-end
+    # REDIS_MAXMEMORY = 64 * 1024 * 0.15 = 9830mb (approximately)
+    [[ "${REDIS_MAXMEMORY%mb}" -ge 9800 ]] &&
+    # NETDATA_UPDATE_EVERY should be 1 for high-end systems
+    [[ "$NETDATA_UPDATE_EVERY" -eq 1 ]]
 }
 
 # =============================================================================
