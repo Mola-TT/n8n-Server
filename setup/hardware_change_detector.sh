@@ -261,45 +261,56 @@ Dashboard: https://$(hostname)/netdata/
 EOF
 }
 
+# =============================================================================
+# Email Cooldown Management Functions
+# =============================================================================
+
 check_email_cooldown() {
-    local cooldown_file="/opt/n8n/data/last_email_notification"
-    local current_time last_email_time time_diff
+    local notification_type="$1"
+    local cooldown_file="/tmp/n8n_email_cooldown_${notification_type}"
+    local cooldown_hours="${EMAIL_COOLDOWN_HOURS:-24}"
+    local cooldown_seconds=$((cooldown_hours * 3600))
     
-    current_time=$(date +%s)
+    # Check if cooldown file exists
+    if [ ! -f "$cooldown_file" ]; then
+        log_debug "No cooldown file found for $notification_type"
+        return 1  # No cooldown active
+    fi
     
-    # Ensure the directory exists and has proper permissions
-    if ! sudo mkdir -p "/opt/n8n/data" 2>/dev/null; then
-        log_warn "Cannot create /opt/n8n/data directory - using temporary cooldown"
-        cooldown_file="/tmp/last_email_notification_$(whoami)"
-        mkdir -p "$(dirname "$cooldown_file")" 2>/dev/null || true
+    # Get the timestamp from cooldown file
+    local last_sent=$(cat "$cooldown_file" 2>/dev/null)
+    if [ -z "$last_sent" ] || ! [[ "$last_sent" =~ ^[0-9]+$ ]]; then
+        log_warn "Invalid cooldown file for $notification_type, removing"
+        rm -f "$cooldown_file"
+        return 1  # No valid cooldown
+    fi
+    
+    # Calculate time elapsed
+    local current_time=$(date +%s)
+    local time_elapsed=$((current_time - last_sent))
+    
+    log_debug "Email cooldown check: $time_elapsed seconds elapsed, cooldown is $cooldown_seconds seconds"
+    
+    # Check if cooldown period has expired
+    if [ "$time_elapsed" -ge "$cooldown_seconds" ]; then
+        log_debug "Cooldown period expired for $notification_type"
+        rm -f "$cooldown_file"  # Remove expired cooldown file
+        return 1  # Cooldown expired, can send email
     else
-        # Fix ownership and permissions
-        sudo chown -R "$(whoami):$(id -gn)" "/opt/n8n/data" 2>/dev/null || true
-        sudo chmod -R 755 "/opt/n8n/data" 2>/dev/null || true
-        
-        # If still can't write, fall back to temp
-        if [[ ! -w "/opt/n8n/data" ]]; then
-            log_warn "Cannot write to /opt/n8n/data - using temporary cooldown"
-            cooldown_file="/tmp/last_email_notification_$(whoami)"
-            mkdir -p "$(dirname "$cooldown_file")" 2>/dev/null || true
-        fi
+        local remaining=$((cooldown_seconds - time_elapsed))
+        local remaining_hours=$((remaining / 3600))
+        log_debug "Cooldown active for $notification_type: $remaining_hours hours remaining"
+        return 0  # Cooldown still active
     fi
+}
+
+set_email_cooldown() {
+    local notification_type="$1"
+    local cooldown_file="/tmp/n8n_email_cooldown_${notification_type}"
+    local current_time=$(date +%s)
     
-    if [[ -f "$cooldown_file" ]]; then
-        last_email_time=$(cat "$cooldown_file" 2>/dev/null || echo "0")
-        time_diff=$((current_time - last_email_time))
-        
-        # Check if cooldown period has passed (convert hours to seconds)
-        if [[ "$time_diff" -lt $((EMAIL_COOLDOWN_HOURS * 3600)) ]]; then
-            log_debug "Email notification in cooldown period"
-            return 1
-        fi
-    fi
-    
-    # Update last email time
-    if ! echo "$current_time" > "$cooldown_file" 2>/dev/null; then
-        log_warn "Cannot write to cooldown file - email cooldown disabled for this session"
-    fi
+    echo "$current_time" > "$cooldown_file"
+    log_debug "Email cooldown set for $notification_type until $(date -d "@$((current_time + EMAIL_COOLDOWN_HOURS * 3600))")"
     return 0
 }
 
@@ -312,6 +323,12 @@ send_email_notification() {
     if ! validate_email_configuration >/dev/null 2>&1; then
         echo "Email configuration missing"
         return 1
+    fi
+    
+    # Check email cooldown
+    if ! check_email_cooldown "$notification_type"; then
+        log_debug "Email notification skipped due to cooldown"
+        return 0
     fi
     
     # Generate subject and body based on notification type
@@ -374,6 +391,7 @@ EOF
     
     if [[ "$email_sent" == "true" ]]; then
         echo "Email notification sent successfully"
+        set_email_cooldown "$notification_type"
         return 0
     else
         echo "Failed to send email notification"
@@ -385,7 +403,7 @@ send_hardware_change_notification() {
     local notification_type="$1"
     
     # Check email cooldown before sending
-    if ! check_email_cooldown; then
+    if ! check_email_cooldown "$notification_type"; then
         log_debug "Email notification skipped due to cooldown"
         return 0
     fi
@@ -732,6 +750,102 @@ run_daemon() {
         # Wait for next check
         sleep "$CHECK_INTERVAL_SECONDS"
     done
+}
+
+# =============================================================================
+# Performance Testing Functions with Resource Limits  
+# =============================================================================
+
+test_change_detection_performance() {
+    log_info "Testing change detection performance with resource limits..."
+    
+    # Set resource limits to prevent system overload
+    ulimit -v 524288   # Limit virtual memory to 512MB
+    ulimit -t 20       # Limit CPU time to 20 seconds
+    
+    local start_time end_time duration
+    local test_iterations=20
+    local max_duration=8  # Maximum 8 seconds
+    
+    start_time=$(date +%s.%N)
+    
+    # Create test hardware specs files
+    local test_specs_1="/tmp/test_hardware_specs_1.json"
+    local test_specs_2="/tmp/test_hardware_specs_2.json"
+    
+    echo '{"cpu_cores": 2, "memory_gb": 4, "disk_gb": 100}' > "$test_specs_1"
+    echo '{"cpu_cores": 4, "memory_gb": 8, "disk_gb": 200}' > "$test_specs_2"
+    
+    # Run change detection tests with timeout
+    for i in $(seq 1 $test_iterations); do
+        local current_time=$(date +%s.%N)
+        local elapsed=$(echo "$current_time - $start_time" | bc -l 2>/dev/null || echo "0")
+        
+        if (( $(echo "$elapsed > $max_duration" | bc -l 2>/dev/null || echo "0") )); then
+            log_warn "Change detection test stopped early (${elapsed}s elapsed)"
+            break
+        fi
+        
+        # Lightweight change detection test
+        timeout 1 compare_hardware_specs "$test_specs_1" "$test_specs_2" >/dev/null 2>&1 || true
+        
+        # Add small delay to prevent CPU spike
+        sleep 0.05
+    done
+    
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null || echo "1")
+    
+    log_info "Change detection performance test completed in ${duration}s"
+    
+    # Cleanup test files
+    rm -f "$test_specs_1" "$test_specs_2"
+    
+    # Reset resource limits
+    ulimit -v unlimited 2>/dev/null || true
+    ulimit -t unlimited 2>/dev/null || true
+    
+    return 0
+}
+
+test_hardware_detection_performance() {
+    log_info "Testing hardware detection performance with resource limits..."
+    
+    # Set resource limits
+    ulimit -v 262144   # Limit virtual memory to 256MB
+    ulimit -t 10       # Limit CPU time to 10 seconds
+    
+    local start_time end_time duration
+    local test_iterations=5
+    local max_duration=3  # Maximum 3 seconds
+    
+    start_time=$(date +%s.%N)
+    
+    # Run hardware detection with timeout
+    for i in $(seq 1 $test_iterations); do
+        local current_time=$(date +%s.%N)
+        local elapsed=$(echo "$current_time - $start_time" | bc -l 2>/dev/null || echo "0")
+        
+        if (( $(echo "$elapsed > $max_duration" | bc -l 2>/dev/null || echo "0") )); then
+            log_warn "Hardware detection test stopped early (${elapsed}s elapsed)"
+            break
+        fi
+        
+        # Lightweight hardware detection
+        timeout 1 get_current_hardware_specs >/dev/null 2>&1 || true
+        sleep 0.2
+    done
+    
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null || echo "1")
+    
+    log_info "Hardware detection performance test completed in ${duration}s"
+    
+    # Reset resource limits
+    ulimit -v unlimited 2>/dev/null || true
+    ulimit -t unlimited 2>/dev/null || true
+    
+    return 0
 }
 
 # =============================================================================

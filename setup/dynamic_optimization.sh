@@ -521,6 +521,93 @@ update_netdata_configuration() {
 }
 
 # =============================================================================
+# Performance Testing Functions with Resource Limits
+# =============================================================================
+
+test_parameter_calculation_performance() {
+    log_info "Testing parameter calculation performance with resource limits..."
+    
+    # Set resource limits to prevent system overload
+    ulimit -v 1048576  # Limit virtual memory to 1GB
+    ulimit -t 30       # Limit CPU time to 30 seconds
+    
+    local start_time end_time duration
+    local test_iterations=100
+    local max_duration=10  # Maximum 10 seconds for performance test
+    
+    start_time=$(date +%s.%N)
+    
+    # Run parameter calculations with timeout
+    for i in $(seq 1 $test_iterations); do
+        # Check if we're exceeding time limit
+        local current_time=$(date +%s.%N)
+        local elapsed=$(echo "$current_time - $start_time" | bc -l 2>/dev/null || echo "0")
+        
+        if (( $(echo "$elapsed > $max_duration" | bc -l 2>/dev/null || echo "0") )); then
+            log_warn "Performance test stopped early to prevent system overload (${elapsed}s elapsed)"
+            break
+        fi
+        
+        # Lightweight parameter calculation test
+        calculate_n8n_parameters 2 4 100 >/dev/null 2>&1 || true
+        
+        # Add small delay to prevent CPU spike
+        sleep 0.01
+    done
+    
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null || echo "1")
+    
+    log_info "Parameter calculation performance test completed in ${duration}s"
+    
+    # Reset resource limits
+    ulimit -v unlimited 2>/dev/null || true
+    ulimit -t unlimited 2>/dev/null || true
+    
+    return 0
+}
+
+test_hardware_detection_performance() {
+    log_info "Testing hardware detection performance with resource limits..."
+    
+    # Set resource limits
+    ulimit -v 524288   # Limit virtual memory to 512MB
+    ulimit -t 15       # Limit CPU time to 15 seconds
+    
+    local start_time end_time duration
+    local test_iterations=10
+    local max_duration=5  # Maximum 5 seconds
+    
+    start_time=$(date +%s.%N)
+    
+    # Run hardware detection with timeout
+    for i in $(seq 1 $test_iterations); do
+        local current_time=$(date +%s.%N)
+        local elapsed=$(echo "$current_time - $start_time" | bc -l 2>/dev/null || echo "0")
+        
+        if (( $(echo "$elapsed > $max_duration" | bc -l 2>/dev/null || echo "0") )); then
+            log_warn "Hardware detection test stopped early (${elapsed}s elapsed)"
+            break
+        fi
+        
+        # Lightweight hardware detection
+        timeout 1 detect_hardware_specs >/dev/null 2>&1 || true
+        sleep 0.1
+    done
+    
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null || echo "1")
+    
+    log_info "Hardware detection performance test completed in ${duration}s"
+    
+    # Reset resource limits
+    ulimit -v unlimited 2>/dev/null || true
+    ulimit -t unlimited 2>/dev/null || true
+    
+    return 0
+}
+
+# =============================================================================
 # SERVICE MANAGEMENT FUNCTIONS
 # =============================================================================
 
@@ -644,83 +731,68 @@ verify_optimization() {
 # =============================================================================
 
 generate_optimization_report() {
-    local report_file="/opt/n8n/reports/optimization_report_$(date +%Y%m%d).txt"
-    local summary_file="/opt/n8n/reports/optimization_summary.json"
+    local report_file="${1:-/opt/n8n/reports/optimization_report_$(date +%Y%m%d).txt}"
+    local hardware_specs="$2"
     
-    # Create reports directory if it doesn't exist with proper permissions
-    if ! sudo mkdir -p "$(dirname "$report_file")" 2>/dev/null; then
-        log_warn "Cannot create reports directory, using temporary location"
-        report_file="/tmp/optimization_report_$(date +%Y%m%d).txt"
-        summary_file="/tmp/optimization_summary.json"
-        sudo mkdir -p "$(dirname "$report_file")"
-    else
-        # Fix ownership and permissions
-        sudo chown -R "$(whoami):$(id -gn)" "/opt/n8n/reports" 2>/dev/null || true
-        sudo chmod -R 755 "/opt/n8n/reports" 2>/dev/null || true
-    fi
+    log_info "Generating optimization report: $report_file"
     
-    log_info "Generating optimization report..."
+    # Ensure reports directory exists
+    mkdir -p "$(dirname "$report_file")"
     
+    # Create comprehensive optimization report
     cat > "$report_file" << EOF
-================================================================================
-n8n Server Dynamic Optimization Report
-================================================================================
-Generated: $(date)
-Backup Location: ${BACKUP_PATH:-"Not created"}
+# n8n Server Optimization Report
+# Generated: $(date)
+# Hostname: $(hostname)
 
-HARDWARE SPECIFICATIONS:
-- CPU Cores: ${HW_CPU_CORES:-"Unknown"}
-- Memory: ${HW_MEMORY_GB:-"Unknown"}GB
-- Disk Space: ${HW_DISK_GB:-"Unknown"}GB
+## System Hardware Specifications
+$(echo "$hardware_specs" | jq -r '
+"CPU Cores: " + (.cpu_cores | tostring) + 
+"\nMemory (GB): " + (.memory_gb | tostring) + 
+"\nDisk (GB): " + (.disk_gb | tostring)' 2>/dev/null || echo "$hardware_specs")
 
-OPTIMIZATION PARAMETERS:
-================================================================================
+## Calculated Optimization Parameters
 
-n8n Configuration:
-- Execution Processes: ${N8N_EXECUTION_PROCESS:-"Not set"}
-- Memory Limit: ${N8N_MEMORY_LIMIT_MB:-"Not set"}MB
-- Execution Timeout: ${N8N_EXECUTION_TIMEOUT:-"Not set"}s
-- Webhook Timeout: ${N8N_WEBHOOK_TIMEOUT:-"Not set"}s
+### n8n Configuration
+N8N_EXECUTION_PROCESS: $N8N_EXECUTION_PROCESS
+N8N_EXECUTION_TIMEOUT: $N8N_EXECUTION_TIMEOUT
+N8N_WEBHOOK_TIMEOUT: $N8N_WEBHOOK_TIMEOUT
 
-Docker Configuration:
-- Memory Limit: ${DOCKER_MEMORY_LIMIT:-"Not set"}
-- CPU Limit: ${DOCKER_CPU_LIMIT:-"Not set"}
-- Shared Memory: ${DOCKER_SHM_SIZE:-"Not set"}
+### Docker Configuration  
+DOCKER_MEMORY_LIMIT: $DOCKER_MEMORY_LIMIT
+DOCKER_CPU_LIMIT: $DOCKER_CPU_LIMIT
+DOCKER_SHM_SIZE: $DOCKER_SHM_SIZE
 
-Nginx Configuration:
-- Worker Processes: ${NGINX_WORKER_PROCESSES:-"Not set"}
-- Worker Connections: ${NGINX_WORKER_CONNECTIONS:-"Not set"}
-- Client Max Body Size: ${NGINX_CLIENT_MAX_BODY:-"Not set"}
-- SSL Session Cache: ${NGINX_SSL_SESSION_CACHE:-"Not set"}
+### Nginx Configuration
+NGINX_WORKER_PROCESSES: $NGINX_WORKER_PROCESSES
+NGINX_WORKER_CONNECTIONS: $NGINX_WORKER_CONNECTIONS
+NGINX_CLIENT_MAX_BODY_SIZE: $NGINX_CLIENT_MAX_BODY
 
-Redis Configuration:
-- Max Memory: ${REDIS_MAXMEMORY:-"Not set"}
-- Memory Policy: ${REDIS_MAXMEMORY_POLICY:-"Not set"}
-- Save Interval: ${REDIS_SAVE_INTERVAL:-"Not set"}
+### Redis Configuration
+REDIS_MAXMEMORY: $REDIS_MAXMEMORY
+REDIS_MAXMEMORY_POLICY: $REDIS_MAXMEMORY_POLICY
 
-Netdata Configuration:
-- Update Frequency: ${NETDATA_UPDATE_EVERY:-"Not set"}s
-- Memory Limit: ${NETDATA_MEMORY_LIMIT:-"Not set"}MB
-- History Retention: ${NETDATA_HISTORY_HOURS:-"Not set"}h
+### Netdata Configuration
+NETDATA_UPDATE_EVERY: $NETDATA_UPDATE_EVERY
+NETDATA_MEMORY_MODE: $NETDATA_MEMORY_MODE
 
-PERFORMANCE RECOMMENDATIONS:
-================================================================================
-$(generate_performance_recommendations)
+## Performance Recommendations
+- Optimization completed at: $(date)
+- Next recommended review: $(date -d '+30 days')
+- Monitor system performance for 24-48 hours after optimization
 
-MONITORING SUGGESTIONS:
-================================================================================
-- Monitor CPU usage through Netdata dashboard
-- Watch memory consumption patterns
-- Track n8n workflow execution times
-- Monitor Redis queue performance
-- Check Nginx connection handling
+## System Status
+Load Average: $(cat /proc/loadavg 2>/dev/null || echo "N/A")
+Memory Usage: $(free -h 2>/dev/null | grep ^Mem || echo "N/A")
+Disk Usage: $(df -h / 2>/dev/null | tail -1 || echo "N/A")
 
-For detailed metrics, visit: https://$(hostname)/netdata/
-================================================================================
 EOF
     
-    log_info "Optimization report generated: $report_file"
-    echo "$report_file"
+    # Set proper permissions
+    chmod 644 "$report_file"
+    
+    log_info "Optimization report generated successfully: $report_file"
+    return 0
 }
 
 generate_performance_recommendations() {
