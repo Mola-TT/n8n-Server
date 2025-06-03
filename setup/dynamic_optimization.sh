@@ -179,9 +179,15 @@ calculate_docker_parameters() {
     local cpu_cores="$HW_CPU_CORES"
     local memory_gb="$HW_MEMORY_GB"
     
-    # Calculate Docker memory limit (80% of total memory)
+    # Calculate Docker memory limit (75% of total memory, minimum 1GB)
     local docker_memory_gb
-    docker_memory_gb=$(echo "$memory_gb * $DOCKER_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    docker_memory_gb=$(echo "$memory_gb * $DOCKER_MEMORY_RATIO" | bc -l)
+    
+    # Round to 1 decimal place and ensure minimum 1GB
+    docker_memory_gb=$(echo "scale=1; $docker_memory_gb" | bc -l)
+    if (( $(echo "$docker_memory_gb < 1" | bc -l) )); then
+        docker_memory_gb="1"
+    fi
     
     # Calculate CPU limit (90% of CPU cores)
     local docker_cpu_limit
@@ -740,12 +746,17 @@ verify_optimization() {
 
 generate_optimization_report() {
     local report_file="${1:-/opt/n8n/reports/optimization_report_$(date +%Y%m%d).txt}"
-    local hardware_specs="$2"
+    local hardware_specs="${2:-}"
     
     log_info "Generating optimization report: $report_file"
     
     # Ensure reports directory exists
     mkdir -p "$(dirname "$report_file")"
+    
+    # Create hardware specs JSON if not provided
+    if [[ -z "$hardware_specs" ]]; then
+        hardware_specs="{\"cpu_cores\":${HW_CPU_CORES:-2},\"memory_gb\":${HW_MEMORY_GB:-1},\"disk_gb\":${HW_DISK_GB:-75}}"
+    fi
     
     # Create comprehensive optimization report
     cat > "$report_file" << EOF
@@ -757,32 +768,32 @@ generate_optimization_report() {
 $(echo "$hardware_specs" | jq -r '
 "CPU Cores: " + (.cpu_cores | tostring) + 
 "\nMemory (GB): " + (.memory_gb | tostring) + 
-"\nDisk (GB): " + (.disk_gb | tostring)' 2>/dev/null || echo "$hardware_specs")
+"\nDisk (GB): " + (.disk_gb | tostring)' 2>/dev/null || echo "CPU Cores: ${HW_CPU_CORES:-2}, Memory (GB): ${HW_MEMORY_GB:-1}, Disk (GB): ${HW_DISK_GB:-75}")
 
 ## Calculated Optimization Parameters
 
 ### n8n Configuration
-N8N_EXECUTION_PROCESS: $N8N_EXECUTION_PROCESS
-N8N_EXECUTION_TIMEOUT: $N8N_EXECUTION_TIMEOUT
-N8N_WEBHOOK_TIMEOUT: $N8N_WEBHOOK_TIMEOUT
+N8N_EXECUTION_PROCESS: ${N8N_EXECUTION_PROCESS:-1}
+N8N_EXECUTION_TIMEOUT: ${N8N_EXECUTION_TIMEOUT:-300}
+N8N_WEBHOOK_TIMEOUT: ${N8N_WEBHOOK_TIMEOUT:-240}
 
 ### Docker Configuration  
-DOCKER_MEMORY_LIMIT: $DOCKER_MEMORY_LIMIT
-DOCKER_CPU_LIMIT: $DOCKER_CPU_LIMIT
-DOCKER_SHM_SIZE: $DOCKER_SHM_SIZE
+DOCKER_MEMORY_LIMIT: ${DOCKER_MEMORY_LIMIT:-1g}
+DOCKER_CPU_LIMIT: ${DOCKER_CPU_LIMIT:-1.8}
+DOCKER_SHM_SIZE: ${DOCKER_SHM_SIZE:-64m}
 
 ### Nginx Configuration
-NGINX_WORKER_PROCESSES: $NGINX_WORKER_PROCESSES
-NGINX_WORKER_CONNECTIONS: $NGINX_WORKER_CONNECTIONS
-NGINX_CLIENT_MAX_BODY_SIZE: $NGINX_CLIENT_MAX_BODY
+NGINX_WORKER_PROCESSES: ${NGINX_WORKER_PROCESSES:-2}
+NGINX_WORKER_CONNECTIONS: ${NGINX_WORKER_CONNECTIONS:-1024}
+NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY:-25m}
 
 ### Redis Configuration
-REDIS_MAXMEMORY: $REDIS_MAXMEMORY
-REDIS_MAXMEMORY_POLICY: $REDIS_MAXMEMORY_POLICY
+REDIS_MAXMEMORY: ${REDIS_MAXMEMORY:-153mb}
+REDIS_MAXMEMORY_POLICY: ${REDIS_MAXMEMORY_POLICY:-allkeys-lru}
 
 ### Netdata Configuration
-NETDATA_UPDATE_EVERY: $NETDATA_UPDATE_EVERY
-NETDATA_MEMORY_MODE: $NETDATA_MEMORY_MODE
+NETDATA_UPDATE_EVERY: ${NETDATA_UPDATE_EVERY:-3}
+NETDATA_MEMORY_MODE: ram
 
 ## Performance Recommendations
 - Optimization completed at: $(date)
@@ -800,6 +811,7 @@ EOF
     chmod 644 "$report_file"
     
     log_info "Optimization report generated successfully: $report_file"
+    echo "$report_file"
     return 0
 }
 
