@@ -1020,8 +1020,8 @@ setup_netdata_monitoring() {
         log_info "Adding local hosts entry for testing: $netdata_domain"
         # Remove existing entry if present
         sudo sed -i "/$netdata_domain/d" /etc/hosts 2>/dev/null || true
-        # Add new entry
-        echo "127.0.0.1 $netdata_domain" | sudo tee -a /etc/hosts
+        # Add new entry without echoing to stdout
+        echo "127.0.0.1 $netdata_domain" | sudo tee -a /etc/hosts >/dev/null
         log_info "Added hosts entry: 127.0.0.1 $netdata_domain"
     fi
     
