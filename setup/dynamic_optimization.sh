@@ -21,16 +21,24 @@ source "$PROJECT_ROOT/lib/logger.sh"
 source "$PROJECT_ROOT/lib/utilities.sh"
 
 # =============================================================================
-# CONFIGURATION AND CONSTANTS
+# Hardware Detection Constants and Limits
 # =============================================================================
 
-# Hardware validation bounds
-CPU_CORES_MIN=1
-CPU_CORES_MAX=128
-MEMORY_MIN_GB=1
-MEMORY_MAX_GB=1024
-DISK_MIN_GB=1
-DISK_MAX_GB=10240
+# CPU cores limits
+readonly CPU_CORES_MIN=1
+readonly CPU_CORES_MAX=64
+
+# Memory limits (in GB)
+readonly MEMORY_MIN_GB=1
+readonly MEMORY_MAX_GB=256
+
+# Disk space limits (in GB)
+readonly DISK_MIN_GB=10
+readonly DISK_MAX_GB=10000
+
+# =============================================================================
+# Optimization Parameters and Ratios
+# =============================================================================
 
 # Optimization ratios and constants
 N8N_EXECUTION_PROCESS_RATIO=0.75
@@ -96,7 +104,7 @@ detect_disk_gb() {
     local disk_size_gb=$(df -BG / | tail -1 | awk '{print $2}' | sed 's/G//')
     
     # Validate disk size
-    if [[ ! "$disk_size_gb" =~ ^[0-9]+$ ]] || [ "$disk_size_gb" -lt 1 ] || [ "$disk_size_gb" -gt 10000 ]; then
+    if [[ ! "$disk_size_gb" =~ ^[0-9]+$ ]] || [ "$disk_size_gb" -lt "$DISK_MIN_GB" ] || [ "$disk_size_gb" -gt "$DISK_MAX_GB" ]; then
         log_warn "Invalid disk size detected: ${disk_size_gb}GB, using default"
         disk_size_gb=50
     fi
