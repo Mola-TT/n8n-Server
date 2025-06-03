@@ -822,9 +822,8 @@ EOF
     
     log_info "Optimization report generated successfully: $report_file"
     
-    # Export the report file path for use by calling functions and output to stderr for test capture
+    # Export the report file path for use by calling functions
     export GENERATED_REPORT_FILE="$report_file"
-    echo "$report_file" >&2
     return 0
 }
 
