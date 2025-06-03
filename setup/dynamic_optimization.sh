@@ -811,7 +811,9 @@ EOF
     chmod 644 "$report_file"
     
     log_info "Optimization report generated successfully: $report_file"
-    echo "$report_file"
+    
+    # Export the report file path for use by calling functions instead of echoing
+    export GENERATED_REPORT_FILE="$report_file"
     return 0
 }
 
@@ -897,8 +899,8 @@ run_optimization() {
     fi
     
     # Generate optimization report
-    local report_file
-    report_file=$(generate_optimization_report)
+    generate_optimization_report
+    local report_file="$GENERATED_REPORT_FILE"
     
     local end_time duration
     end_time=$(date +%s)
@@ -953,8 +955,8 @@ setup_dynamic_optimization() {
     fi
     
     # Generate initial optimization report
-    local report_file
-    report_file=$(generate_optimization_report)
+    generate_optimization_report
+    local report_file="$GENERATED_REPORT_FILE"
     log_info "Initial optimization report generated: $report_file"
     
     # Restart services to apply optimizations
