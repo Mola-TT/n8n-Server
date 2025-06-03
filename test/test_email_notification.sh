@@ -530,7 +530,8 @@ run_email_notification_tests() {
     setup_email_test_environment
     
     for test_function in "${test_functions[@]}"; do
-        if $test_function >/dev/null 2>&1; then
+        # Add timeout protection to prevent hanging tests
+        if timeout 30s bash -c "$test_function" >/dev/null 2>&1; then
             log_info "✓ $test_function"
             tests_passed=$((tests_passed + 1))
         else
@@ -549,5 +550,9 @@ run_email_notification_tests() {
 
 # Run tests if script is executed directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    run_email_notification_tests
+    # Add overall timeout protection for the entire test suite
+    timeout 300s run_email_notification_tests || {
+        echo "[ERROR] Email notification tests timed out after 5 minutes"
+        exit 1
+    }
 fi 
