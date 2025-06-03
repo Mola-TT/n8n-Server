@@ -71,39 +71,39 @@ install_netdata() {
     fi
     
     log_info "Installing Netdata (this may take a few minutes)..."
-    log_info "Progress will be logged to /tmp/netdata_install.log"
+    log_info "Installation will be performed silently - please wait..."
     
-    # Create a temporary log file for detailed output
+    # Run Netdata installer with complete output suppression and logging
     local install_log="/tmp/netdata_install.log"
     
-    # Use non-interactive installation with auto-update disabled
-    # Redirect all output to log file and show progress
-    if sudo bash /tmp/netdata-kickstart.sh --stable-channel --disable-telemetry --no-updates --auto-update-type crontab --dont-wait > "$install_log" 2>&1; then
+    # Run installer with all output redirected to log file
+    if bash /tmp/netdata-kickstart.sh --dont-wait --disable-telemetry --stable-channel >/dev/null 2>"$install_log"; then
         log_info "Netdata installation completed successfully"
         
-        # Show key lines from installation log
-        if [ -f "$install_log" ]; then
-            log_info "Installation summary:"
-            grep -E "(Successfully|installed|completed|done)" "$install_log" | tail -5 | while read line; do
-                log_info "  $line"
-            done
+        # Extract and log key installation information
+        if [[ -f "$install_log" ]]; then
+            local key_info
+            key_info=$(grep -E "(Successfully installed|installation completed|Netdata Agent)" "$install_log" 2>/dev/null | head -3)
+            if [[ -n "$key_info" ]]; then
+                log_info "Installation summary:"
+                echo "$key_info" | while IFS= read -r line; do
+                    [[ -n "$line" ]] && log_info "  $line"
+                done
+            fi
         fi
     else
         log_error "Netdata installation failed"
-        
-        # Show error details from log
-        if [ -f "$install_log" ]; then
-            log_error "Installation errors:"
-            tail -10 "$install_log" | while read line; do
-                log_error "  $line"
+        if [[ -f "$install_log" ]]; then
+            log_error "Installation error details:"
+            tail -10 "$install_log" | while IFS= read -r line; do
+                [[ -n "$line" ]] && log_error "  $line"
             done
         fi
         return 1
     fi
     
-    # Clean up installer and log
-    rm -f /tmp/netdata-kickstart.sh
-    rm -f "$install_log"
+    # Clean up temporary files
+    rm -f /tmp/netdata-kickstart.sh "$install_log" 2>/dev/null || true
     
     # CRITICAL: Configure systemd override BEFORE any other configuration
     configure_netdata_systemd_override
