@@ -147,7 +147,7 @@ install_netdata_dependencies() {
     # First attempt: Install basic dependencies (curl, wget, apache2-utils)
     if [ "$postfix_installed" = true ]; then
         log_info "Installing dependencies without postfix (already installed)..."
-        if sudo apt-get install -y curl wget apache2-utils; then
+        if execute_silently "sudo apt-get install -y curl wget apache2-utils" "Installing basic dependencies"; then
             log_info "✓ Successfully installed basic dependencies"
             return 0
         else
@@ -156,19 +156,19 @@ install_netdata_dependencies() {
     else
         # Try with postfix included
         log_info "Installing dependencies including postfix..."
-        if sudo apt-get install -y postfix curl wget apache2-utils; then
+        if execute_silently "sudo apt-get install -y postfix curl wget apache2-utils" "Installing dependencies including postfix"; then
             log_info "✓ Successfully installed all dependencies including postfix"
             return 0
         else
             log_warn "Failed to install dependencies with postfix, trying without..."
             
             # Try without postfix
-            if sudo apt-get install -y curl wget apache2-utils; then
+            if execute_silently "sudo apt-get install -y curl wget apache2-utils" "Installing basic dependencies"; then
                 log_info "✓ Successfully installed basic dependencies"
                 
                 # Try postfix separately
                 log_info "Attempting postfix installation separately..."
-                if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postfix; then
+                if execute_silently "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postfix" "Installing postfix separately"; then
                     log_info "✓ Successfully installed postfix separately"
                     return 0
                 else
