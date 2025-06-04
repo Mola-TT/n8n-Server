@@ -80,19 +80,34 @@ detect_cpu_cores() {
 detect_memory_gb() {
     log_info "Detecting memory..."
     
-    local memory_kb memory_gb
-    memory_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "1048576")
-    memory_gb=$((memory_kb / 1024 / 1024))
+    # FIXED: Use actual MB values for precise memory detection
+    # Get actual available memory in MB from free command (more accurate than /proc/meminfo)
+    local memory_mb
+    memory_mb=$(free -m | awk '/^Mem:/ {print $2}' 2>/dev/null || echo "1024")
     
-    # Validate memory within reasonable bounds
-    if [[ "$memory_gb" -lt "$MEMORY_MIN_GB" ]]; then
-        memory_gb=$MEMORY_MIN_GB
-    elif [[ "$memory_gb" -gt "$MEMORY_MAX_GB" ]]; then
-        memory_gb=$MEMORY_MAX_GB
+    # Convert to GB for compatibility but keep MB precision in separate variable
+    local memory_gb_precise
+    memory_gb_precise=$(awk "BEGIN {printf \"%.2f\", ${memory_mb} / 1024}")
+    
+    # For integer GB calculations, use proper rounding only for display/bounds checking
+    local memory_gb_display
+    memory_gb_display=$(awk "BEGIN {print int(${memory_mb} / 1024 + 0.5)}")
+    
+    # Validate memory within reasonable bounds (using display value)
+    if [[ "$memory_gb_display" -lt "$MEMORY_MIN_GB" ]]; then
+        memory_gb_display=$MEMORY_MIN_GB
+        memory_mb=$((MEMORY_MIN_GB * 1024))
+    elif [[ "$memory_gb_display" -gt "$MEMORY_MAX_GB" ]]; then
+        memory_gb_display=$MEMORY_MAX_GB
+        memory_mb=$((MEMORY_MAX_GB * 1024))
     fi
     
-    MEMORY_GB="$memory_gb"
-    log_info "Memory detected: ${MEMORY_GB}GB"
+    # Export both values for use by calculation functions
+    MEMORY_GB="$memory_gb_display"           # For display and bounds checking
+    MEMORY_MB="$memory_mb"                   # For precise calculations
+    MEMORY_GB_PRECISE="$memory_gb_precise"   # For logging actual value
+    
+    log_info "Memory detected: ${MEMORY_GB}GB (${memory_mb}MB available, ${memory_gb_precise}GB precise)"
     
     return 0
 }
@@ -130,14 +145,18 @@ get_hardware_specs() {
     
     # Use the global variables set by detection functions
     local cpu_cores="$CPU_CORES"
+    local memory_mb="$MEMORY_MB"
     local memory_gb="$MEMORY_GB"
+    local memory_gb_precise="$MEMORY_GB_PRECISE"
     local disk_gb="$DISK_GB"
     
-    log_info "Hardware detected: ${cpu_cores} CPU cores, ${memory_gb}GB RAM, ${disk_gb}GB disk"
+    log_info "Hardware detected: ${cpu_cores} CPU cores, ${memory_gb}GB RAM (${memory_mb}MB), ${disk_gb}GB disk"
     
     # Export for use by other functions
     export HW_CPU_CORES="$cpu_cores"
-    export HW_MEMORY_GB="$memory_gb"
+    export HW_MEMORY_GB="$memory_gb"           # Keep for compatibility
+    export HW_MEMORY_MB="$memory_mb"           # New precise value
+    export HW_MEMORY_GB_PRECISE="$memory_gb_precise"  # For logging
     export HW_DISK_GB="$disk_gb"
 }
 
@@ -147,20 +166,20 @@ get_hardware_specs() {
 
 calculate_n8n_parameters() {
     local cpu_cores="$HW_CPU_CORES"
-    local memory_gb="$HW_MEMORY_GB"
+    local memory_mb="$MEMORY_MB"  # Use precise MB value instead of rounded GB
     
     # Calculate execution processes (75% of CPU cores, minimum 1)
     local execution_processes
     execution_processes=$(echo "$cpu_cores * $N8N_EXECUTION_PROCESS_RATIO" | bc -l | cut -d. -f1)
     [[ "$execution_processes" -lt 1 ]] && execution_processes=1
     
-    # Calculate memory limit (40% of total memory in MB)
+    # FIXED: Calculate memory limit using precise MB values (40% of total memory)
     local memory_limit_mb
-    memory_limit_mb=$(echo "$memory_gb * 1024 * $N8N_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    memory_limit_mb=$(echo "$memory_mb * $N8N_MEMORY_RATIO" | bc -l | cut -d. -f1)
     
-    # Calculate timeout based on memory (more memory = longer timeout)
+    # Calculate timeout based on actual memory (more memory = longer timeout)
     local execution_timeout
-    execution_timeout=$(echo "$N8N_TIMEOUT_BASE + ($memory_gb * 30)" | bc -l | cut -d. -f1)
+    execution_timeout=$(echo "$N8N_TIMEOUT_BASE + ($memory_mb / 1024 * 30)" | bc -l | cut -d. -f1)
     
     # Calculate webhook timeout
     local webhook_timeout
@@ -177,24 +196,26 @@ calculate_n8n_parameters() {
 
 calculate_docker_parameters() {
     local cpu_cores="$HW_CPU_CORES"
-    local memory_gb="$HW_MEMORY_GB"
+    local memory_mb="$MEMORY_MB"  # Use precise MB value instead of rounded GB
     
-    # Calculate Docker memory limit (75% of total memory)
+    # FIXED: Calculate Docker memory limit using precise MB values (75% of total memory)
+    local docker_memory_mb
+    docker_memory_mb=$(echo "$memory_mb * $DOCKER_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    
+    # Convert to GB for Docker compose (round down to be safe)
     local docker_memory_gb
-    docker_memory_gb=$(echo "$memory_gb * $DOCKER_MEMORY_RATIO" | bc -l)
-    
-    # Convert to integer and handle minimum logic for test compatibility
-    local docker_memory_int
-    docker_memory_int=$(printf "%.0f" "$docker_memory_gb")
+    docker_memory_gb=$(echo "$docker_memory_mb / 1024" | bc -l | cut -d. -f1)
     
     # CRITICAL FIX: Ensure minimum viable memory allocation for n8n
     # n8n requires at least 512MB to run properly
-    if [[ "$memory_gb" -le 1 ]]; then
-        # For 1GB systems, allocate 512MB minimum for n8n to function
-        docker_memory_int=1  # Changed from 0 to 1 for viability
-        log_warn "Low memory system detected (${memory_gb}GB) - setting minimum Docker memory to ${docker_memory_int}GB"
-    elif [[ "$docker_memory_int" -lt 1 ]]; then
-        docker_memory_int=1
+    if [[ "$docker_memory_mb" -lt 512 ]]; then
+        # For very low memory systems, allocate 512MB minimum for n8n to function
+        docker_memory_gb=1
+        docker_memory_mb=1024
+        log_warn "Very low memory system detected (${memory_mb}MB) - setting minimum Docker memory to 1GB"
+    elif [[ "$docker_memory_gb" -lt 1 ]]; then
+        docker_memory_gb=1
+        log_warn "Low memory allocation calculated - setting minimum Docker memory to 1GB for safety"
     fi
     
     # Calculate CPU limit (90% of available cores)
@@ -203,15 +224,15 @@ calculate_docker_parameters() {
     
     # Calculate shared memory (1/8 of Docker memory, minimum 64MB)
     local shm_size_mb
-    shm_size_mb=$(echo "$docker_memory_int * 1024 / 8" | bc -l | cut -d. -f1)
+    shm_size_mb=$(echo "$docker_memory_mb / 8" | bc -l | cut -d. -f1)
     [[ "$shm_size_mb" -lt 64 ]] && shm_size_mb=64
     
-    # Export calculated parameters (integer format for test compatibility)
-    export DOCKER_MEMORY_LIMIT="${docker_memory_int}g"
+    # Export calculated parameters
+    export DOCKER_MEMORY_LIMIT="${docker_memory_gb}g"
     export DOCKER_CPU_LIMIT="$docker_cpu_limit"
     export DOCKER_SHM_SIZE="${shm_size_mb}m"
     
-    log_info "Docker parameters: ${docker_memory_int}GB memory, ${docker_cpu_limit} CPU limit, ${shm_size_mb}MB shared memory"
+    log_info "Docker parameters: ${docker_memory_gb}GB memory (${docker_memory_mb}MB calculated), ${docker_cpu_limit} CPU limit, ${shm_size_mb}MB shared memory"
 }
 
 calculate_nginx_parameters() {
@@ -255,11 +276,11 @@ calculate_nginx_parameters() {
 }
 
 calculate_redis_parameters() {
-    local memory_gb="$HW_MEMORY_GB"
+    local memory_mb="$MEMORY_MB"  # Use precise MB value instead of rounded GB
     
-    # Calculate Redis memory (15% of total memory)
+    # FIXED: Calculate Redis memory using precise MB values (15% of total memory)
     local redis_memory_mb
-    redis_memory_mb=$(echo "$memory_gb * 1024 * $REDIS_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    redis_memory_mb=$(echo "$memory_mb * $REDIS_MEMORY_RATIO" | bc -l | cut -d. -f1)
     [[ "$redis_memory_mb" -lt "$REDIS_MEMORY_MIN_MB" ]] && redis_memory_mb=$REDIS_MEMORY_MIN_MB
     
     # Calculate save intervals based on memory
@@ -283,22 +304,22 @@ calculate_redis_parameters() {
 
 calculate_netdata_parameters() {
     local cpu_cores="$HW_CPU_CORES"
-    local memory_gb="$HW_MEMORY_GB"
+    local memory_mb="$MEMORY_MB"    # Use precise MB value instead of rounded GB
     local disk_gb="$HW_DISK_GB"
     
     # Calculate update frequency (higher for more powerful systems)
     local update_every
-    if [[ "$cpu_cores" -ge 4 && "$memory_gb" -ge 4 ]]; then
+    if [[ "$cpu_cores" -ge 4 && "$memory_mb" -ge 4096 ]]; then
         update_every=1  # 1 second for powerful systems
-    elif [[ "$cpu_cores" -ge 2 && "$memory_gb" -ge 2 ]]; then
+    elif [[ "$cpu_cores" -ge 2 && "$memory_mb" -ge 2048 ]]; then
         update_every=2  # 2 seconds for medium systems
     else
         update_every=3  # 3 seconds for low-end systems
     fi
     
-    # Calculate memory limit (5% of total memory, max 512MB)
+    # FIXED: Calculate memory limit using precise MB values (5% of total memory, max 512MB)
     local memory_limit_mb
-    memory_limit_mb=$(echo "$memory_gb * 1024 * 0.05" | bc -l | cut -d. -f1)
+    memory_limit_mb=$(echo "$memory_mb * 0.05" | bc -l | cut -d. -f1)
     [[ "$memory_limit_mb" -gt 512 ]] && memory_limit_mb=512
     [[ "$memory_limit_mb" -lt 32 ]] && memory_limit_mb=32
     
