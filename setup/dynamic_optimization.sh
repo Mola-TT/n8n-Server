@@ -187,27 +187,26 @@ calculate_docker_parameters() {
     local docker_memory_int
     docker_memory_int=$(printf "%.0f" "$docker_memory_gb")
     
-    # For test compatibility: allow 0g for very small systems (1GB or less)
+    # CRITICAL FIX: Ensure minimum viable memory allocation for n8n
+    # n8n requires at least 512MB to run properly
     if [[ "$memory_gb" -le 1 ]]; then
-        docker_memory_int=0
+        # For 1GB systems, allocate 512MB minimum for n8n to function
+        docker_memory_int=1  # Changed from 0 to 1 for viability
+        log_warn "Low memory system detected (${memory_gb}GB) - setting minimum Docker memory to ${docker_memory_int}GB"
     elif [[ "$docker_memory_int" -lt 1 ]]; then
         docker_memory_int=1
     fi
     
-    # Calculate CPU limit (90% of CPU cores)
+    # Calculate CPU limit (90% of available cores)
     local docker_cpu_limit
     docker_cpu_limit=$(echo "$cpu_cores * $DOCKER_CPU_RATIO" | bc -l)
     
-    # Calculate shared memory (1/8 of container memory, minimum 64MB)
+    # Calculate shared memory (1/8 of Docker memory, minimum 64MB)
     local shm_size_mb
-    if [[ "$docker_memory_int" -eq 0 ]]; then
-        shm_size_mb=64  # Minimum for 0g systems
-    else
-        shm_size_mb=$(echo "$docker_memory_int * 1024 / 8" | bc -l | cut -d. -f1)
-        [[ "$shm_size_mb" -lt 64 ]] && shm_size_mb=64
-    fi
+    shm_size_mb=$(echo "$docker_memory_int * 1024 / 8" | bc -l | cut -d. -f1)
+    [[ "$shm_size_mb" -lt 64 ]] && shm_size_mb=64
     
-    # Export calculated values with integer formatting
+    # Export calculated parameters (integer format for test compatibility)
     export DOCKER_MEMORY_LIMIT="${docker_memory_int}g"
     export DOCKER_CPU_LIMIT="$docker_cpu_limit"
     export DOCKER_SHM_SIZE="${shm_size_mb}m"
@@ -388,51 +387,52 @@ update_n8n_configuration() {
 }
 
 update_docker_configuration() {
+    local docker_compose_file="/opt/n8n/docker/docker-compose.yml"
+    local backup_file="/opt/n8n/backups/docker-compose.yml.backup"
+    
     log_info "Updating Docker configuration..."
     
-    local compose_file="/opt/n8n/docker/docker-compose.yml"
+    # Create backup
+    [[ -f "$docker_compose_file" ]] && cp "$docker_compose_file" "$backup_file"
     
-    if [[ ! -f "$compose_file" ]]; then
-        log_error "Docker Compose file not found: $compose_file"
+    # Check if resource limits need to be applied
+    if [[ -f "$docker_compose_file" ]]; then
+        # Check if resource limits already exist
+        if grep -q "mem_limit\|memory:" "$docker_compose_file"; then
+            # Update existing limits
+            sed -i "s/mem_limit:.*/mem_limit: ${DOCKER_MEMORY_LIMIT}/" "$docker_compose_file"
+            sed -i "s/memory:.*/memory: ${DOCKER_MEMORY_LIMIT}/" "$docker_compose_file"
+            if grep -q "cpus:" "$docker_compose_file"; then
+                sed -i "s/cpus:.*/cpus: ${DOCKER_CPU_LIMIT}/" "$docker_compose_file"
+            fi
+        else
+            # Add resource limits to n8n service
+            # Insert resource limits after the n8n service environment section
+            awk '
+            /^  n8n:/ { in_n8n=1 }
+            /^    volumes:/ && in_n8n { 
+                print "    deploy:"
+                print "      resources:"
+                print "        limits:"
+                print "          memory: '"${DOCKER_MEMORY_LIMIT}"'"
+                print "          cpus: '"'"${DOCKER_CPU_LIMIT}"'"'"
+                print "        reservations:"
+                print "          memory: '"$(echo "$DOCKER_MEMORY_LIMIT" | sed 's/g$//')"'00m'"'"
+                print "    shm_size: '"${DOCKER_SHM_SIZE}"'"
+                in_n8n=0
+            }
+            /^  [a-zA-Z]/ && !/^  n8n:/ { in_n8n=0 }
+            { print }
+            ' "$docker_compose_file" > "${docker_compose_file}.tmp" && mv "${docker_compose_file}.tmp" "$docker_compose_file"
+        fi
+        
+        log_info "Docker configuration updated with resource limits: ${DOCKER_MEMORY_LIMIT} memory, ${DOCKER_CPU_LIMIT} CPU"
+    else
+        log_warn "Docker compose file not found: $docker_compose_file"
         return 1
     fi
     
-    # Create temporary file for updates
-    local temp_file
-    temp_file=$(mktemp)
-    
-    # Update Docker Compose with calculated limits
-    awk -v mem_limit="$DOCKER_MEMORY_LIMIT" \
-        -v cpu_limit="$DOCKER_CPU_LIMIT" \
-        -v shm_size="$DOCKER_SHM_SIZE" '
-    /^[[:space:]]*deploy:/ {
-        print $0
-        getline
-        while ($0 ~ /^[[:space:]]*resources:/ || $0 ~ /^[[:space:]]*limits:/ || $0 ~ /^[[:space:]]*memory:/ || $0 ~ /^[[:space:]]*cpus:/) {
-            getline
-        }
-        print "      resources:"
-        print "        limits:"
-        print "          memory: " mem_limit
-        print "          cpus: \"" cpu_limit "\""
-        print $0
-        next
-    }
-    /^[[:space:]]*shm_size:/ {
-        print "    shm_size: " shm_size
-        next
-    }
-    { print }
-    ' "$compose_file" > "$temp_file"
-    
-    # Replace original file if changes were made
-    if ! cmp -s "$compose_file" "$temp_file"; then
-        mv "$temp_file" "$compose_file"
-        log_info "Docker configuration updated successfully"
-    else
-        rm "$temp_file"
-        log_info "Docker configuration already optimal"
-    fi
+    return 0
 }
 
 update_nginx_configuration() {

@@ -900,7 +900,15 @@ create_systemd_service() {
     
     local service_file="/etc/systemd/system/n8n-docker.service"
     
-    sudo tee "$service_file" > /dev/null << 'EOF'
+    # Find the correct docker-compose path
+    local docker_compose_path
+    if command -v docker-compose >/dev/null 2>&1; then
+        docker_compose_path=$(command -v docker-compose)
+    else
+        docker_compose_path="/usr/local/bin/docker-compose"
+    fi
+    
+    sudo tee "$service_file" > /dev/null << EOF
 [Unit]
 Description=n8n Docker Compose Service
 Requires=docker.service
@@ -910,8 +918,8 @@ After=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/n8n/docker
-ExecStart=/usr/bin/docker-compose up -d
-ExecStop=/usr/bin/docker-compose down
+ExecStart=$docker_compose_path up -d
+ExecStop=$docker_compose_path down
 TimeoutStartSec=0
 
 [Install]
