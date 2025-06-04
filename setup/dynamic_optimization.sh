@@ -87,11 +87,11 @@ detect_memory_gb() {
     
     # Convert to GB for compatibility but keep MB precision in separate variable
     local memory_gb_precise
-    memory_gb_precise=$(awk "BEGIN {printf \"%.2f\", ${memory_mb} / 1024}")
+    memory_gb_precise=$(awk "BEGIN {printf \"%.2f\", ${memory_mb} / 1024}" 2>/dev/null || echo "1.00")
     
     # For integer GB calculations, use proper rounding only for display/bounds checking
     local memory_gb_display
-    memory_gb_display=$(awk "BEGIN {print int(${memory_mb} / 1024 + 0.5)}")
+    memory_gb_display=$(awk "BEGIN {print int(${memory_mb} / 1024 + 0.5)}" 2>/dev/null || echo "1")
     
     # Validate memory within reasonable bounds (using display value)
     if [[ "$memory_gb_display" -lt "$MEMORY_MIN_GB" ]]; then
@@ -166,7 +166,7 @@ get_hardware_specs() {
 
 calculate_n8n_parameters() {
     local cpu_cores="$HW_CPU_CORES"
-    local memory_mb="$MEMORY_MB"  # Use precise MB value instead of rounded GB
+    local memory_mb="$HW_MEMORY_MB"  # Use HW_MEMORY_MB exported by get_hardware_specs
     
     # Calculate execution processes (75% of CPU cores, minimum 1)
     local execution_processes
@@ -196,7 +196,7 @@ calculate_n8n_parameters() {
 
 calculate_docker_parameters() {
     local cpu_cores="$HW_CPU_CORES"
-    local memory_mb="$MEMORY_MB"  # Use precise MB value instead of rounded GB
+    local memory_mb="$HW_MEMORY_MB"  # Use HW_MEMORY_MB exported by get_hardware_specs
     
     # FIXED: Calculate Docker memory limit using precise MB values (75% of total memory)
     local docker_memory_mb
@@ -276,7 +276,7 @@ calculate_nginx_parameters() {
 }
 
 calculate_redis_parameters() {
-    local memory_mb="$MEMORY_MB"  # Use precise MB value instead of rounded GB
+    local memory_mb="$HW_MEMORY_MB"  # Use HW_MEMORY_MB exported by get_hardware_specs
     
     # FIXED: Calculate Redis memory using precise MB values (15% of total memory)
     local redis_memory_mb
@@ -304,7 +304,7 @@ calculate_redis_parameters() {
 
 calculate_netdata_parameters() {
     local cpu_cores="$HW_CPU_CORES"
-    local memory_mb="$MEMORY_MB"    # Use precise MB value instead of rounded GB
+    local memory_mb="$HW_MEMORY_MB"  # Use HW_MEMORY_MB exported by get_hardware_specs
     local disk_gb="$HW_DISK_GB"
     
     # Calculate update frequency (higher for more powerful systems)
