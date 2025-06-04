@@ -417,7 +417,7 @@ update_docker_configuration() {
                 print "          memory: '"${DOCKER_MEMORY_LIMIT}"'"
                 print "          cpus: '"'"${DOCKER_CPU_LIMIT}"'"'"
                 print "        reservations:"
-                print "          memory: '"$(echo "$DOCKER_MEMORY_LIMIT" | sed 's/g$//')"'00m'"'"
+                print "          memory: '"$(echo "$DOCKER_MEMORY_LIMIT" | sed 's/g$//')"'00m"
                 print "    shm_size: '"${DOCKER_SHM_SIZE}"'"
                 in_n8n=0
             }
