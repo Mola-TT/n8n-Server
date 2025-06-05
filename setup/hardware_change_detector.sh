@@ -42,6 +42,153 @@ EMAIL_SUBJECT_PREFIX="[n8n Server]"
 EMAIL_COOLDOWN_HOURS=24  # Send emails at most once per day
 
 # =============================================================================
+# EMAIL CONFIGURATION FUNCTIONS
+# =============================================================================
+
+load_email_configuration() {
+    log_debug "Loading email configuration..."
+    
+    # Check for required email configuration variables
+    local missing_vars=()
+    [[ -z "${EMAIL_SENDER:-}" ]] && missing_vars+=("EMAIL_SENDER")
+    [[ -z "${EMAIL_RECIPIENT:-}" ]] && missing_vars+=("EMAIL_RECIPIENT")
+    [[ -z "${SMTP_SERVER:-}" ]] && missing_vars+=("SMTP_SERVER")
+    [[ -z "${SMTP_PORT:-}" ]] && missing_vars+=("SMTP_PORT")
+    [[ -z "${SMTP_USERNAME:-}" ]] && missing_vars+=("SMTP_USERNAME")
+    [[ -z "${SMTP_PASSWORD:-}" ]] && missing_vars+=("SMTP_PASSWORD")
+    
+    if [[ ${#missing_vars[@]} -gt 0 ]]; then
+        log_warning "Missing email configuration variables: ${missing_vars[*]}"
+        log_warning "Email notifications will be disabled"
+        return 1
+    fi
+    
+    log_debug "Email configuration loaded successfully"
+    return 0
+}
+
+get_email_subject() {
+    local notification_type="$1"
+    
+    case "$notification_type" in
+        "hardware_change")
+            echo "${EMAIL_SUBJECT_PREFIX} Hardware Change Detected"
+            ;;
+        "optimization_completed")
+            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Completed"
+            ;;
+        "optimization_failed")
+            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Failed"
+            ;;
+        "test")
+            echo "${EMAIL_SUBJECT_PREFIX} Test Email"
+            ;;
+        *)
+            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Update"
+            ;;
+    esac
+}
+
+get_email_body() {
+    local notification_type="$1"
+    local message="$2"
+    
+    case "$notification_type" in
+        "hardware_change")
+            cat << EOF
+Hardware change detected on n8n server.
+
+Previous Hardware Specifications:
+$message
+
+The system will automatically optimize configuration based on the new hardware specifications.
+
+This is an automated notification from your n8n server monitoring system.
+EOF
+            ;;
+        "optimization_completed")
+            cat << EOF
+Hardware optimization has been completed successfully.
+
+$message
+
+Your n8n server configuration has been updated to match the current hardware specifications.
+
+This is an automated notification from your n8n server monitoring system.
+EOF
+            ;;
+        "test")
+            cat << EOF
+This is a test email from your n8n server monitoring system.
+
+$message
+
+If you receive this email, the email notification system is working correctly.
+
+Server: $(hostname)
+Date: $(date)
+EOF
+            ;;
+        *)
+            cat << EOF
+n8n Server Update:
+
+$message
+
+This is an automated notification from your n8n server monitoring system.
+EOF
+            ;;
+    esac
+}
+
+format_email_message() {
+    local subject="$1"
+    local body="$2"
+    
+    cat << EOF
+To: ${EMAIL_RECIPIENT}
+From: ${EMAIL_SENDER}
+Subject: $subject
+
+$body
+EOF
+}
+
+is_email_cooldown_active() {
+    local notification_type="$1"
+    local cooldown_dir="${2:-/opt/n8n/cooldown}"
+    local cooldown_file="$cooldown_dir/${notification_type}_cooldown"
+    local cooldown_hours="${EMAIL_COOLDOWN_HOURS:-24}"
+    
+    if [[ ! -f "$cooldown_file" ]]; then
+        return 1  # No cooldown file, not in cooldown
+    fi
+    
+    local last_notification_time
+    last_notification_time=$(cat "$cooldown_file" 2>/dev/null || echo "0")
+    local current_time
+    current_time=$(date +%s)
+    local cooldown_seconds=$((cooldown_hours * 3600))
+    
+    if (( current_time - last_notification_time < cooldown_seconds )); then
+        return 0  # Still in cooldown
+    else
+        return 1  # Cooldown expired
+    fi
+}
+
+set_email_cooldown() {
+    local notification_type="$1"
+    local cooldown_dir="${2:-/opt/n8n/cooldown}"
+    local cooldown_file="$cooldown_dir/${notification_type}_cooldown"
+    
+    mkdir -p "$cooldown_dir"
+    echo "$(date +%s)" > "$cooldown_file"
+    
+    log_debug "Email cooldown set for $notification_type until $(date -d "@$(($(date +%s) + EMAIL_COOLDOWN_HOURS * 3600))")"
+}
+
+# =============================================================================
 # HARDWARE DETECTION FUNCTIONS
 # =============================================================================
 
