@@ -165,8 +165,9 @@ get_hardware_specs() {
 # =============================================================================
 
 calculate_n8n_parameters() {
-    local cpu_cores="$HW_CPU_CORES"
-    local memory_mb="$HW_MEMORY_MB"  # Use HW_MEMORY_MB exported by get_hardware_specs
+    # Support both HW_* variables (from get_hardware_specs) and direct variables (for tests)
+    local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
+    local memory_mb="${HW_MEMORY_MB:-$((${MEMORY_GB:-8} * 1024))}"
     
     # Calculate execution processes (75% of CPU cores, minimum 1)
     local execution_processes
@@ -195,8 +196,8 @@ calculate_n8n_parameters() {
 }
 
 calculate_docker_parameters() {
-    local cpu_cores="$HW_CPU_CORES"
-    local memory_mb="$HW_MEMORY_MB"  # Use HW_MEMORY_MB exported by get_hardware_specs
+    local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
+    local memory_mb="${HW_MEMORY_MB:-$((${MEMORY_GB:-8} * 1024))}"
     
     # FIXED: Calculate Docker memory limit using precise MB values (75% of total memory)
     local docker_memory_mb
@@ -236,8 +237,8 @@ calculate_docker_parameters() {
 }
 
 calculate_nginx_parameters() {
-    local cpu_cores="$HW_CPU_CORES"
-    local memory_gb="$HW_MEMORY_GB"
+    local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
+    local memory_gb="${HW_MEMORY_GB:-${MEMORY_GB:-8}}"
     
     # Calculate worker processes (1 per CPU core)
     local worker_processes
@@ -276,7 +277,7 @@ calculate_nginx_parameters() {
 }
 
 calculate_redis_parameters() {
-    local memory_mb="$HW_MEMORY_MB"  # Use HW_MEMORY_MB exported by get_hardware_specs
+    local memory_mb="${HW_MEMORY_MB:-$((${MEMORY_GB:-8} * 1024))}"
     
     # FIXED: Calculate Redis memory using precise MB values (15% of total memory)
     local redis_memory_mb
@@ -303,9 +304,9 @@ calculate_redis_parameters() {
 }
 
 calculate_netdata_parameters() {
-    local cpu_cores="$HW_CPU_CORES"
-    local memory_mb="$HW_MEMORY_MB"  # Use HW_MEMORY_MB exported by get_hardware_specs
-    local disk_gb="$HW_DISK_GB"
+    local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
+    local memory_mb="${HW_MEMORY_MB:-$((${MEMORY_GB:-8} * 1024))}"
+    local disk_gb="${HW_DISK_GB:-${DISK_GB:-100}}"
     
     # Calculate update frequency (higher for more powerful systems)
     local update_every
