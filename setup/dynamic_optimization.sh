@@ -13,6 +13,12 @@
 
 set -euo pipefail
 
+# Prevent multiple sourcing of this script
+if [[ "${DYNAMIC_OPTIMIZATION_SOURCED:-}" == "true" ]]; then
+    return 0 2>/dev/null || exit 0
+fi
+export DYNAMIC_OPTIMIZATION_SOURCED="true"
+
 # Get script directory for relative imports
 PROJECT_ROOT="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
 
