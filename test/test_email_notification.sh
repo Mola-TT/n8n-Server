@@ -59,20 +59,20 @@ cleanup_email_test_environment() {
 test_email_configuration_loading() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
-    # Set up test environment with email config
+        # Set up test environment with email config using temp file
     export PROJECT_ROOT="$PROJECT_ROOT"
-    cp "$TEST_EMAIL_CONFIG" "$PROJECT_ROOT/conf/user.env"
-    
-    # Load email configuration
-    source "$PROJECT_ROOT/conf/user.env"
-    
+    cp "$TEST_EMAIL_CONFIG" "$PROJECT_ROOT/conf/user.env.email_test"
+
+    # Load test email configuration
+    source "$PROJECT_ROOT/conf/user.env.email_test"
+
     # Verify email configuration is loaded
     [[ "${EMAIL_SENDER:-}" == "test@example.com" ]] &&
     [[ "${EMAIL_RECIPIENT:-}" == "admin@example.com" ]] &&
     [[ "${SMTP_SERVER:-}" == "smtp.example.com" ]]
-    
-    # Cleanup
-    rm -f "$PROJECT_ROOT/conf/user.env"
+
+    # Cleanup test file
+    rm -f "$PROJECT_ROOT/conf/user.env.email_test"
 }
 
 test_email_configuration_missing() {
