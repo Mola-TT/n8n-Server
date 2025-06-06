@@ -17,6 +17,11 @@ source "$SCRIPT_DIR/lib/logger.sh"
 # Load default environment variables
 source "$SCRIPT_DIR/conf/default.env"
 
+# Load user environment variables if they exist (overrides defaults)
+if [ -f "$SCRIPT_DIR/conf/user.env" ]; then
+    source "$SCRIPT_DIR/conf/user.env"
+fi
+
 # Source utilities
 source "$SCRIPT_DIR/lib/utilities.sh"
 
@@ -81,15 +86,6 @@ main() {
 
     # Make all scripts executable first
     make_scripts_executable
-    
-    # Load user environment variables if they exist (overrides defaults)
-    if [ -f "$SCRIPT_DIR/conf/user.env" ]; then
-        log_info "Loading user environment variables from conf/user.env"
-        source "$SCRIPT_DIR/conf/user.env"
-    else
-        log_info "No user.env file found. Use default settings"
-        log_info "You can create user.env by copying conf/user.env.template and modifying it"
-    fi
 
     # Check if running as root
     if [ "$(id -u)" -ne 0 ]; then
