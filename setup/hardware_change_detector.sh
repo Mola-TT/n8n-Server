@@ -420,14 +420,14 @@ check_email_cooldown() {
     
     # Check if cooldown file exists
     if [ ! -f "$cooldown_file" ]; then
-        log_debug "No cooldown file found for $notification_type"
+        echo "DEBUG: No cooldown file found for $notification_type" >&2
         return 1  # No cooldown active
     fi
     
     # Get the timestamp from cooldown file
     local last_sent=$(cat "$cooldown_file" 2>/dev/null)
     if [ -z "$last_sent" ] || ! [[ "$last_sent" =~ ^[0-9]+$ ]]; then
-        log_warn "Invalid cooldown file for $notification_type, removing"
+        echo "WARNING: Invalid cooldown file for $notification_type, removing" >&2
         rm -f "$cooldown_file"
         return 1  # No valid cooldown
     fi
@@ -440,13 +440,13 @@ check_email_cooldown() {
     
     # Check if cooldown period has expired
     if [ "$time_elapsed" -ge "$cooldown_seconds" ]; then
-        log_debug "Cooldown period expired for $notification_type"
+        echo "DEBUG: Cooldown period expired for $notification_type" >&2
         rm -f "$cooldown_file"  # Remove expired cooldown file
         return 1  # Cooldown expired, can send email
     else
         local remaining=$((cooldown_seconds - time_elapsed))
         local remaining_hours=$((remaining / 3600))
-        log_debug "Cooldown active for $notification_type: $remaining_hours hours remaining"
+        echo "DEBUG: Cooldown active for $notification_type: $remaining_hours hours remaining" >&2
         return 0  # Cooldown still active
     fi
 }
