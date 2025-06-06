@@ -25,16 +25,17 @@ source "$PROJECT_ROOT/lib/utilities.sh"
 # =============================================================================
 
 # CPU cores limits
-readonly CPU_CORES_MIN=1
-readonly CPU_CORES_MAX=64
+# Protect against re-declaration in test environments
+[[ -z "${CPU_CORES_MIN:-}" ]] && readonly CPU_CORES_MIN=1
+[[ -z "${CPU_CORES_MAX:-}" ]] && readonly CPU_CORES_MAX=64
 
 # Memory limits (in GB)
-readonly MEMORY_MIN_GB=1
-readonly MEMORY_MAX_GB=256
+[[ -z "${MEMORY_MIN_GB:-}" ]] && readonly MEMORY_MIN_GB=1
+[[ -z "${MEMORY_MAX_GB:-}" ]] && readonly MEMORY_MAX_GB=256
 
 # Disk space limits (in GB)
-readonly DISK_MIN_GB=10
-readonly DISK_MAX_GB=10000
+[[ -z "${DISK_MIN_GB:-}" ]] && readonly DISK_MIN_GB=10
+[[ -z "${DISK_MAX_GB:-}" ]] && readonly DISK_MAX_GB=10000
 
 # =============================================================================
 # Optimization Parameters and Ratios
