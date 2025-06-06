@@ -126,10 +126,11 @@ test_netdata_parameter_calculation() {
 test_parameter_scaling_low_end_hardware() {
     source "$PROJECT_ROOT/setup/dynamic_optimization.sh"
     export CPU_CORES=2 MEMORY_GB=2 DISK_GB=20
-    
+    export HW_CPU_CORES=2 HW_MEMORY_MB=2048
+
     calculate_n8n_parameters
     calculate_docker_parameters
-    
+
     # Verify low-end scaling
     [[ "${N8N_EXECUTION_PROCESS:-0}" -le 4 ]] && \
     [[ "${DOCKER_MEMORY_LIMIT:-0}" =~ ^[0-9]+[mg]$ ]]
@@ -138,10 +139,11 @@ test_parameter_scaling_low_end_hardware() {
 test_parameter_scaling_high_end_hardware() {
     source "$PROJECT_ROOT/setup/dynamic_optimization.sh"
     export CPU_CORES=16 MEMORY_GB=32 DISK_GB=1000
-    
+    export HW_CPU_CORES=16 HW_MEMORY_MB=32768
+
     calculate_n8n_parameters
     calculate_docker_parameters
-    
+
     # Verify high-end scaling
     [[ "${N8N_EXECUTION_PROCESS:-0}" -ge 8 ]] && \
     [[ "${DOCKER_MEMORY_LIMIT:-0}" =~ ^[0-9]+[mg]$ ]]
