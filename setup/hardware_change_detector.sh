@@ -46,7 +46,7 @@ EMAIL_COOLDOWN_HOURS=24  # Send emails at most once per day
 # =============================================================================
 
 load_email_configuration() {
-    log_debug "Loading email configuration..."
+    echo "DEBUG: Loading email configuration..." >&2
     
     # Check for required email configuration variables
     local missing_vars=()
@@ -58,12 +58,12 @@ load_email_configuration() {
     [[ -z "${SMTP_PASSWORD:-}" ]] && missing_vars+=("SMTP_PASSWORD")
     
     if [[ ${#missing_vars[@]} -gt 0 ]]; then
-        log_warning "Missing email configuration variables: ${missing_vars[*]}"
-        log_warning "Email notifications will be disabled"
+        echo "WARNING: Missing email configuration variables: ${missing_vars[*]}" >&2
+        echo "WARNING: Email notifications will be disabled" >&2
         return 1
     fi
     
-    log_debug "Email configuration loaded successfully"
+    echo "DEBUG: Email configuration loaded successfully" >&2
     return 0
 }
 
@@ -185,7 +185,7 @@ set_email_cooldown() {
     mkdir -p "$cooldown_dir"
     echo "$(date +%s)" > "$cooldown_file"
     
-    log_debug "Email cooldown set for $notification_type until $(date -d "@$(($(date +%s) + EMAIL_COOLDOWN_HOURS * 3600))")"
+    echo "DEBUG: Email cooldown set for $notification_type until $(date -d "@$(($(date +%s) + EMAIL_COOLDOWN_HOURS * 3600))")" >&2
 }
 
 # =============================================================================
@@ -436,7 +436,7 @@ check_email_cooldown() {
     local current_time=$(date +%s)
     local time_elapsed=$((current_time - last_sent))
     
-    log_debug "Email cooldown check: $time_elapsed seconds elapsed, cooldown is $cooldown_seconds seconds"
+    echo "DEBUG: Email cooldown check: $time_elapsed seconds elapsed, cooldown is $cooldown_seconds seconds" >&2
     
     # Check if cooldown period has expired
     if [ "$time_elapsed" -ge "$cooldown_seconds" ]; then
@@ -457,7 +457,7 @@ set_email_cooldown() {
     local current_time=$(date +%s)
     
     echo "$current_time" > "$cooldown_file"
-    log_debug "Email cooldown set for $notification_type until $(date -d "@$((current_time + EMAIL_COOLDOWN_HOURS * 3600))")"
+    echo "DEBUG: Email cooldown set for $notification_type until $(date -d "@$((current_time + EMAIL_COOLDOWN_HOURS * 3600))")" >&2
     return 0
 }
 
@@ -474,7 +474,7 @@ send_email_notification() {
     
     # Check email cooldown
     if ! check_email_cooldown "$notification_type"; then
-        log_debug "Email notification skipped due to cooldown"
+        echo "DEBUG: Email notification skipped due to cooldown" >&2
         return 0
     fi
     
@@ -551,7 +551,7 @@ send_hardware_change_notification() {
     
     # Check email cooldown before sending
     if ! check_email_cooldown "$notification_type"; then
-        log_debug "Email notification skipped due to cooldown"
+        echo "DEBUG: Email notification skipped due to cooldown" >&2
         return 0
     fi
     
