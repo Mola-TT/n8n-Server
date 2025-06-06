@@ -79,15 +79,17 @@ restore_test_environment() {
         cp "$TEST_BACKUP_DIR/user.env.backup" "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env" 2>/dev/null || true
     fi
     
-    # Clean up test backup
+    # Clean up test backup and test files
     sudo rm -rf "$TEST_BACKUP_DIR" 2>/dev/null || true
+    rm -f "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env.test" 2>/dev/null || true
 }
 
 create_test_environment() {
     local production_mode="$1"
-    
-    # Create test user.env with specified production mode
-    cat > "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env" << EOF
+
+    # Create temporary test user.env with specified production mode
+    # Don't overwrite the real user.env file - use a test-specific file
+    cat > "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env.test" << EOF
 PRODUCTION=$production_mode
 NGINX_SERVER_NAME="test.example.com"
 EMAIL_SENDER="test@example.com"
@@ -417,10 +419,10 @@ test_production_mode_detection() {
     # Create test environment for production mode
     create_test_environment "true"
     
-    # Load environment and check production detection
-    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env" ]; then
+    # Load test environment and check production detection
+    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env.test" ]; then
         set -o allexport
-        source "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env"
+        source "$(dirname "${BASH_SOURCE[0]}")/../conf/user.env.test"
         set +o allexport
     fi
     
