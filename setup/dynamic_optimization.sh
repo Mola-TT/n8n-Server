@@ -81,6 +81,8 @@ detect_cpu_cores() {
     CPU_CORES="$cores"
     log_info "CPU cores detected: $CPU_CORES"
     
+    # Echo the result for subshell capture
+    echo "$cores"
     return 0
 }
 
@@ -116,6 +118,8 @@ detect_memory_gb() {
     
     log_info "Memory detected: ${MEMORY_GB}GB (${memory_mb}MB available, ${memory_gb_precise}GB precise)"
     
+    # Echo the result for subshell capture
+    echo "$memory_gb_display"
     return 0
 }
 
@@ -134,6 +138,8 @@ detect_disk_gb() {
     DISK_GB="$disk_size_gb"
     log_info "Disk space detected: ${DISK_GB}GB"
     
+    # Echo the result for subshell capture
+    echo "$disk_size_gb"
     return 0
 }
 
