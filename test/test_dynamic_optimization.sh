@@ -553,7 +553,8 @@ run_dynamic_optimization_tests() {
     setup_test_environment
     
     for test_function in "${test_functions[@]}"; do
-        if $test_function >/dev/null 2>&1; then
+        log_info "Running $test_function..."
+        if $test_function; then
             log_info "✓ $test_function"
             tests_passed=$((tests_passed + 1))
         else
