@@ -51,21 +51,21 @@ main() {
     echo "MILESTONE 1-5 TESTS - Basic Infrastructure"
     echo "=================================================================================="
     
-    [[ -f "tests/test_basic_infrastructure.sh" ]] && run_test_suite "Basic Infrastructure Tests" "tests/test_basic_infrastructure.sh"
-    [[ -f "tests/test_docker_infrastructure.sh" ]] && run_test_suite "Docker Infrastructure Tests" "tests/test_docker_infrastructure.sh"
-    [[ -f "tests/test_nginx.sh" ]] && run_test_suite "Nginx Tests" "tests/test_nginx.sh"
-    [[ -f "tests/test_netdata.sh" ]] && run_test_suite "Netdata Tests" "tests/test_netdata.sh"
-    [[ -f "tests/test_ssl_renewal.sh" ]] && run_test_suite "SSL Renewal Tests" "tests/test_ssl_renewal.sh"
+    [[ -f "test/test_basic_infrastructure.sh" ]] && run_test_suite "Basic Infrastructure Tests" "test/test_basic_infrastructure.sh"
+    [[ -f "test/test_docker_infrastructure.sh" ]] && run_test_suite "Docker Infrastructure Tests" "test/test_docker_infrastructure.sh"
+    [[ -f "test/test_nginx.sh" ]] && run_test_suite "Nginx Tests" "test/test_nginx.sh"
+    [[ -f "test/test_netdata.sh" ]] && run_test_suite "Netdata Tests" "test/test_netdata.sh"
+    [[ -f "test/test_ssl_renewal.sh" ]] && run_test_suite "SSL Renewal Tests" "test/test_ssl_renewal.sh"
     
     # Milestone 6 Tests
     echo ""
     echo "MILESTONE 6 TESTS - Dynamic Hardware Optimization"
     echo "=================================================================================="
     
-    run_test_suite "Dynamic Optimization Tests" "tests/test_dynamic_optimization.sh"
-    run_test_suite "Email Notification Tests" "tests/test_email_notification.sh"
-    run_test_suite "Hardware Change Detector Tests" "tests/test_hardware_change_detector.sh"
-    run_test_suite "Dynamic Optimization Integration Tests" "tests/test_optimization.sh"
+    run_test_suite "Dynamic Optimization Tests" "test/test_dynamic_optimization.sh"
+    run_test_suite "Email Notification Tests" "test/test_email_notification.sh"
+    run_test_suite "Hardware Change Detector Tests" "test/test_hardware_change_detector.sh"
+    run_test_suite "Dynamic Optimization Integration Tests" "test/test_dynamic_optimization_integration.sh"
     
     # Summary
     echo ""
