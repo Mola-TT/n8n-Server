@@ -571,6 +571,6 @@ run_dynamic_optimization_tests() {
 }
 
 # Run tests if script is executed directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
     run_dynamic_optimization_tests
 fi 

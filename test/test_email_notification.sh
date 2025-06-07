@@ -549,7 +549,7 @@ run_email_notification_tests() {
 }
 
 # Run tests if script is executed directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
     # Add overall timeout protection for the entire test suite
     timeout 300s run_email_notification_tests || {
         echo "[ERROR] Email notification tests timed out after 5 minutes"
