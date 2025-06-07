@@ -220,6 +220,8 @@ calculate_docker_parameters() {
     # Convert to GB for Docker compose (round down to be safe)
     local docker_memory_gb
     docker_memory_gb=$(echo "$docker_memory_mb / 1024" | bc -l | cut -d. -f1)
+    # Ensure we have at least 0 for very low memory systems
+    [[ -z "$docker_memory_gb" || "$docker_memory_gb" == "" ]] && docker_memory_gb=0
     
     # CRITICAL FIX: Ensure minimum viable memory allocation for n8n
     # n8n requires at least 512MB to run properly
@@ -294,7 +296,7 @@ calculate_nginx_parameters() {
 }
 
 calculate_redis_parameters() {
-    local memory_mb="${HW_MEMORY_MB:-$((${MEMORY_GB:-8} * 1024))}"
+    local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-8} * 1024))}"
     
     # FIXED: Calculate Redis memory using precise MB values (15% of total memory)
     local redis_memory_mb
@@ -322,7 +324,7 @@ calculate_redis_parameters() {
 
 calculate_netdata_parameters() {
     local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
-    local memory_mb="${HW_MEMORY_MB:-$((${MEMORY_GB:-8} * 1024))}"
+    local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-8} * 1024))}"
     local disk_gb="${HW_DISK_GB:-${DISK_GB:-100}}"
     
     # Calculate update frequency (higher for more powerful systems)
