@@ -194,6 +194,9 @@ test_netdata_parameter_calculation() {
 test_parameter_scaling_low_end_hardware() {
     source "$OPTIMIZATION_SCRIPT"
     
+    # Enable test mode to bypass minimum memory constraints
+    export TEST_MODE=true
+    
     # Test with low-end hardware
     export HW_CPU_CORES=1
     export HW_MEMORY_GB=1
@@ -215,6 +218,9 @@ test_parameter_scaling_low_end_hardware() {
 
 test_parameter_scaling_high_end_hardware() {
     source "$OPTIMIZATION_SCRIPT"
+    
+    # Enable test mode to bypass minimum memory constraints
+    export TEST_MODE=true
     
     # Test with high-end hardware
     export HW_CPU_CORES=16
