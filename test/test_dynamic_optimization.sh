@@ -200,6 +200,7 @@ test_parameter_scaling_low_end_hardware() {
     # Test with low-end hardware
     export HW_CPU_CORES=1
     export HW_MEMORY_GB=1
+    export HW_MEMORY_MB=1024
     export HW_DISK_GB=20
     
     calculate_n8n_parameters
@@ -225,6 +226,7 @@ test_parameter_scaling_high_end_hardware() {
     # Test with high-end hardware
     export HW_CPU_CORES=16
     export HW_MEMORY_GB=64
+    export HW_MEMORY_MB=65536
     export HW_DISK_GB=1000
     
     calculate_n8n_parameters
