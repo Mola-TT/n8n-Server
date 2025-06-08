@@ -459,13 +459,22 @@ EOF
 test_hardware_specs_recovery() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
-    # Create initial specs
-    local test_specs='{"cpu_cores": 4, "memory_gb": 8, "disk_gb": 100}'
+    # Create initial specs file first
+    local test_specs='{"cpu_cores": 2, "memory_gb": 4, "disk_gb": 50}'
     export HARDWARE_SPEC_FILE="/opt/n8n/data/hardware_specs.json"
-    save_hardware_specs "$test_specs" >/dev/null 2>&1 || return 1
+    mkdir -p "/opt/n8n/data"
+    echo "$test_specs" > "$HARDWARE_SPEC_FILE"
     
-    # Verify backup was created
+    # Now save new specs (this will create backup of the existing file)
+    local new_specs='{"cpu_cores": 4, "memory_gb": 8, "disk_gb": 100}'
+    save_hardware_specs "$new_specs" >/dev/null 2>&1 || return 1
+    
+    # Verify backup was created with original specs
     [[ -f "${HARDWARE_SPEC_FILE}.backup" ]] || return 1
+    grep -q '"cpu_cores": 2' "${HARDWARE_SPEC_FILE}.backup" || return 1
+    
+    # Verify main file has new specs
+    grep -q '"cpu_cores": 4' "$HARDWARE_SPEC_FILE" || return 1
     
     # Corrupt main file
     echo "corrupted" > "$HARDWARE_SPEC_FILE"
@@ -473,8 +482,8 @@ test_hardware_specs_recovery() {
     # Restore from backup
     cp "${HARDWARE_SPEC_FILE}.backup" "$HARDWARE_SPEC_FILE"
     
-    # Verify restoration
-    grep -q '"cpu_cores": 4' "$HARDWARE_SPEC_FILE" || return 1
+    # Verify restoration (should have original specs)
+    grep -q '"cpu_cores": 2' "$HARDWARE_SPEC_FILE" || return 1
     
     return 0
 }
