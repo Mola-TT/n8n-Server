@@ -205,7 +205,7 @@ get_hardware_specs() {
 calculate_n8n_parameters() {
     # Support both HW_* variables (from get_hardware_specs) and direct variables (for tests)
     local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
-    local memory_mb="${HW_MEMORY_MB:-$((${MEMORY_GB:-8} * 1024))}"
+    local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-${MEMORY_GB:-8}} * 1024))}"
     
     # Use default values if variables not set
     local n8n_process_ratio="${N8N_EXECUTION_PROCESS_RATIO:-0.75}"
@@ -334,7 +334,7 @@ calculate_nginx_parameters() {
 }
 
 calculate_redis_parameters() {
-    local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-8} * 1024))}"
+    local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-${MEMORY_GB:-8}} * 1024))}"
     
     # Use default values if variables not set
     local redis_memory_ratio="${REDIS_MEMORY_RATIO:-0.15}"
@@ -366,7 +366,7 @@ calculate_redis_parameters() {
 
 calculate_netdata_parameters() {
     local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
-    local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-8} * 1024))}"
+    local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-${MEMORY_GB:-8}} * 1024))}"
     local disk_gb="${HW_DISK_GB:-${DISK_GB:-100}}"
     
     # Calculate update frequency (higher for more powerful systems)
