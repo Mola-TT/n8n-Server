@@ -410,10 +410,13 @@ calculate_netdata_parameters() {
 backup_configurations() {
     log_info "Creating configuration backups..."
     
+    # Use default value if BACKUP_DIR not set
+    local backup_dir="${BACKUP_DIR:-/opt/n8n/backups/optimization}"
+    
     # Create backup directory with timestamp
     local backup_timestamp
     backup_timestamp=$(date +"%Y%m%d_%H%M%S")
-    local backup_path="$BACKUP_DIR/$backup_timestamp"
+    local backup_path="$backup_dir/$backup_timestamp"
     
     sudo mkdir -p "$backup_path" 2>/dev/null || mkdir -p "$backup_path"
     sudo chown -R "$(whoami):$(id -gn)" "$backup_path" 2>/dev/null || true
