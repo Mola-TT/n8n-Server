@@ -15,51 +15,67 @@ set -euo pipefail
 
 # Prevent multiple sourcing of this script
 if [[ "${DYNAMIC_OPTIMIZATION_SOURCED:-}" == "true" ]]; then
-    return 0 2>/dev/null || exit 0
+    # Skip variable declarations but allow function definitions to be available
+    SKIP_VARIABLE_DECLARATIONS=true
+else
+    export DYNAMIC_OPTIMIZATION_SOURCED="true"
+    SKIP_VARIABLE_DECLARATIONS=false
 fi
-export DYNAMIC_OPTIMIZATION_SOURCED="true"
 
 # Get script directory for relative imports
 PROJECT_ROOT="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
 
-# Source required utilities
-source "$PROJECT_ROOT/lib/logger.sh"
-source "$PROJECT_ROOT/lib/utilities.sh"
+# Source required utilities with fallback for missing files
+if [[ -f "$PROJECT_ROOT/lib/logger.sh" ]]; then
+    source "$PROJECT_ROOT/lib/logger.sh"
+else
+    # Fallback logger functions
+    log_info() { echo "INFO: $1" >&2; }
+    log_warn() { echo "WARN: $1" >&2; }
+    log_error() { echo "ERROR: $1" >&2; }
+    log_debug() { echo "DEBUG: $1" >&2; }
+fi
+
+if [[ -f "$PROJECT_ROOT/lib/utilities.sh" ]]; then
+    source "$PROJECT_ROOT/lib/utilities.sh"
+fi
 
 # =============================================================================
 # Hardware Detection Constants and Limits
 # =============================================================================
 
-# CPU cores limits
-# Protect against re-declaration in test environments
-[[ -z "${CPU_CORES_MIN:-}" ]] && readonly CPU_CORES_MIN=1
-[[ -z "${CPU_CORES_MAX:-}" ]] && readonly CPU_CORES_MAX=64
+if [[ "$SKIP_VARIABLE_DECLARATIONS" != "true" ]]; then
+    # CPU cores limits
+    # Protect against re-declaration in test environments
+    [[ -z "${CPU_CORES_MIN:-}" ]] && readonly CPU_CORES_MIN=1
+    [[ -z "${CPU_CORES_MAX:-}" ]] && readonly CPU_CORES_MAX=64
 
-# Memory limits (in GB)
-[[ -z "${MEMORY_MIN_GB:-}" ]] && readonly MEMORY_MIN_GB=1
-[[ -z "${MEMORY_MAX_GB:-}" ]] && readonly MEMORY_MAX_GB=256
+    # Memory limits (in GB)
+    [[ -z "${MEMORY_MIN_GB:-}" ]] && readonly MEMORY_MIN_GB=1
+    [[ -z "${MEMORY_MAX_GB:-}" ]] && readonly MEMORY_MAX_GB=256
 
-# Disk space limits (in GB)
-[[ -z "${DISK_MIN_GB:-}" ]] && readonly DISK_MIN_GB=10
-[[ -z "${DISK_MAX_GB:-}" ]] && readonly DISK_MAX_GB=10000
+    # Disk space limits (in GB)
+    [[ -z "${DISK_MIN_GB:-}" ]] && readonly DISK_MIN_GB=10
+    [[ -z "${DISK_MAX_GB:-}" ]] && readonly DISK_MAX_GB=10000
 
-# =============================================================================
-# Optimization Parameters and Ratios
-# =============================================================================
+    # =============================================================================
+    # Optimization Parameters and Ratios
+    # =============================================================================
 
-# Optimization ratios and constants
-N8N_EXECUTION_PROCESS_RATIO=0.75
-N8N_MEMORY_RATIO=0.4
-N8N_TIMEOUT_BASE=180
-DOCKER_MEMORY_RATIO=0.75
-DOCKER_CPU_RATIO=0.9
-NGINX_WORKER_RATIO=1.0
-NGINX_CONNECTIONS_PER_WORKER=384
-REDIS_MEMORY_RATIO=0.15
-REDIS_MEMORY_MIN_MB=128
+    # Optimization ratios and constants
+    N8N_EXECUTION_PROCESS_RATIO=0.75
+    N8N_MEMORY_RATIO=0.4
+    N8N_TIMEOUT_BASE=180
+    DOCKER_MEMORY_RATIO=0.75
+    DOCKER_CPU_RATIO=0.9
+    NGINX_WORKER_RATIO=1.0
+    NGINX_CONNECTIONS_PER_WORKER=384
+    REDIS_MEMORY_RATIO=0.15
+    REDIS_MEMORY_MIN_MB=128
 
-# Backup directory
-BACKUP_DIR="/opt/n8n/backups/optimization"
+    # Backup directory
+    BACKUP_DIR="/opt/n8n/backups/optimization"
+fi
 
 # =============================================================================
 # HARDWARE DETECTION FUNCTIONS
@@ -71,11 +87,14 @@ detect_cpu_cores() {
     local cores
     cores=$(nproc 2>/dev/null || echo "1")
     
-    # Validate CPU cores within reasonable bounds
-    if [[ "$cores" -lt "$CPU_CORES_MIN" ]]; then
-        cores=$CPU_CORES_MIN
-    elif [[ "$cores" -gt "$CPU_CORES_MAX" ]]; then
-        cores=$CPU_CORES_MAX
+    # Validate CPU cores within reasonable bounds (use defaults if variables not set)
+    local cpu_min="${CPU_CORES_MIN:-1}"
+    local cpu_max="${CPU_CORES_MAX:-64}"
+    
+    if [[ "$cores" -lt "$cpu_min" ]]; then
+        cores=$cpu_min
+    elif [[ "$cores" -gt "$cpu_max" ]]; then
+        cores=$cpu_max
     fi
     
     CPU_CORES="$cores"
@@ -103,12 +122,15 @@ detect_memory_gb() {
     memory_gb_display=$(awk "BEGIN {print int(${memory_mb} / 1024 + 0.5)}" 2>/dev/null || echo "1")
     
     # Validate memory within reasonable bounds (using display value)
-    if [[ "$memory_gb_display" -lt "$MEMORY_MIN_GB" ]]; then
-        memory_gb_display=$MEMORY_MIN_GB
-        memory_mb=$((MEMORY_MIN_GB * 1024))
-    elif [[ "$memory_gb_display" -gt "$MEMORY_MAX_GB" ]]; then
-        memory_gb_display=$MEMORY_MAX_GB
-        memory_mb=$((MEMORY_MAX_GB * 1024))
+    local memory_min="${MEMORY_MIN_GB:-1}"
+    local memory_max="${MEMORY_MAX_GB:-256}"
+    
+    if [[ "$memory_gb_display" -lt "$memory_min" ]]; then
+        memory_gb_display=$memory_min
+        memory_mb=$((memory_min * 1024))
+    elif [[ "$memory_gb_display" -gt "$memory_max" ]]; then
+        memory_gb_display=$memory_max
+        memory_mb=$((memory_max * 1024))
     fi
     
     # Export both values for use by calculation functions
@@ -130,7 +152,10 @@ detect_disk_gb() {
     local disk_size_gb=$(df -BG / | tail -1 | awk '{print $2}' | sed 's/G//')
     
     # Validate disk size
-    if [[ ! "$disk_size_gb" =~ ^[0-9]+$ ]] || [ "$disk_size_gb" -lt "$DISK_MIN_GB" ] || [ "$disk_size_gb" -gt "$DISK_MAX_GB" ]; then
+    local disk_min="${DISK_MIN_GB:-10}"
+    local disk_max="${DISK_MAX_GB:-10000}"
+    
+    if [[ ! "$disk_size_gb" =~ ^[0-9]+$ ]] || [ "$disk_size_gb" -lt "$disk_min" ] || [ "$disk_size_gb" -gt "$disk_max" ]; then
         log_warn "Invalid disk size detected: ${disk_size_gb}GB, using default"
         disk_size_gb=50
     fi
@@ -182,18 +207,23 @@ calculate_n8n_parameters() {
     local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
     local memory_mb="${HW_MEMORY_MB:-$((${MEMORY_GB:-8} * 1024))}"
     
+    # Use default values if variables not set
+    local n8n_process_ratio="${N8N_EXECUTION_PROCESS_RATIO:-0.75}"
+    local n8n_memory_ratio="${N8N_MEMORY_RATIO:-0.4}"
+    local n8n_timeout_base="${N8N_TIMEOUT_BASE:-180}"
+    
     # Calculate execution processes (75% of CPU cores, minimum 1)
     local execution_processes
-    execution_processes=$(echo "$cpu_cores * $N8N_EXECUTION_PROCESS_RATIO" | bc -l | cut -d. -f1)
+    execution_processes=$(echo "$cpu_cores * $n8n_process_ratio" | bc -l | cut -d. -f1)
     [[ "$execution_processes" -lt 1 ]] && execution_processes=1
     
     # FIXED: Calculate memory limit using precise MB values (40% of total memory)
     local memory_limit_mb
-    memory_limit_mb=$(echo "$memory_mb * $N8N_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    memory_limit_mb=$(echo "$memory_mb * $n8n_memory_ratio" | bc -l | cut -d. -f1)
     
     # Calculate timeout based on actual memory (more memory = longer timeout)
     local execution_timeout
-    execution_timeout=$(echo "$N8N_TIMEOUT_BASE + ($memory_mb / 1024 * 30)" | bc -l | cut -d. -f1)
+    execution_timeout=$(echo "$n8n_timeout_base + ($memory_mb / 1024 * 30)" | bc -l | cut -d. -f1)
     
     # Calculate webhook timeout
     local webhook_timeout
@@ -213,9 +243,13 @@ calculate_docker_parameters() {
     # Support both HW_* variables (from get_hardware_specs) and direct variables (for tests)
     local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-${MEMORY_GB:-8}} * 1024))}"
     
+    # Use default values if variables not set
+    local docker_memory_ratio="${DOCKER_MEMORY_RATIO:-0.75}"
+    local docker_cpu_ratio="${DOCKER_CPU_RATIO:-0.9}"
+    
     # FIXED: Calculate Docker memory limit using precise MB values (75% of total memory)
     local docker_memory_mb
-    docker_memory_mb=$(echo "$memory_mb * $DOCKER_MEMORY_RATIO" | bc -l | cut -d. -f1)
+    docker_memory_mb=$(echo "$memory_mb * $docker_memory_ratio" | bc -l | cut -d. -f1)
     
     # Convert to GB for Docker compose (round down to be safe)
     local docker_memory_gb
@@ -240,7 +274,7 @@ calculate_docker_parameters() {
     
     # Calculate CPU limit (90% of available cores)
     local docker_cpu_limit
-    docker_cpu_limit=$(echo "$cpu_cores * $DOCKER_CPU_RATIO" | bc -l)
+    docker_cpu_limit=$(echo "$cpu_cores * $docker_cpu_ratio" | bc -l)
     
     # Calculate shared memory (1/8 of Docker memory, minimum 64MB)
     local shm_size_mb
@@ -259,16 +293,20 @@ calculate_nginx_parameters() {
     local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
     local memory_gb="${HW_MEMORY_GB:-${MEMORY_GB:-8}}"
     
+    # Use default values if variables not set
+    local nginx_worker_ratio="${NGINX_WORKER_RATIO:-1.0}"
+    local nginx_connections_per_worker="${NGINX_CONNECTIONS_PER_WORKER:-384}"
+    
     # Calculate worker processes (1 per CPU core)
     local worker_processes
-    worker_processes=$(echo "$cpu_cores * $NGINX_WORKER_RATIO" | bc -l | cut -d. -f1)
+    worker_processes=$(echo "$cpu_cores * $nginx_worker_ratio" | bc -l | cut -d. -f1)
     [[ "$worker_processes" -lt 1 ]] && worker_processes=1
     
     # Calculate worker connections (base * memory factor)
     local memory_factor
     memory_factor=$(echo "scale=2; 1 + ($memory_gb / 8)" | bc -l)
     local worker_connections
-    worker_connections=$(echo "$NGINX_CONNECTIONS_PER_WORKER * $memory_factor" | bc -l | cut -d. -f1)
+    worker_connections=$(echo "$nginx_connections_per_worker * $memory_factor" | bc -l | cut -d. -f1)
     
     # Calculate client max body size (based on available memory)
     local client_max_body_mb
@@ -298,10 +336,14 @@ calculate_nginx_parameters() {
 calculate_redis_parameters() {
     local memory_mb="${HW_MEMORY_MB:-$((${HW_MEMORY_GB:-8} * 1024))}"
     
+    # Use default values if variables not set
+    local redis_memory_ratio="${REDIS_MEMORY_RATIO:-0.15}"
+    local redis_memory_min_mb="${REDIS_MEMORY_MIN_MB:-128}"
+    
     # FIXED: Calculate Redis memory using precise MB values (15% of total memory)
     local redis_memory_mb
-    redis_memory_mb=$(echo "$memory_mb * $REDIS_MEMORY_RATIO" | bc -l | cut -d. -f1)
-    [[ "$redis_memory_mb" -lt "$REDIS_MEMORY_MIN_MB" ]] && redis_memory_mb=$REDIS_MEMORY_MIN_MB
+    redis_memory_mb=$(echo "$memory_mb * $redis_memory_ratio" | bc -l | cut -d. -f1)
+    [[ "$redis_memory_mb" -lt "$redis_memory_min_mb" ]] && redis_memory_mb=$redis_memory_min_mb
     
     # Calculate save intervals based on memory
     local save_interval
