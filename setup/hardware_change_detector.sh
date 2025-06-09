@@ -426,7 +426,7 @@ check_email_cooldown() {
         else
             echo "DEBUG: No cooldown file found for $notification_type" >&2
         fi
-        return 1  # No cooldown active
+        return 0  # No cooldown active - can send email
     fi
     
     # Get the timestamp from cooldown file
@@ -439,7 +439,7 @@ check_email_cooldown() {
             echo "WARNING: Invalid cooldown file for $notification_type, removing" >&2
         fi
         rm -f "$cooldown_file"
-        return 1  # No valid cooldown
+        return 0  # No valid cooldown - can send email
     fi
     
     # Calculate time elapsed
@@ -457,7 +457,7 @@ check_email_cooldown() {
             echo "DEBUG: Cooldown period expired for $notification_type" >&2
         fi
         rm -f "$cooldown_file"  # Remove expired cooldown file
-        return 1  # Cooldown expired, can send email
+        return 0  # Cooldown expired - can send email
     else
         local remaining=$((cooldown_seconds - time_elapsed))
         local remaining_hours=$((remaining / 3600))
@@ -467,7 +467,7 @@ check_email_cooldown() {
         else
             echo "DEBUG: Cooldown active for $notification_type: $remaining_hours hours remaining" >&2
         fi
-        return 0  # Cooldown still active
+        return 1  # Cooldown still active - cannot send email
     fi
 }
 

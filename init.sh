@@ -25,6 +25,27 @@ fi
 # Source utilities
 source "$SCRIPT_DIR/lib/utilities.sh"
 
+# Make scripts executable BEFORE sourcing them
+make_scripts_executable_early() {
+    # Make scripts in lib directory executable
+    if [ -d "$SCRIPT_DIR/lib" ]; then
+        chmod +x "$SCRIPT_DIR/lib"/*.sh 2>/dev/null || true
+    fi
+    
+    # Make scripts in setup directory executable
+    if [ -d "$SCRIPT_DIR/setup" ]; then
+        chmod +x "$SCRIPT_DIR/setup"/*.sh 2>/dev/null || true
+    fi
+    
+    # Make scripts in test directory executable
+    if [ -d "$SCRIPT_DIR/test" ]; then
+        chmod +x "$SCRIPT_DIR/test"/*.sh 2>/dev/null || true
+    fi
+}
+
+# Make scripts executable first
+make_scripts_executable_early
+
 # Source general configuration
 source "$SCRIPT_DIR/setup/general_config.sh"
 
