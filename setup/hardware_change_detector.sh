@@ -412,62 +412,99 @@ EOF
 # Email Cooldown Management Functions
 # =============================================================================
 
+# Unified cooldown function supporting both new and legacy modes
 check_email_cooldown() {
-    local notification_type="${1:-default}"
-    local cooldown_file="/tmp/n8n_email_cooldown/${notification_type}"
-    local cooldown_hours="${EMAIL_COOLDOWN_HOURS:-24}"
-    local cooldown_seconds=$((cooldown_hours * 3600))
-    
-    # Check if cooldown file exists
-    if [ ! -f "$cooldown_file" ]; then
-        # Use log_debug if available, otherwise echo
-        if declare -f log_debug >/dev/null 2>&1; then
-            log_debug "No cooldown file found for $notification_type"
-        else
-            echo "DEBUG: No cooldown file found for $notification_type" >&2
+    # If called with parameters, use new system
+    if [[ $# -gt 0 ]]; then
+        local notification_type="${1:-default}"
+        local cooldown_file="/tmp/n8n_email_cooldown/${notification_type}"
+        local cooldown_hours="${EMAIL_COOLDOWN_HOURS:-24}"
+        local cooldown_seconds=$((cooldown_hours * 3600))
+        
+        # Check if cooldown file exists
+        if [ ! -f "$cooldown_file" ]; then
+            if declare -f log_debug >/dev/null 2>&1; then
+                log_debug "No cooldown file found for $notification_type"
+            else
+                echo "DEBUG: No cooldown file found for $notification_type" >&2
+            fi
+            return 0  # No cooldown active - can send email
         fi
-        return 0  # No cooldown active - can send email
-    fi
-    
-    # Get the timestamp from cooldown file
-    local last_sent=$(cat "$cooldown_file" 2>/dev/null)
-    if [ -z "$last_sent" ] || ! [[ "$last_sent" =~ ^[0-9]+$ ]]; then
-        # Use log_warn if available, otherwise echo
-        if declare -f log_warn >/dev/null 2>&1; then
-            log_warn "Invalid cooldown file for $notification_type, removing"
-        else
-            echo "WARNING: Invalid cooldown file for $notification_type, removing" >&2
+        
+        # Get the timestamp from cooldown file
+        local last_sent=$(cat "$cooldown_file" 2>/dev/null)
+        if [ -z "$last_sent" ] || ! [[ "$last_sent" =~ ^[0-9]+$ ]]; then
+            if declare -f log_warn >/dev/null 2>&1; then
+                log_warn "Invalid cooldown file for $notification_type, removing"
+            else
+                echo "WARNING: Invalid cooldown file for $notification_type, removing" >&2
+            fi
+            rm -f "$cooldown_file"
+            return 0  # No valid cooldown - can send email
         fi
-        rm -f "$cooldown_file"
-        return 0  # No valid cooldown - can send email
-    fi
-    
-    # Calculate time elapsed
-    local current_time=$(date +%s)
-    local time_elapsed=$((current_time - last_sent))
-    
-    echo "DEBUG: Email cooldown check: $time_elapsed seconds elapsed, cooldown is $cooldown_seconds seconds" >&2
-    
-    # Check if cooldown period has expired
-    if [ "$time_elapsed" -ge "$cooldown_seconds" ]; then
-        # Use log_debug if available, otherwise echo
-        if declare -f log_debug >/dev/null 2>&1; then
-            log_debug "Cooldown period expired for $notification_type"
+        
+        # Calculate time elapsed
+        local current_time=$(date +%s)
+        local time_elapsed=$((current_time - last_sent))
+        
+        echo "DEBUG: Email cooldown check: $time_elapsed seconds elapsed, cooldown is $cooldown_seconds seconds" >&2
+        
+        # Check if cooldown period has expired
+        if [ "$time_elapsed" -ge "$cooldown_seconds" ]; then
+            if declare -f log_debug >/dev/null 2>&1; then
+                log_debug "Cooldown period expired for $notification_type"
+            else
+                echo "DEBUG: Cooldown period expired for $notification_type" >&2
+            fi
+            rm -f "$cooldown_file"  # Remove expired cooldown file
+            return 0  # Cooldown expired - can send email
         else
-            echo "DEBUG: Cooldown period expired for $notification_type" >&2
+            local remaining=$((cooldown_seconds - time_elapsed))
+            local remaining_hours=$((remaining / 3600))
+            if declare -f log_debug >/dev/null 2>&1; then
+                log_debug "Cooldown active for $notification_type: $remaining_hours hours remaining"
+            else
+                echo "DEBUG: Cooldown active for $notification_type: $remaining_hours hours remaining" >&2
+            fi
+            return 1  # Cooldown still active - cannot send email
         fi
-        rm -f "$cooldown_file"  # Remove expired cooldown file
-        return 0  # Cooldown expired - can send email
     else
-        local remaining=$((cooldown_seconds - time_elapsed))
-        local remaining_hours=$((remaining / 3600))
-        # Use log_debug if available, otherwise echo
-        if declare -f log_debug >/dev/null 2>&1; then
-            log_debug "Cooldown active for $notification_type: $remaining_hours hours remaining"
-        else
-            echo "DEBUG: Cooldown active for $notification_type: $remaining_hours hours remaining" >&2
+        # Legacy mode: no parameters, use old system for backward compatibility
+        local cooldown_file="/opt/n8n/data/last_email_notification"
+        local cooldown_hours="${EMAIL_COOLDOWN_HOURS:-24}"
+        local cooldown_seconds=$((cooldown_hours * 3600))
+        
+        # Ensure directory exists
+        mkdir -p "/opt/n8n/data"
+        
+        # Check if cooldown file exists
+        if [ ! -f "$cooldown_file" ]; then
+            # Create cooldown file with current timestamp
+            echo "$(date +%s)" > "$cooldown_file"
+            return 0  # First call - no cooldown active
         fi
-        return 1  # Cooldown still active - cannot send email
+        
+        # Get the timestamp from cooldown file
+        local last_sent=$(cat "$cooldown_file" 2>/dev/null)
+        if [ -z "$last_sent" ] || ! [[ "$last_sent" =~ ^[0-9]+$ ]]; then
+            # Invalid file, recreate it
+            echo "$(date +%s)" > "$cooldown_file"
+            return 0  # Recreated file - no cooldown active
+        fi
+        
+        # Calculate time elapsed
+        local current_time=$(date +%s)
+        local time_elapsed=$((current_time - last_sent))
+        
+        # Check if cooldown period has expired
+        if [ "$time_elapsed" -ge "$cooldown_seconds" ]; then
+            # Update timestamp for new cooldown period
+            echo "$current_time" > "$cooldown_file"
+            return 0  # Cooldown expired - can send email
+        else
+            # Still in cooldown period
+            return 1  # Cooldown still active - cannot send email
+        fi
     fi
 }
 
@@ -487,6 +524,8 @@ record_email_sent() {
     local notification_type="${1:-default}"
     set_email_cooldown "$notification_type"
 }
+
+
 
 send_email_notification() {
     local notification_type="$1"

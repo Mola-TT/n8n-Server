@@ -223,6 +223,9 @@ test_parameter_scaling_high_end_hardware() {
     # Enable test mode to bypass minimum memory constraints
     export TEST_MODE=true
     
+    # Clear any global variables that might interfere from previous tests
+    unset MEMORY_MB MEMORY_GB CPU_CORES DISK_GB
+    
     # Test with high-end hardware
     export HW_CPU_CORES=16
     export HW_MEMORY_GB=64
