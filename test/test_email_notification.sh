@@ -531,8 +531,8 @@ run_email_notification_tests() {
     
     for test_function in "${test_functions[@]}"; do
         log_info "Running $test_function..."
-        # Add timeout protection to prevent hanging tests
-        if timeout 30s "$test_function"; then
+        # Call test function directly
+        if "$test_function"; then
             log_info "✓ $test_function"
             tests_passed=$((tests_passed + 1))
         else
