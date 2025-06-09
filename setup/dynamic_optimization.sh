@@ -428,6 +428,94 @@ calculate_netdata_parameters() {
 }
 
 # =============================================================================
+# INDIVIDUAL CALCULATION FUNCTIONS (For Test Compatibility)
+# =============================================================================
+
+calculate_docker_memory() {
+    # Support both HW_* variables (from get_hardware_specs) and direct variables (for tests)
+    # Use HW_MEMORY_MB if set, otherwise calculate from HW_MEMORY_GB, then fallback to defaults
+    local memory_mb
+    if [[ -n "${HW_MEMORY_MB:-}" ]]; then
+        memory_mb="$HW_MEMORY_MB"
+    else
+        memory_mb="$((${HW_MEMORY_GB:-${MEMORY_GB:-8}} * 1024))"
+    fi
+    
+    # Use default values if variables not set
+    local docker_memory_ratio="${DOCKER_MEMORY_RATIO:-0.75}"
+    
+    # Calculate Docker memory limit using precise MB values (75% of total memory)
+    local docker_memory_mb
+    docker_memory_mb=$(echo "$memory_mb * $docker_memory_ratio" | bc -l | cut -d. -f1)
+    
+    # Convert to GB for Docker compose (round down to be safe)
+    local docker_memory_gb
+    docker_memory_gb=$(echo "$docker_memory_mb / 1024" | bc -l | cut -d. -f1)
+    # Ensure we have at least 0 for very low memory systems
+    [[ -z "$docker_memory_gb" || "$docker_memory_gb" == "" ]] && docker_memory_gb=0
+    
+    echo "${docker_memory_gb}GB"
+}
+
+calculate_n8n_processes() {
+    local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
+    local n8n_process_ratio="${N8N_EXECUTION_PROCESS_RATIO:-0.75}"
+    
+    local execution_processes
+    execution_processes=$(echo "$cpu_cores * $n8n_process_ratio" | bc -l | cut -d. -f1)
+    [[ "$execution_processes" -lt 1 ]] && execution_processes=1
+    
+    echo "$execution_processes"
+}
+
+calculate_n8n_memory() {
+    # Use HW_MEMORY_MB if set, otherwise calculate from HW_MEMORY_GB, then fallback to defaults
+    local memory_mb
+    if [[ -n "${HW_MEMORY_MB:-}" ]]; then
+        memory_mb="$HW_MEMORY_MB"
+    else
+        memory_mb="$((${HW_MEMORY_GB:-${MEMORY_GB:-8}} * 1024))"
+    fi
+    
+    local n8n_memory_ratio="${N8N_MEMORY_RATIO:-0.4}"
+    
+    local memory_limit_mb
+    memory_limit_mb=$(echo "$memory_mb * $n8n_memory_ratio" | bc -l | cut -d. -f1)
+    
+    echo "${memory_limit_mb}MB"
+}
+
+calculate_nginx_workers() {
+    local cpu_cores="${HW_CPU_CORES:-${CPU_CORES:-4}}"
+    local nginx_worker_ratio="${NGINX_WORKER_RATIO:-1.0}"
+    
+    local worker_processes
+    worker_processes=$(echo "$cpu_cores * $nginx_worker_ratio" | bc -l | cut -d. -f1)
+    [[ "$worker_processes" -lt 1 ]] && worker_processes=1
+    
+    echo "$worker_processes"
+}
+
+calculate_redis_memory() {
+    # Use HW_MEMORY_MB if set, otherwise calculate from HW_MEMORY_GB, then fallback to defaults
+    local memory_mb
+    if [[ -n "${HW_MEMORY_MB:-}" ]]; then
+        memory_mb="$HW_MEMORY_MB"
+    else
+        memory_mb="$((${HW_MEMORY_GB:-${MEMORY_GB:-8}} * 1024))"
+    fi
+    
+    local redis_memory_ratio="${REDIS_MEMORY_RATIO:-0.15}"
+    local redis_memory_min_mb="${REDIS_MEMORY_MIN_MB:-128}"
+    
+    local redis_memory_mb
+    redis_memory_mb=$(echo "$memory_mb * $redis_memory_ratio" | bc -l | cut -d. -f1)
+    [[ "$redis_memory_mb" -lt "$redis_memory_min_mb" ]] && redis_memory_mb=$redis_memory_min_mb
+    
+    echo "${redis_memory_mb}MB"
+}
+
+# =============================================================================
 # CONFIGURATION UPDATE FUNCTIONS
 # =============================================================================
 

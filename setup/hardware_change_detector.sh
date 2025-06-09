@@ -414,7 +414,7 @@ EOF
 
 check_email_cooldown() {
     local notification_type="${1:-default}"
-    local cooldown_file="/tmp/n8n_email_cooldown_${notification_type}"
+    local cooldown_file="/tmp/n8n_email_cooldown/${notification_type}"
     local cooldown_hours="${EMAIL_COOLDOWN_HOURS:-24}"
     local cooldown_seconds=$((cooldown_hours * 3600))
     
@@ -473,12 +473,19 @@ check_email_cooldown() {
 
 set_email_cooldown() {
     local notification_type="${1:-default}"
-    local cooldown_file="/tmp/n8n_email_cooldown_${notification_type}"
+    local cooldown_file="/tmp/n8n_email_cooldown/${notification_type}"
     local current_time=$(date +%s)
     
+    # Ensure cooldown directory exists
+    mkdir -p "/tmp/n8n_email_cooldown"
     echo "$current_time" > "$cooldown_file"
     echo "DEBUG: Email cooldown set for $notification_type until $(date -d "@$((current_time + EMAIL_COOLDOWN_HOURS * 3600))")" >&2
     return 0
+}
+
+record_email_sent() {
+    local notification_type="${1:-default}"
+    set_email_cooldown "$notification_type"
 }
 
 send_email_notification() {
