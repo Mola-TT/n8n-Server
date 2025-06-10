@@ -118,7 +118,7 @@ run_milestone_6_tests() {
     
     # Dynamic Optimization Tests
     log_info "Running Dynamic Optimization Tests..."
-    if source "$PROJECT_DIR/test/test_dynamic_optimization.sh" && run_dynamic_optimization_tests; then
+    if (source "$PROJECT_DIR/test/test_dynamic_optimization.sh" && run_dynamic_optimization_tests); then
         log_pass "Dynamic Optimization Tests: PASSED"
         milestone_6_passed=$((milestone_6_passed + 1))
     else
@@ -128,7 +128,7 @@ run_milestone_6_tests() {
     
     # Email Notification Tests
     log_info "Running Email Notification Tests..."
-    if source "$PROJECT_DIR/test/test_email_notification.sh" && run_email_notification_tests; then
+    if (source "$PROJECT_DIR/test/test_email_notification.sh" && run_email_notification_tests); then
         log_pass "Email Notification Tests: PASSED"
         milestone_6_passed=$((milestone_6_passed + 1))
     else
@@ -138,7 +138,7 @@ run_milestone_6_tests() {
     
     # Hardware Change Detector Tests
     log_info "Running Hardware Change Detector Tests..."
-    if source "$PROJECT_DIR/test/test_hardware_change_detector.sh" && run_hardware_change_detector_tests; then
+    if (source "$PROJECT_DIR/test/test_hardware_change_detector.sh" && run_hardware_change_detector_tests); then
         log_pass "Hardware Change Detector Tests: PASSED"
         milestone_6_passed=$((milestone_6_passed + 1))
     else
@@ -148,7 +148,7 @@ run_milestone_6_tests() {
     
     # Dynamic Optimization Integration Tests
     log_info "Running Dynamic Optimization Integration Tests..."
-    if source "$PROJECT_DIR/test/test_dynamic_optimization_integration.sh" && run_dynamic_optimization_integration_tests; then
+    if (source "$PROJECT_DIR/test/test_dynamic_optimization_integration.sh" && run_dynamic_optimization_integration_tests); then
         log_pass "Dynamic Optimization Integration Tests: PASSED"
         milestone_6_passed=$((milestone_6_passed + 1))
     else
