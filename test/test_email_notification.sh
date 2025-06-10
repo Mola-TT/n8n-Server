@@ -126,7 +126,8 @@ test_email_cooldown_expiry() {
     
     # Create old cooldown file (simulate expired cooldown)
     local cooldown_file="/opt/n8n/data/last_email_notification"
-    local old_time=$(($(date +%s) - 7200))  # 2 hours ago
+    # Use 25 hours ago to ensure cooldown has definitely expired (default is 24 hours)
+    local old_time=$(($(date +%s) - 90000))  # 25 hours ago (90000 seconds)
     
     # Ensure directory exists
     mkdir -p "/opt/n8n/data" 2>/dev/null || true
@@ -313,19 +314,19 @@ test_hardware_change_notification_integration() {
 test_email_notification_with_cooldown() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
-    # Create a recent email timestamp file
-    local cooldown_file="/tmp/test_email_cooldown"
-    echo "$(date +%s)" > "$cooldown_file"
+    # Create a recent email timestamp file using the new cooldown system
+    mkdir -p "/tmp/n8n_email_cooldown"
+    echo "$(date +%s)" > "/tmp/n8n_email_cooldown/test"
     
-    # Mock the cooldown check
+    # Test the cooldown check with proper notification type parameter
     local result
-    result=$(check_email_cooldown "$cooldown_file" 2>/dev/null)
+    result=$(check_email_cooldown "test" 2>/dev/null)
     local exit_code=$?
     
     # Clean up
-    rm -f "$cooldown_file"
+    rm -f "/tmp/n8n_email_cooldown/test"
     
-    # Should respect cooldown period
+    # Should respect cooldown period (return 1 when cooldown active)
     [[ $exit_code -ne 0 ]]
 }
 
