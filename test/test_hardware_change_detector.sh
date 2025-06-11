@@ -403,16 +403,33 @@ EOF
 test_optimization_trigger_missing_script() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
+    # Enable test mode to skip delays
+    export TEST_MODE=true
+    
     # Set test environment with non-existent script
     export HARDWARE_CHANGED="true"
     export CURRENT_HARDWARE_SPECS='{"cpu_cores": 4}'
     export CHANGE_SUMMARY="Test change"
     
-    # Override script directory to non-existent path
-    SCRIPT_DIR="/nonexistent"
+    # Temporarily move the optimization script to simulate missing file
+    local optimization_script="$PROJECT_ROOT/setup/dynamic_optimization.sh"
+    local backup_script="${optimization_script}.test_backup"
     
-    # Should handle missing script gracefully
-    ! trigger_optimization >/dev/null 2>&1
+    # Move script to backup
+    mv "$optimization_script" "$backup_script" 2>/dev/null || true
+    
+    # Should handle missing script gracefully (return 1)
+    local result
+    if trigger_optimization >/dev/null 2>&1; then
+        result=1  # Test should fail if trigger_optimization succeeds
+    else
+        result=0  # Test should pass if trigger_optimization fails
+    fi
+    
+    # Restore the script
+    mv "$backup_script" "$optimization_script" 2>/dev/null || true
+    
+    return $result
 }
 
 # =============================================================================

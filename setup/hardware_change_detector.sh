@@ -702,9 +702,13 @@ trigger_optimization() {
     # Send notification about detected changes
     send_hardware_change_notification "detected"
     
-    # Wait for system to stabilize
-    log_info "Waiting ${OPTIMIZATION_DELAY_SECONDS} seconds for system to stabilize..."
-    sleep "$OPTIMIZATION_DELAY_SECONDS"
+    # Wait for system to stabilize (skip in test mode)
+    if [[ "${TEST_MODE:-false}" != "true" ]]; then
+        log_info "Waiting ${OPTIMIZATION_DELAY_SECONDS} seconds for system to stabilize..."
+        sleep "$OPTIMIZATION_DELAY_SECONDS"
+    else
+        log_info "Test mode enabled - skipping stabilization delay"
+    fi
     
     # Run optimization script
     local optimization_script="$PROJECT_ROOT/setup/dynamic_optimization.sh"
