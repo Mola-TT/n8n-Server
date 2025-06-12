@@ -160,6 +160,7 @@ run_milestone_6_tests() {
     log_info "Milestone 6 Summary: $milestone_6_passed/$milestone_6_total test suites passed"
     
     # Update global counters
+    TESTS_RUN=$((TESTS_RUN + milestone_6_total))
     TESTS_PASSED=$((TESTS_PASSED + milestone_6_passed))
     TESTS_FAILED=$((TESTS_FAILED + milestone_6_failed))
     
