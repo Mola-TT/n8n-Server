@@ -40,6 +40,25 @@ if [[ -f "$PROJECT_ROOT/lib/utilities.sh" ]]; then
     source "$PROJECT_ROOT/lib/utilities.sh"
 fi
 
+# Load environment configuration for email notifications
+load_environment_config() {
+    # Load user environment if it exists, otherwise load defaults
+    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
+        source "$PROJECT_ROOT/conf/user.env"
+        log_debug "Loaded environment configuration from user.env"
+    elif [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
+        source "$PROJECT_ROOT/conf/default.env"
+        log_debug "Loaded environment configuration from default.env"
+    else
+        log_debug "No environment configuration found - email notifications disabled"
+        return 1
+    fi
+    return 0
+}
+
+# Load environment configuration at startup
+load_environment_config
+
 # =============================================================================
 # Hardware Detection Constants and Limits
 # =============================================================================
@@ -1133,6 +1152,38 @@ run_optimization() {
 # EMAIL NOTIFICATION FUNCTIONS
 # =============================================================================
 
+configure_msmtp() {
+    # Configure msmtp if SMTP settings are available
+    if [[ -n "${SMTP_SERVER:-}" ]] && [[ -n "${SMTP_USERNAME:-}" ]] && [[ -n "${SMTP_PASSWORD:-}" ]]; then
+        local msmtp_config="/tmp/.msmtprc"
+        
+        cat > "$msmtp_config" << EOF
+defaults
+auth on
+tls on
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+logfile /tmp/msmtp.log
+
+account default
+host ${SMTP_SERVER}
+port ${SMTP_PORT:-587}
+from ${EMAIL_SENDER}
+user ${SMTP_USERNAME}
+password ${SMTP_PASSWORD}
+EOF
+        
+        # Set proper permissions
+        chmod 600 "$msmtp_config"
+        export MSMTP_CONFIG="$msmtp_config"
+        
+        log_debug "msmtp configuration created: $msmtp_config"
+        return 0
+    else
+        log_debug "SMTP configuration incomplete - cannot configure msmtp"
+        return 1
+    fi
+}
+
 send_optimization_email_notification() {
     local report_file="${1:-}"
     local duration="${2:-unknown}"
@@ -1140,6 +1191,7 @@ send_optimization_email_notification() {
     # Check if email is configured
     if [[ -z "${EMAIL_RECIPIENT:-}" ]] || [[ -z "${EMAIL_SENDER:-}" ]]; then
         log_info "Email notification skipped - email configuration not found"
+        log_debug "EMAIL_RECIPIENT: '${EMAIL_RECIPIENT:-}', EMAIL_SENDER: '${EMAIL_SENDER:-}'"
         return 0
     fi
     
@@ -1175,6 +1227,7 @@ All services have been restarted with the new configuration."
     # Try to send email using available methods
     local email_sent=false
     local temp_file=$(mktemp)
+    local error_log=""
     
     # Create email message
     cat > "$temp_file" << EOF
@@ -1187,36 +1240,92 @@ EOF
     
     # Method 1: Try msmtp if available
     if command -v msmtp >/dev/null 2>&1; then
-        if msmtp -t < "$temp_file" >/dev/null 2>&1; then
-            email_sent=true
-            log_info "✓ Optimization completion email sent via msmtp"
+        # Configure msmtp with current SMTP settings
+        if configure_msmtp; then
+            if msmtp --file="${MSMTP_CONFIG}" -t < "$temp_file" 2>/tmp/msmtp_error.log; then
+                email_sent=true
+                log_info "✓ Optimization completion email sent via msmtp"
+            else
+                error_log+="msmtp error: $(cat /tmp/msmtp_error.log 2>/dev/null || echo 'unknown error'); "
+            fi
+        else
+            error_log+="msmtp configuration failed; "
         fi
+    else
+        log_debug "msmtp not available"
     fi
     
     # Method 2: Try sendmail if available and msmtp failed
     if [[ "$email_sent" == "false" ]] && command -v sendmail >/dev/null 2>&1; then
-        if sendmail -t < "$temp_file" >/dev/null 2>&1; then
+        if sendmail -t < "$temp_file" 2>/tmp/sendmail_error.log; then
             email_sent=true
             log_info "✓ Optimization completion email sent via sendmail"
+        else
+            error_log+="sendmail error: $(cat /tmp/sendmail_error.log 2>/dev/null || echo 'unknown error'); "
         fi
+    else
+        [[ "$email_sent" == "false" ]] && log_debug "sendmail not available"
     fi
     
     # Method 3: Try mail command if available and others failed
     if [[ "$email_sent" == "false" ]] && command -v mail >/dev/null 2>&1; then
-        if echo "$email_body" | mail -s "$email_subject" "$EMAIL_RECIPIENT" >/dev/null 2>&1; then
+        if echo "$email_body" | mail -s "$email_subject" "$EMAIL_RECIPIENT" 2>/tmp/mail_error.log; then
             email_sent=true
             log_info "✓ Optimization completion email sent via mail command"
+        else
+            error_log+="mail command error: $(cat /tmp/mail_error.log 2>/dev/null || echo 'unknown error'); "
         fi
+    else
+        [[ "$email_sent" == "false" ]] && log_debug "mail command not available"
     fi
     
-    # Cleanup
-    rm -f "$temp_file"
+    # Cleanup temporary files
+    rm -f "$temp_file" /tmp/msmtp_error.log /tmp/sendmail_error.log /tmp/mail_error.log
+    [[ -n "${MSMTP_CONFIG:-}" ]] && rm -f "${MSMTP_CONFIG}"
     
     if [[ "$email_sent" == "false" ]]; then
-        log_warn "Failed to send optimization completion email - no working email method found"
+        log_warn "Failed to send optimization completion email"
+        log_warn "Errors encountered: ${error_log:-no specific errors logged}"
+        log_info "Email tools available: $(command -v msmtp >/dev/null && echo "msmtp" || echo "no-msmtp") $(command -v sendmail >/dev/null && echo "sendmail" || echo "no-sendmail") $(command -v mail >/dev/null && echo "mail" || echo "no-mail")"
     fi
     
     return 0
+}
+
+test_email_notification() {
+    log_info "Testing email notification functionality..."
+    
+    # Check if email is configured
+    if [[ -z "${EMAIL_RECIPIENT:-}" ]] || [[ -z "${EMAIL_SENDER:-}" ]]; then
+        log_error "Email configuration missing - EMAIL_RECIPIENT or EMAIL_SENDER not set"
+        log_info "Please check your conf/user.env file for email settings"
+        return 1
+    fi
+    
+    log_info "Email configuration found:"
+    log_info "  FROM: ${EMAIL_SENDER}"
+    log_info "  TO: ${EMAIL_RECIPIENT}"
+    log_info "  SMTP: ${SMTP_SERVER:-not set}:${SMTP_PORT:-not set}"
+    
+    # Test email message
+    local test_message="This is a test email from n8n dynamic optimization.
+
+Test Details:
+- Server: $(hostname)
+- Timestamp: $(date)
+- User: $(whoami)
+- Script: dynamic_optimization.sh
+
+If you receive this email, the optimization email notifications are working correctly."
+    
+    log_info "Sending test email..."
+    if send_optimization_email_notification "test-report.txt" "test"; then
+        log_info "✓ Test email sent successfully"
+        return 0
+    else
+        log_error "✗ Failed to send test email"
+        return 1
+    fi
 }
 
 # =============================================================================
@@ -1300,6 +1409,7 @@ OPTIONS:
     --calculate-only    Detect hardware and calculate parameters without applying
     --verify-only       Verify current optimization status
     --report-only       Generate optimization report without changes
+    --test-email        Test email notification functionality
     --help              Show this help message
 
 EXAMPLES:
@@ -1346,6 +1456,10 @@ main() {
                 action="report"
                 shift
                 ;;
+            --test-email)
+                action="test_email"
+                shift
+                ;;
             --help)
                 show_help
                 exit 0
@@ -1384,6 +1498,9 @@ main() {
             calculate_redis_parameters
             calculate_netdata_parameters
             generate_optimization_report
+            ;;
+        "test_email")
+            test_email_notification
             ;;
         "optimize")
             run_optimization
