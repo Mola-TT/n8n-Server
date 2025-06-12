@@ -1123,6 +1123,99 @@ run_optimization() {
     log_info "Optimization completed in ${duration} seconds"
     log_info "Report available at: $report_file"
     
+    # Send email notification about completed optimization
+    send_optimization_email_notification "$report_file" "$duration"
+    
+    return 0
+}
+
+# =============================================================================
+# EMAIL NOTIFICATION FUNCTIONS
+# =============================================================================
+
+send_optimization_email_notification() {
+    local report_file="${1:-}"
+    local duration="${2:-unknown}"
+    
+    # Check if email is configured
+    if [[ -z "${EMAIL_RECIPIENT:-}" ]] || [[ -z "${EMAIL_SENDER:-}" ]]; then
+        log_info "Email notification skipped - email configuration not found"
+        return 0
+    fi
+    
+    # Load email configuration from environment
+    local email_subject="[n8n Server] Hardware Optimization Completed"
+    local duration_text
+    if [[ "$duration" == "setup" ]]; then
+        duration_text="Initial setup"
+    else
+        duration_text="${duration} seconds"
+    fi
+    
+    local email_body="Hardware optimization has been completed successfully.
+
+Optimization Details:
+- Server: $(hostname)
+- Completion Time: $(date)
+- Duration: ${duration_text}
+- Hardware: ${HW_CPU_CORES:-Unknown} CPU cores, ${HW_MEMORY_GB:-Unknown}GB RAM, ${HW_DISK_GB:-Unknown}GB disk
+
+Configuration Updates:
+- n8n: ${N8N_EXECUTION_PROCESS:-N/A} processes, ${N8N_MEMORY_LIMIT_MB:-N/A}MB memory
+- Docker: ${DOCKER_MEMORY_LIMIT:-N/A} memory limit, ${DOCKER_CPU_LIMIT:-N/A} CPU limit
+- Nginx: ${NGINX_WORKER_PROCESSES:-N/A} workers, ${NGINX_WORKER_CONNECTIONS:-N/A} connections
+- Redis: ${REDIS_MAXMEMORY:-N/A} memory
+- Netdata: ${NETDATA_UPDATE_EVERY:-N/A}s updates, ${NETDATA_MEMORY_LIMIT:-N/A} memory
+
+Optimization report: ${report_file:-Not generated}
+
+This optimization was triggered automatically based on detected hardware specifications.
+All services have been restarted with the new configuration."
+    
+    # Try to send email using available methods
+    local email_sent=false
+    local temp_file=$(mktemp)
+    
+    # Create email message
+    cat > "$temp_file" << EOF
+To: ${EMAIL_RECIPIENT}
+From: ${EMAIL_SENDER}
+Subject: ${email_subject}
+
+${email_body}
+EOF
+    
+    # Method 1: Try msmtp if available
+    if command -v msmtp >/dev/null 2>&1; then
+        if msmtp -t < "$temp_file" >/dev/null 2>&1; then
+            email_sent=true
+            log_info "✓ Optimization completion email sent via msmtp"
+        fi
+    fi
+    
+    # Method 2: Try sendmail if available and msmtp failed
+    if [[ "$email_sent" == "false" ]] && command -v sendmail >/dev/null 2>&1; then
+        if sendmail -t < "$temp_file" >/dev/null 2>&1; then
+            email_sent=true
+            log_info "✓ Optimization completion email sent via sendmail"
+        fi
+    fi
+    
+    # Method 3: Try mail command if available and others failed
+    if [[ "$email_sent" == "false" ]] && command -v mail >/dev/null 2>&1; then
+        if echo "$email_body" | mail -s "$email_subject" "$EMAIL_RECIPIENT" >/dev/null 2>&1; then
+            email_sent=true
+            log_info "✓ Optimization completion email sent via mail command"
+        fi
+    fi
+    
+    # Cleanup
+    rm -f "$temp_file"
+    
+    if [[ "$email_sent" == "false" ]]; then
+        log_warn "Failed to send optimization completion email - no working email method found"
+    fi
+    
     return 0
 }
 
@@ -1182,6 +1275,9 @@ setup_dynamic_optimization() {
     else
         log_warn "⚠ Dynamic hardware optimization setup completed with some verification failures"
     fi
+    
+    # Send email notification about initial optimization
+    send_optimization_email_notification "$report_file" "setup"
     
     log_info "Hardware change detection service installed and ready"
     log_info "Optimization can be re-run manually with: bash $PROJECT_ROOT/setup/dynamic_optimization.sh --optimize"
