@@ -63,6 +63,9 @@ cleanup_test_environment() {
 test_hardware_detection_cpu_cores() {
     source "$OPTIMIZATION_SCRIPT"
     
+    # Enable test mode to suppress echo output
+    export TEST_MODE=true
+    
     # Call the function which sets the global CPU_CORES variable
     detect_cpu_cores
     
@@ -72,6 +75,9 @@ test_hardware_detection_cpu_cores() {
 
 test_hardware_detection_memory() {
     source "$OPTIMIZATION_SCRIPT"
+    
+    # Enable test mode to suppress echo output
+    export TEST_MODE=true
     
     # Call the function which sets the global MEMORY_GB variable
     detect_memory_gb
@@ -83,6 +89,9 @@ test_hardware_detection_memory() {
 test_hardware_detection_disk() {
     source "$OPTIMIZATION_SCRIPT"
     
+    # Enable test mode to suppress echo output
+    export TEST_MODE=true
+    
     # Call the function which sets the global DISK_GB variable
     detect_disk_gb
     
@@ -92,6 +101,9 @@ test_hardware_detection_disk() {
 
 test_hardware_specs_export() {
     source "$OPTIMIZATION_SCRIPT"
+    
+    # Enable test mode to suppress echo output
+    export TEST_MODE=true
     
     get_hardware_specs
     
