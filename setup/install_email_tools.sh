@@ -244,6 +244,8 @@ main() {
     case $action in
         "install")
             install_email_tools
+            configure_system_msmtp
+            configure_user_msmtp
             ;;
         "configure")
             configure_system_msmtp
