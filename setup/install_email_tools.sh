@@ -37,10 +37,70 @@ install_email_tools() {
     # Update package list
     sudo apt-get update -qq
     
-    # Install msmtp and dependencies
-    sudo apt-get install -y msmtp msmtp-mta ca-certificates
+    # Set up unattended installation
+    export DEBIAN_FRONTEND=noninteractive
     
-    log_info "✓ Email tools installed successfully"
+    # Install msmtp and dependencies with unattended options
+    sudo -E apt-get install -y -q \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold" \
+        msmtp msmtp-mta ca-certificates apparmor-utils
+    
+    # Enable AppArmor profile for msmtp if available
+    if command -v aa-enforce >/dev/null 2>&1; then
+        # Check if msmtp AppArmor profile exists
+        if [[ -f /etc/apparmor.d/usr.bin.msmtp ]]; then
+            log_info "Enabling AppArmor profile for msmtp..."
+            sudo aa-enforce /etc/apparmor.d/usr.bin.msmtp 2>/dev/null || log_warn "Could not enforce msmtp AppArmor profile"
+        else
+            log_info "Creating and enabling AppArmor profile for msmtp..."
+            # Create a basic AppArmor profile for msmtp
+            sudo tee /etc/apparmor.d/usr.bin.msmtp > /dev/null << 'EOF'
+#include <tunables/global>
+
+/usr/bin/msmtp {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+  #include <abstractions/ssl_certs>
+
+  capability net_bind_service,
+  capability setuid,
+  capability setgid,
+
+  /usr/bin/msmtp mr,
+  /etc/msmtprc r,
+  /home/*/.msmtprc r,
+  /root/.msmtprc r,
+  /tmp/.msmtprc r,
+  /var/log/msmtp.log w,
+  /tmp/msmtp.log w,
+  /home/*/msmtp.log w,
+  /root/.msmtp.log w,
+  /etc/ssl/certs/ r,
+  /etc/ssl/certs/** r,
+  /usr/share/ca-certificates/ r,
+  /usr/share/ca-certificates/** r,
+  /etc/ca-certificates.conf r,
+
+  # Network access for SMTP
+  network inet stream,
+  network inet6 stream,
+}
+EOF
+            # Load and enforce the profile
+            sudo apparmor_parser -r /etc/apparmor.d/usr.bin.msmtp 2>/dev/null || log_warn "Could not load msmtp AppArmor profile"
+            sudo aa-enforce /etc/apparmor.d/usr.bin.msmtp 2>/dev/null || log_warn "Could not enforce msmtp AppArmor profile"
+        fi
+        log_info "✓ AppArmor profile configured for msmtp"
+    else
+        log_warn "AppArmor not available - skipping security profile setup"
+    fi
+    
+    # Reset DEBIAN_FRONTEND
+    unset DEBIAN_FRONTEND
+    
+    log_info "✓ Email tools installed successfully with security profiles"
 }
 
 configure_system_msmtp() {

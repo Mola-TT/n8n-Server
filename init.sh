@@ -119,6 +119,10 @@ main() {
     # Update system packages
     update_system
     
+    # Install email tools for notifications
+    log_info "Installing email tools for system notifications..."
+    bash "$SCRIPT_DIR/setup/install_email_tools.sh" --install
+    
     # Set up Docker infrastructure (Milestone 2)
     echo "-----------------------------------------------"
     echo "MILESTONE 2: Docker Infrastructure Setup"
