@@ -37,8 +37,8 @@ CPU_CHANGE_THRESHOLD=1  # Minimum CPU core change
 MEMORY_CHANGE_THRESHOLD_GB=1  # Minimum memory change in GB
 DISK_CHANGE_THRESHOLD_GB=5  # Minimum disk change in GB
 
-# Email notification settings
-EMAIL_SUBJECT_PREFIX="[n8n Server]"
+# Email notification settings - domain prefix will be set dynamically
+EMAIL_SUBJECT_PREFIX=""
 EMAIL_COOLDOWN_HOURS=24  # Send emails at most once per day
 
 # =============================================================================
@@ -70,21 +70,26 @@ load_email_configuration() {
 get_email_subject() {
     local notification_type="$1"
     
+    # Get domain prefix dynamically
+    local full_domain="${NGINX_SERVER_NAME:-$(hostname -d 2>/dev/null || echo 'server')}"
+    local domain_name="${full_domain%%.*}"  # Extract just the domain name without TLD
+    local subject_prefix="[${domain_name}]"
+    
     case "$notification_type" in
         "hardware_change")
-            echo "${EMAIL_SUBJECT_PREFIX} Hardware Change Detected"
+            echo "${subject_prefix} Hardware Change Detected"
             ;;
         "optimization_completed")
-            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Completed"
+            echo "${subject_prefix} Hardware Optimization Completed"
             ;;
         "optimization_failed")
-            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Failed"
+            echo "${subject_prefix} Hardware Optimization Failed"
             ;;
         "test")
-            echo "${EMAIL_SUBJECT_PREFIX} Test Email"
+            echo "${subject_prefix} Test Email"
             ;;
         *)
-            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Update"
+            echo "${subject_prefix} Hardware Optimization Update"
             ;;
     esac
 }
@@ -330,7 +335,11 @@ generate_hardware_change_email_subject() {
     local old_specs="$1"
     local new_specs="$2"
     
-    echo "${EMAIL_SUBJECT_PREFIX} Hardware Change Detected"
+    # Get domain prefix dynamically
+    local full_domain="${NGINX_SERVER_NAME:-$(hostname -d 2>/dev/null || echo 'server')}"
+    local domain_name="${full_domain%%.*}"  # Extract just the domain name without TLD
+    
+    echo "[${domain_name}] Hardware Change Detected"
 }
 
 generate_hardware_change_email_body() {
@@ -377,15 +386,19 @@ EOF
 generate_optimization_email_subject() {
     local status="$1"
     
+    # Get domain prefix dynamically
+    local full_domain="${NGINX_SERVER_NAME:-$(hostname -d 2>/dev/null || echo 'server')}"
+    local domain_name="${full_domain%%.*}"  # Extract just the domain name without TLD
+    
     case "$status" in
         "completed")
-            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Completed"
+            echo "[${domain_name}] Hardware Optimization Completed"
             ;;
         "failed")
-            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Failed"
+            echo "[${domain_name}] Hardware Optimization Failed"
             ;;
         *)
-            echo "${EMAIL_SUBJECT_PREFIX} Hardware Optimization Update"
+            echo "[${domain_name}] Hardware Optimization Update"
             ;;
     esac
 }
@@ -547,7 +560,9 @@ send_email_notification() {
     # Generate subject and body based on notification type
     case "$notification_type" in
         "test")
-            subject="${EMAIL_SUBJECT_PREFIX} Test Email"
+            local full_domain="${NGINX_SERVER_NAME:-$(hostname -d 2>/dev/null || echo 'server')}"
+            local domain_name="${full_domain%%.*}"  # Extract just the domain name without TLD
+            subject="[${domain_name}] Test Email"
             body="$message"
             ;;
         "hardware_change")

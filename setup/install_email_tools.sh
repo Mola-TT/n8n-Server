@@ -49,11 +49,23 @@ configure_system_msmtp() {
     log_info "Configuring system-wide msmtp..."
     
     # Create system-wide msmtp configuration
+    # Determine TLS configuration based on port and SMTP_TLS setting
+    local tls_config
+    if [[ "${SMTP_PORT:-587}" == "465" ]] || [[ "${SMTP_TLS:-}" == "YES" ]]; then
+        # Port 465 uses immediate SSL (SMTPS)
+        tls_config="tls on
+tls_starttls off"
+    else
+        # Port 587 uses STARTTLS
+        tls_config="tls on
+tls_starttls on"
+    fi
+    
     sudo tee "$config_file" > /dev/null << EOF
 # System-wide msmtp configuration for n8n server
 defaults
 auth on
-tls on
+${tls_config}
 tls_trust_file /etc/ssl/certs/ca-certificates.crt
 logfile /var/log/msmtp.log
 
@@ -81,11 +93,23 @@ configure_user_msmtp() {
     log_info "Configuring user msmtp..."
     
     # Create user-specific msmtp configuration
+    # Determine TLS configuration based on port and SMTP_TLS setting
+    local tls_config
+    if [[ "${SMTP_PORT:-587}" == "465" ]] || [[ "${SMTP_TLS:-}" == "YES" ]]; then
+        # Port 465 uses immediate SSL (SMTPS)
+        tls_config="tls on
+tls_starttls off"
+    else
+        # Port 587 uses STARTTLS
+        tls_config="tls on
+tls_starttls on"
+    fi
+    
     cat > "$config_file" << EOF
 # User msmtp configuration for n8n server
 defaults
 auth on
-tls on
+${tls_config}
 tls_trust_file /etc/ssl/certs/ca-certificates.crt
 logfile $HOME/.msmtp.log
 
@@ -106,7 +130,9 @@ EOF
 test_email_sending() {
     log_info "Testing email sending..."
     
-    local test_subject="[n8n Server] Email Configuration Test"
+    local full_domain="${NGINX_SERVER_NAME:-$(hostname -d 2>/dev/null || echo 'server')}"
+    local domain_name="${full_domain%%.*}"  # Extract just the domain name without TLD
+    local test_subject="[${domain_name}] Email Configuration Test"
     local test_body="This is a test email from your n8n server.
 
 Server: $(hostname)

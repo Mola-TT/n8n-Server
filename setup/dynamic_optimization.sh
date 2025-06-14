@@ -1157,10 +1157,22 @@ configure_msmtp() {
     if [[ -n "${SMTP_SERVER:-}" ]] && [[ -n "${SMTP_USERNAME:-}" ]] && [[ -n "${SMTP_PASSWORD:-}" ]]; then
         local msmtp_config="/tmp/.msmtprc"
         
+        # Determine TLS configuration based on port and SMTP_TLS setting
+        local tls_config
+        if [[ "${SMTP_PORT:-587}" == "465" ]] || [[ "${SMTP_TLS:-}" == "YES" ]]; then
+            # Port 465 uses immediate SSL (SMTPS)
+            tls_config="tls on
+tls_starttls off"
+        else
+            # Port 587 uses STARTTLS
+            tls_config="tls on
+tls_starttls on"
+        fi
+        
         cat > "$msmtp_config" << EOF
 defaults
 auth on
-tls on
+${tls_config}
 tls_trust_file /etc/ssl/certs/ca-certificates.crt
 logfile /tmp/msmtp.log
 
@@ -1196,7 +1208,9 @@ send_optimization_email_notification() {
     fi
     
     # Load email configuration from environment
-    local email_subject="[n8n Server] Hardware Optimization Completed"
+    local full_domain="${NGINX_SERVER_NAME:-$(hostname -d 2>/dev/null || echo 'server')}"
+    local domain_name="${full_domain%%.*}"  # Extract just the domain name without TLD
+    local email_subject="[${domain_name}] Hardware Optimization Completed"
     local duration_text
     if [[ "$duration" == "setup" ]]; then
         duration_text="Initial setup"
