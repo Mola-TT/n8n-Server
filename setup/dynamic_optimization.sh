@@ -1224,7 +1224,7 @@ Optimization report: ${report_file:-Not generated}
 This optimization was triggered automatically based on detected hardware specifications.
 All services have been restarted with the new configuration."
     
-    # Try to send email using available methods
+    # Try to send email using msmtp only
     local email_sent=false
     local temp_file=$(mktemp)
     local error_log=""
@@ -1238,55 +1238,29 @@ Subject: ${email_subject}
 ${email_body}
 EOF
     
-    # Method 1: Try msmtp if available
+    # Only use msmtp for sending
     if command -v msmtp >/dev/null 2>&1; then
-        # Configure msmtp with current SMTP settings
         if configure_msmtp; then
             if msmtp --file="${MSMTP_CONFIG}" -t < "$temp_file" 2>/tmp/msmtp_error.log; then
                 email_sent=true
-                log_info "✓ Optimization completion email sent via msmtp"
+                log_info "✓ Email sent via msmtp"
             else
-                error_log+="msmtp error: $(cat /tmp/msmtp_error.log 2>/dev/null || echo 'unknown error'); "
+                error_log="msmtp error: $(cat /tmp/msmtp_error.log 2>/dev/null || echo 'unknown error')"
+                log_error "✗ msmtp failed to send email: $error_log"
             fi
         else
-            error_log+="msmtp configuration failed; "
+            log_error "✗ msmtp configuration failed. Check SMTP settings in conf/user.env."
         fi
     else
-        log_debug "msmtp not available"
-    fi
-    
-    # Method 2: Try sendmail if available and msmtp failed
-    if [[ "$email_sent" == "false" ]] && command -v sendmail >/dev/null 2>&1; then
-        if sendmail -t < "$temp_file" 2>/tmp/sendmail_error.log; then
-            email_sent=true
-            log_info "✓ Optimization completion email sent via sendmail"
-        else
-            error_log+="sendmail error: $(cat /tmp/sendmail_error.log 2>/dev/null || echo 'unknown error'); "
-        fi
-    else
-        [[ "$email_sent" == "false" ]] && log_debug "sendmail not available"
-    fi
-    
-    # Method 3: Try mail command if available and others failed
-    if [[ "$email_sent" == "false" ]] && command -v mail >/dev/null 2>&1; then
-        if echo "$email_body" | mail -s "$email_subject" "$EMAIL_RECIPIENT" 2>/tmp/mail_error.log; then
-            email_sent=true
-            log_info "✓ Optimization completion email sent via mail command"
-        else
-            error_log+="mail command error: $(cat /tmp/mail_error.log 2>/dev/null || echo 'unknown error'); "
-        fi
-    else
-        [[ "$email_sent" == "false" ]] && log_debug "mail command not available"
+        log_error "✗ msmtp not installed. Please run: bash setup/install_email_tools.sh"
     fi
     
     # Cleanup temporary files
-    rm -f "$temp_file" /tmp/msmtp_error.log /tmp/sendmail_error.log /tmp/mail_error.log
+    rm -f "$temp_file" /tmp/msmtp_error.log
     [[ -n "${MSMTP_CONFIG:-}" ]] && rm -f "${MSMTP_CONFIG}"
     
     if [[ "$email_sent" == "false" ]]; then
-        log_warn "Failed to send optimization completion email"
-        log_warn "Errors encountered: ${error_log:-no specific errors logged}"
-        log_info "Email tools available: $(command -v msmtp >/dev/null && echo "msmtp" || echo "no-msmtp") $(command -v sendmail >/dev/null && echo "sendmail" || echo "no-sendmail") $(command -v mail >/dev/null && echo "mail" || echo "no-mail")"
+        log_warn "Failed to send optimization completion email via msmtp."
     fi
     
     return 0
