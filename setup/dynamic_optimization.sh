@@ -42,17 +42,28 @@ fi
 
 # Load environment configuration for email notifications
 load_environment_config() {
-    # Load user environment if it exists, otherwise load defaults
+    # Load default environment first (if exists), then user environment to override
+    local config_loaded=false
+    
+    # Load defaults first
+    if [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
+        source "$PROJECT_ROOT/conf/default.env"
+        log_debug "Loaded default environment configuration"
+        config_loaded=true
+    fi
+    
+    # Load user environment to override defaults
     if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
         source "$PROJECT_ROOT/conf/user.env"
-        log_debug "Loaded environment configuration from user.env"
-    elif [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
-        source "$PROJECT_ROOT/conf/default.env"
-        log_debug "Loaded environment configuration from default.env"
-    else
+        log_debug "Loaded user environment configuration (overriding defaults)"
+        config_loaded=true
+    fi
+    
+    if [[ "$config_loaded" == "false" ]]; then
         log_debug "No environment configuration found - email notifications disabled"
         return 1
     fi
+    
     return 0
 }
 
