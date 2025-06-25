@@ -37,9 +37,9 @@ CPU_CHANGE_THRESHOLD=1  # Minimum CPU core change
 MEMORY_CHANGE_THRESHOLD_GB=1  # Minimum memory change in GB
 DISK_CHANGE_THRESHOLD_GB=5  # Minimum disk change in GB
 
-# Email notification settings - domain prefix will be set dynamically
-EMAIL_SUBJECT_PREFIX=""
-EMAIL_COOLDOWN_HOURS=24  # Send emails at most once per day
+# Email notification settings - load from environment with fallback
+EMAIL_SUBJECT_PREFIX="${EMAIL_SUBJECT_PREFIX:-[n8n Server]}"
+EMAIL_COOLDOWN_HOURS="${EMAIL_COOLDOWN_HOURS:-24}"  # Send emails at most once per day
 
 # =============================================================================
 # EMAIL CONFIGURATION FUNCTIONS
