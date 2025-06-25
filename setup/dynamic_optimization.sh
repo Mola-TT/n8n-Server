@@ -1164,7 +1164,13 @@ run_optimization() {
 # =============================================================================
 
 configure_msmtp() {
-    # Configure msmtp if SMTP settings are available
+    # Check if msmtp is properly configured (system or user config exists)
+    if [[ -f "/etc/msmtprc" ]] || [[ -f "$HOME/.msmtprc" ]]; then
+        log_debug "Using existing msmtp configuration"
+        return 0
+    fi
+    
+    # Fallback: Configure msmtp if SMTP settings are available
     if [[ -n "${SMTP_SERVER:-}" ]] && [[ -n "${SMTP_USERNAME:-}" ]] && [[ -n "${SMTP_PASSWORD:-}" ]]; then
         local msmtp_config="/tmp/.msmtprc"
         
@@ -1199,7 +1205,7 @@ EOF
         chmod 600 "$msmtp_config"
         export MSMTP_CONFIG="$msmtp_config"
         
-        log_debug "msmtp configuration created: $msmtp_config"
+        log_debug "Temporary msmtp configuration created: $msmtp_config"
         return 0
     else
         log_debug "SMTP configuration incomplete - cannot configure msmtp"
@@ -1266,7 +1272,13 @@ EOF
     # Only use msmtp for sending
     if command -v msmtp >/dev/null 2>&1; then
         if configure_msmtp; then
-            if msmtp --file="${MSMTP_CONFIG}" -t < "$temp_file" 2>/tmp/msmtp_error.log; then
+            # Use system/user msmtp config if available, otherwise use temporary config
+            local msmtp_cmd="msmtp"
+            if [[ -n "${MSMTP_CONFIG:-}" ]] && [[ -f "${MSMTP_CONFIG}" ]]; then
+                msmtp_cmd="msmtp --file=${MSMTP_CONFIG}"
+            fi
+            
+            if $msmtp_cmd -t < "$temp_file" 2>/tmp/msmtp_error.log; then
                 email_sent=true
                 log_info "✓ Email sent via msmtp"
             else
@@ -1282,7 +1294,8 @@ EOF
     
     # Cleanup temporary files
     rm -f "$temp_file" /tmp/msmtp_error.log
-    [[ -n "${MSMTP_CONFIG:-}" ]] && rm -f "${MSMTP_CONFIG}"
+    # Only remove temporary msmtp config if it was created in /tmp
+    [[ -n "${MSMTP_CONFIG:-}" ]] && [[ "${MSMTP_CONFIG}" == "/tmp/.msmtprc" ]] && rm -f "${MSMTP_CONFIG}"
     
     if [[ "$email_sent" == "false" ]]; then
         log_warn "Failed to send optimization completion email via msmtp."
