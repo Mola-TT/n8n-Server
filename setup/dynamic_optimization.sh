@@ -1278,7 +1278,7 @@ EOF
                 msmtp_cmd="msmtp --file=${MSMTP_CONFIG}"
             fi
             
-            if $msmtp_cmd -t < "$temp_file" 2>/tmp/msmtp_error.log; then
+            if $msmtp_cmd "$EMAIL_RECIPIENT" < "$temp_file" 2>/tmp/msmtp_error.log; then
                 email_sent=true
                 log_info "✓ Email sent via msmtp"
             else

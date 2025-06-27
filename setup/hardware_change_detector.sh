@@ -595,7 +595,7 @@ EOF
     
     # Method 1: Try msmtp if available
     if command -v msmtp >/dev/null 2>&1; then
-        if msmtp -t < "$temp_file" >/dev/null 2>&1; then
+        if msmtp "$EMAIL_RECIPIENT" < "$temp_file" >/dev/null 2>&1; then
             email_sent=true
         fi
     fi
