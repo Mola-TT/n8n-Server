@@ -128,6 +128,10 @@ auth on
 ${tls_config}
 tls_trust_file /etc/ssl/certs/ca-certificates.crt
 logfile /var/log/msmtp.log
+# Allow root sender for system notifications
+allow_from_override on
+# Set default from address
+from ${EMAIL_SENDER}
 
 account default
 host ${SMTP_SERVER}
@@ -135,6 +139,8 @@ port ${SMTP_PORT:-587}
 from ${EMAIL_SENDER}
 user ${SMTP_USERNAME}
 password ${SMTP_PASSWORD}
+# Accept all recipients including root
+domain
 EOF
     
     # Set proper permissions
