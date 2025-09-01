@@ -10,30 +10,39 @@ fi
 
 touch "$LOG_FILE" 2>/dev/null || true
 
-# Function to execute system commands silently
-# Only debug logs and errors are displayed, all other output is redirected to log file
+# Function to execute system commands silently with enhanced logging
 execute_silently() {
     local cmd="$1"
     local msg="${2:-}"
     local err_msg="${3:-}"
     
-    log_debug "Executing: $cmd"
-    
-    # Execute command, redirect stdout to log file, redirect stderr to variable
-    if ! output=$(eval "$cmd" >> "$LOG_FILE" 2>&1); then
-        # Only log error if error message is provided
-        if [ -n "$err_msg" ]; then
-            log_error "$err_msg"
+    # Use the new structured logging function if available
+    if command -v execute_with_structured_logging >/dev/null 2>&1; then
+        if [[ -n "$msg" ]]; then
+            execute_with_structured_logging "$cmd" "$msg" "true"
+        else
+            execute_with_structured_logging "$cmd" "Running command" "true"
         fi
-        log_debug "Command failed with output: $output"
-        return 1
+    else
+        # Fallback to original implementation
+        log_debug "Executing: $cmd"
+        
+        # Execute command, redirect stdout to log file, redirect stderr to variable
+        if ! output=$(eval "$cmd" >> "$LOG_FILE" 2>&1); then
+            # Only log error if error message is provided
+            if [ -n "$err_msg" ]; then
+                log_error "$err_msg"
+            fi
+            log_debug "Command failed with output: $output"
+            return 1
+        fi
+        
+        if [ -n "$msg" ]; then
+            log_info "$msg"
+        fi
+        
+        return 0
     fi
-    
-    if [ -n "$msg" ]; then
-        log_info "$msg"
-    fi
-    
-    return 0
 }
 
 # Function to clear log files
@@ -164,7 +173,7 @@ apt_update_with_retry() {
   fi
 }
 
-# Function to install packages with robust retry logic across different package managers
+# Function to install packages with robust retry logic and structured logging
 install_package_with_retry() {
   local packages="$1"
   local max_retries=${2:-5}
@@ -173,6 +182,9 @@ install_package_with_retry() {
   local success=false
   local log_file="/tmp/pkg_install_$$.log"
   
+  if command -v log_subsection >/dev/null 2>&1; then
+    log_subsection "Package Installation: $packages"
+  fi
   log_info "Installing package(s): $packages"
   
   # Detect package manager
@@ -220,6 +232,12 @@ install_package_with_retry() {
     if [ $exit_code -eq 0 ]; then
       success=true
       log_debug "Successfully installed package(s): $packages"
+      
+      # Use structured logging for package manager output if available
+      if command -v log_external_tool_output >/dev/null 2>&1 && [[ -s "$log_file" ]]; then
+        local output=$(cat "$log_file")
+        log_external_tool_output "$pkg_manager" "$output" "$exit_code"
+      fi
     else
       retry_count=$((retry_count + 1))
       
@@ -232,11 +250,17 @@ install_package_with_retry() {
         log_warn "Repository issue detected. Retry $retry_count/$max_retries in $retry_wait seconds..."
       else
         log_warn "Package installation failed. Retry $retry_count/$max_retries in $retry_wait seconds..."
-        # Log the first few lines of the error
-        log_debug "Installation error details:"
-        head -5 "$log_file" | while read -r line; do
-          log_debug "  $line"
-        done
+        # Use structured logging for error output if available
+        if command -v log_external_tool_output >/dev/null 2>&1 && [[ -s "$log_file" ]]; then
+          local error_output=$(head -10 "$log_file")
+          log_external_tool_output "$pkg_manager" "$error_output" "$exit_code"
+        else
+          # Fallback to original error logging
+          log_debug "Installation error details:"
+          head -5 "$log_file" | while read -r line; do
+            log_debug "  $(normalize_line_endings "$line" 2>/dev/null || echo "$line")"
+          done
+        fi
       fi
       
       if [ $retry_count -lt $max_retries ]; then
