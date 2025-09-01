@@ -32,6 +32,10 @@ setup_integration_test_environment() {
     mkdir -p "/opt/n8n/data" "/opt/n8n/logs" "/opt/n8n/backups/optimization"
     mkdir -p "/opt/n8n/docker"
     
+    # Clear email cooldowns from previous test runs
+    rm -rf /tmp/n8n_email_cooldown/ >/dev/null 2>&1 || true
+    log_info "Email cooldowns cleared for testing"
+    
     # Backup original configuration files if they exist
     [[ -f "/opt/n8n/docker/.env" ]] && cp "/opt/n8n/docker/.env" "$TEST_BACKUP_DIR/n8n.env.original"
     [[ -f "/opt/n8n/docker/docker-compose.yml" ]] && cp "/opt/n8n/docker/docker-compose.yml" "$TEST_BACKUP_DIR/docker-compose.yml.original"
@@ -179,8 +183,8 @@ test_hardware_change_detection_workflow() {
     # Step 3: Test email functionality
     bash "$HARDWARE_DETECTOR_SCRIPT" --test-email >/dev/null 2>&1 || true  # May fail in test environment
     
-    # Step 4: Force optimization
-    bash "$HARDWARE_DETECTOR_SCRIPT" --force-optimize >/dev/null 2>&1 || true  # May fail in test environment
+    # Step 4: Force optimization with test mode to skip delays (with timeout as backup)
+    timeout 60 bash -c 'TEST_MODE=true bash "$HARDWARE_DETECTOR_SCRIPT" --force-optimize' >/dev/null 2>&1 || true  # May fail in test environment
     
     return 0
 }
