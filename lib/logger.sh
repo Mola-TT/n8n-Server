@@ -42,11 +42,21 @@ MAX_LOG_WIDTH=120
 # Padding for levels to ensure alignment
 LEVEL_PADDING=9  # Allow for longest level (WARNING) plus some spacing
 
-# Logging function with timestamp and level
+# Line ending consistency
+LF=$'\n'
+normalize_line_endings() {
+    # Convert CRLF and CR to LF for consistent Unix line endings
+    echo "$1" | sed 's/\r\n/\n/g' | sed 's/\r/\n/g'
+}
+
+# Enhanced logging function with improved formatting and line ending consistency
 log() {
   local level=$1
-  local message=$2
+  local message="$2"
   local level_color=""
+  
+  # Normalize line endings in message
+  message=$(normalize_line_endings "$message")
   
   # Set color based on log level
   case $level in
@@ -68,10 +78,16 @@ log() {
     local padding_len=$((LEVEL_PADDING - level_len))
     local padding=$(printf "%${padding_len}s" "")
     
-    # Get terminal width if possible
+    # Get terminal width if possible, limit to reasonable bounds
     local term_width
     if command -v tput >/dev/null 2>&1; then
       term_width=$(tput cols 2>/dev/null || echo "$MAX_LOG_WIDTH")
+      # Ensure width is reasonable (between 80 and 200 chars)
+      if [ "$term_width" -lt 80 ]; then
+        term_width=80
+      elif [ "$term_width" -gt 200 ]; then
+        term_width=200
+      fi
     else
       term_width=$MAX_LOG_WIDTH
     fi
@@ -84,39 +100,110 @@ log() {
     # Calculate max message length
     local max_msg_len=$((term_width - prefix_len - 2))  # -2 for good measure
     
-    if [ ${#message} -le $max_msg_len ]; then
-      # Message fits on a single line, print it normally
-      echo -e "[${BOLD}${timestamp}${RESET}] [${level_color}${level}${RESET}]${padding}${WHITE}${message}${RESET}"
-      echo "[${timestamp}] [${level}]${padding}${message}" >> ${LOG_FILE}
-    else
-      # Message is too long, we need to wrap it
-      # Print first line
-      echo -e "[${BOLD}${timestamp}${RESET}] [${level_color}${level}${RESET}]${padding}${WHITE}${message:0:$max_msg_len}${RESET}"
-      echo "[${timestamp}] [${level}]${padding}${message:0:$max_msg_len}" >> ${LOG_FILE}
-      
-      # Calculate continuing lines indentation
-      local indent=$(printf "%${prefix_len}s" "")
-      
-      # Print remaining message with proper indentation
-      local remaining_msg="${message:$max_msg_len}"
-      while [ ${#remaining_msg} -gt 0 ]; do
-        local this_part_len=$max_msg_len
-        if [ ${#remaining_msg} -le $max_msg_len ]; then
-          # Last part
-          local line_msg="${remaining_msg}"
-          echo -e "${indent}${WHITE}${line_msg}${RESET}"
-          echo "${indent}${line_msg}" >> ${LOG_FILE}
-          remaining_msg=""
+    # Handle multi-line messages properly
+    if [[ "$message" == *$'\n'* ]]; then
+      # Multi-line message - process each line separately
+      local first_line=true
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$first_line" == true ]]; then
+          # First line gets full prefix
+          _log_single_line "$level" "$line" "$timestamp" "$level_color" "$padding" "$prefix_len" "$max_msg_len"
+          first_line=false
         else
-          # More parts to come
-          local line_msg="${remaining_msg:0:$max_msg_len}"
-          echo -e "${indent}${WHITE}${line_msg}${RESET}"
-          echo "${indent}${line_msg}" >> ${LOG_FILE}
-          remaining_msg="${remaining_msg:$max_msg_len}"
+          # Continuation lines get indented
+          _log_continuation_line "$line" "$timestamp" "$level" "$padding" "$prefix_len" "$max_msg_len"
         fi
-      done
+      done <<< "$message"
+    else
+      # Single line message
+      _log_single_line "$level" "$message" "$timestamp" "$level_color" "$padding" "$prefix_len" "$max_msg_len"
     fi
   fi
+}
+
+# Helper function to log a single line with proper wrapping
+_log_single_line() {
+  local level="$1"
+  local message="$2"  
+  local timestamp="$3"
+  local level_color="$4"
+  local padding="$5"
+  local prefix_len="$6"
+  local max_msg_len="$7"
+  
+  if [ ${#message} -le $max_msg_len ]; then
+    # Message fits on a single line
+    echo -e "[${BOLD}${timestamp}${RESET}] [${level_color}${level}${RESET}]${padding}${WHITE}${message}${RESET}"
+    printf "[%s] [%s]%s%s\n" "$timestamp" "$level" "$padding" "$message" >> "${LOG_FILE}"
+  else
+    # Message needs wrapping
+    _log_wrapped_line "$level" "$message" "$timestamp" "$level_color" "$padding" "$prefix_len" "$max_msg_len"
+  fi
+}
+
+# Helper function to log continuation lines  
+_log_continuation_line() {
+  local message="$1"
+  local timestamp="$2"
+  local level="$3"
+  local padding="$4"
+  local prefix_len="$5"
+  local max_msg_len="$6"
+  
+  local indent=$(printf "%${prefix_len}s" "")
+  
+  if [ ${#message} -le $max_msg_len ]; then
+    # Continuation line fits
+    echo -e "${indent}${WHITE}${message}${RESET}"
+    printf "%s%s\n" "$indent" "$message" >> "${LOG_FILE}"
+  else
+    # Continuation line needs wrapping
+    _log_wrapped_continuation "$message" "$indent" "$max_msg_len"
+  fi
+}
+
+# Helper function to log wrapped lines
+_log_wrapped_line() {
+  local level="$1"
+  local message="$2"
+  local timestamp="$3"
+  local level_color="$4"
+  local padding="$5"
+  local prefix_len="$6"
+  local max_msg_len="$7"
+  
+  # Print first line with full prefix
+  local first_part="${message:0:$max_msg_len}"
+  echo -e "[${BOLD}${timestamp}${RESET}] [${level_color}${level}${RESET}]${padding}${WHITE}${first_part}${RESET}"
+  printf "[%s] [%s]%s%s\n" "$timestamp" "$level" "$padding" "$first_part" >> "${LOG_FILE}"
+  
+  # Print remaining parts with continuation indicator
+  local remaining_msg="${message:$max_msg_len}"
+  local indent=$(printf "%${prefix_len}s" "")
+  
+  _log_wrapped_continuation "$remaining_msg" "$indent" "$max_msg_len"
+}
+
+# Helper function to log wrapped continuation parts
+_log_wrapped_continuation() {
+  local remaining_msg="$1"
+  local indent="$2"
+  local max_msg_len="$3"
+  
+  while [ ${#remaining_msg} -gt 0 ]; do
+    if [ ${#remaining_msg} -le $max_msg_len ]; then
+      # Last part
+      echo -e "${indent}${WHITE}↳ ${remaining_msg}${RESET}"
+      printf "%s↳ %s\n" "$indent" "$remaining_msg" >> "${LOG_FILE}"
+      remaining_msg=""
+    else
+      # More parts to come
+      local line_msg="${remaining_msg:0:$max_msg_len}"
+      echo -e "${indent}${WHITE}↳ ${line_msg}${RESET}"
+      printf "%s↳ %s\n" "$indent" "$line_msg" >> "${LOG_FILE}"
+      remaining_msg="${remaining_msg:$max_msg_len}"
+    fi
+  done
 }
 
 # Convenience functions for each log level
@@ -138,6 +225,178 @@ log_error() {
 
 log_pass() {
   log "PASS" "$1"
+}
+
+# =============================================================================
+# Enhanced Logging Functions for External Process Management
+# =============================================================================
+
+# Log section header with visual separator
+log_section() {
+  local section_name="$1"
+  local separator_char="${2:-=}"
+  local separator_length=80
+  
+  local separator=$(printf "%*s" $separator_length | tr ' ' "$separator_char")
+  local header_text="$section_name"
+  local header_len=${#header_text}
+  local padding_len=$(( (separator_length - header_len - 2) / 2 ))
+  local left_padding=$(printf "%*s" $padding_len | tr ' ' "$separator_char")
+  local right_padding_len=$(( separator_length - header_len - 2 - padding_len ))
+  local right_padding=$(printf "%*s" $right_padding_len | tr ' ' "$separator_char")
+  
+  echo ""
+  log_info "$separator"
+  log_info "$left_padding $header_text $right_padding"
+  log_info "$separator"
+}
+
+# Log subsection header with visual separator
+log_subsection() {
+  local subsection_name="$1"
+  local separator_char="${2:--}"
+  local separator_length=60
+  
+  local separator=$(printf "%*s" $separator_length | tr ' ' "$separator_char")
+  
+  echo ""
+  log_info "$separator"
+  log_info "$subsection_name"
+  log_info "$separator"
+}
+
+# Execute command with enhanced logging and output capture
+execute_with_structured_logging() {
+  local cmd="$1"
+  local description="${2:-Executing command}"
+  local suppress_output="${3:-false}"
+  local log_level="${4:-INFO}"
+  local temp_log_file="/tmp/exec_$$.log"
+  
+  log_debug "Command: $cmd"
+  log_info "🔄 $description..."
+  
+  # Create temporary log file
+  : > "$temp_log_file"
+  
+  # Execute command and capture output
+  local start_time=$(date +%s)
+  local exit_code=0
+  
+  if [[ "$suppress_output" == "true" ]]; then
+    # Silent execution - capture all output
+    if ! eval "$cmd" > "$temp_log_file" 2>&1; then
+      exit_code=$?
+    fi
+  else
+    # Show progress while capturing output
+    if ! eval "$cmd" 2>&1 | tee "$temp_log_file"; then
+      exit_code=$?
+    fi
+  fi
+  
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  # Process the output
+  if [[ -s "$temp_log_file" ]]; then
+    local line_count=$(wc -l < "$temp_log_file")
+    
+    if [[ $exit_code -eq 0 ]]; then
+      if [[ "$suppress_output" == "true" ]]; then
+        log_info "✓ $description completed successfully (${duration}s, $line_count lines of output)"
+        log_debug "Command output summary:"
+        head -3 "$temp_log_file" | while IFS= read -r line; do
+          log_debug "  $(normalize_line_endings "$line")"
+        done
+        if [[ $line_count -gt 6 ]]; then
+          log_debug "  ... ($((line_count - 6)) more lines)"
+        fi
+        if [[ $line_count -gt 3 ]]; then
+          tail -3 "$temp_log_file" | while IFS= read -r line; do
+            log_debug "  $(normalize_line_endings "$line")"
+          done
+        fi
+      else
+        log_info "✓ $description completed successfully (${duration}s)"
+      fi
+    else
+      log_error "✗ $description failed with exit code $exit_code (${duration}s)"
+      log_error "Error output:"
+      tail -10 "$temp_log_file" | while IFS= read -r line; do
+        log_error "  $(normalize_line_endings "$line")"
+      done
+    fi
+    
+    # Append processed output to main log file
+    {
+      echo "# External Process Output: $description"
+      echo "# Command: $cmd"
+      echo "# Exit Code: $exit_code"
+      echo "# Duration: ${duration}s"
+      echo "# Output Lines: $line_count"
+      echo "# Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
+      echo "#" 
+      while IFS= read -r line; do
+        printf "# %s\n" "$(normalize_line_endings "$line")"
+      done < "$temp_log_file"
+      echo "#"
+    } >> "$LOG_FILE"
+  else
+    if [[ $exit_code -eq 0 ]]; then
+      log_info "✓ $description completed successfully (${duration}s, no output)"
+    else
+      log_error "✗ $description failed with exit code $exit_code (${duration}s, no output)"
+    fi
+  fi
+  
+  # Cleanup
+  rm -f "$temp_log_file"
+  
+  return $exit_code
+}
+
+# Progress indicator for long-running operations
+log_progress() {
+  local current="$1"
+  local total="$2"
+  local description="${3:-Progress}"
+  local bar_length=50
+  
+  local percentage=$((current * 100 / total))
+  local filled_length=$((current * bar_length / total))
+  local bar=$(printf "%*s" $filled_length | tr ' ' '█')
+  local empty=$(printf "%*s" $((bar_length - filled_length)) | tr ' ' '░')
+  
+  printf "\r[INFO] %s: [%s%s] %d%% (%d/%d)" "$description" "$bar" "$empty" "$percentage" "$current" "$total"
+  
+  if [[ $current -eq $total ]]; then
+    echo ""  # New line when complete
+    log_info "✓ $description completed: 100% ($total/$total)"
+  fi
+}
+
+# Capture and format external tool output
+log_external_tool_output() {
+  local tool_name="$1"
+  local output="$2"
+  local exit_code="${3:-0}"
+  
+  log_info "External tool output from $tool_name:"
+  
+  if [[ $exit_code -eq 0 ]]; then
+    echo "$output" | while IFS= read -r line; do
+      if [[ -n "$line" ]]; then
+        log_info "  [$tool_name] $(normalize_line_endings "$line")"
+      fi
+    done
+  else
+    echo "$output" | while IFS= read -r line; do
+      if [[ -n "$line" ]]; then
+        log_error "  [$tool_name] $(normalize_line_endings "$line")"
+      fi
+    done
+  fi
 }
 
 # Ensure log file directory exists and is writable
