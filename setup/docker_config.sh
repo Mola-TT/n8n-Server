@@ -1058,6 +1058,19 @@ setup_docker_infrastructure() {
     # Start the containers as the final step
     start_docker_containers || return 1
     
+    # Enable and start the systemd service for proper management
+    if sudo systemctl enable n8n-docker.service; then
+        log_info "n8n-docker systemd service enabled for auto-start"
+    else
+        log_warn "Failed to enable n8n-docker systemd service"
+    fi
+    
+    if sudo systemctl start n8n-docker.service; then
+        log_info "n8n-docker systemd service started successfully"
+    else
+        log_warn "Failed to start n8n-docker systemd service - containers may already be running"
+    fi
+    
     log_info "n8n Docker infrastructure setup completed successfully!"
     log_info "Next steps:"
     log_info "1. Update environment variables in /opt/n8n/docker/.env if needed"
