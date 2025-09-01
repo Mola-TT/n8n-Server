@@ -64,11 +64,15 @@ source "$SCRIPT_DIR/setup/ssl_renewal.sh"
 # Source dynamic optimization configuration (Milestone 6)
 source "$SCRIPT_DIR/setup/dynamic_optimization.sh"
 
-# Display init banner
+# Display init banner with enhanced logging
 display_banner() {
-    echo "-----------------------------------------------"
-    echo "n8n Server Initialization"
-    echo "-----------------------------------------------"
+    if command -v log_section >/dev/null 2>&1; then
+        log_section "n8n Server Initialization"
+    else
+        echo "-----------------------------------------------"
+        echo "n8n Server Initialization"
+        echo "-----------------------------------------------"
+    fi
     log_info "Starting initialization process"
 }
 
@@ -124,9 +128,13 @@ main() {
     bash "$SCRIPT_DIR/setup/install_email_tools.sh" --install
     
     # Set up Docker infrastructure (Milestone 2)
-    echo "-----------------------------------------------"
-    echo "MILESTONE 2: Docker Infrastructure Setup"
-    echo "-----------------------------------------------"
+    if command -v log_subsection >/dev/null 2>&1; then
+        log_subsection "MILESTONE 2: Docker Infrastructure Setup"
+    else
+        echo "-----------------------------------------------"
+        echo "MILESTONE 2: Docker Infrastructure Setup"
+        echo "-----------------------------------------------"
+    fi
     log_info "Note: Docker and Docker Compose will be automatically installed if not present"
     setup_docker_infrastructure
     
