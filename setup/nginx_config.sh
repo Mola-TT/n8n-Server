@@ -380,6 +380,34 @@ server {
         add_header Content-Type text/plain;
     }
     
+    # Netdata monitoring proxy
+    location /netdata/ {
+        proxy_pass http://127.0.0.1:19999/;
+        proxy_set_header Host 127.0.0.1:19999;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Original-URI \$request_uri;
+        
+        # WebSocket support for real-time updates
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # Buffer settings
+        proxy_buffering off;
+        proxy_cache off;
+        
+        # Basic authentication for Netdata
+        auth_basic "Netdata Monitoring";
+        auth_basic_user_file /etc/nginx/.netdata_auth;
+    }
+    
     # Security: Block access to sensitive files
     location ~ /\\.ht {
         deny all;

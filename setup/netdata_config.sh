@@ -698,11 +698,17 @@ server {
     
     # Proxy settings for Netdata
     location / {
-        proxy_pass http://${NETDATA_BIND_IP}:${NETDATA_PORT};
-        proxy_set_header Host \$host;
+        proxy_pass http://${NETDATA_BIND_IP:-127.0.0.1}:${NETDATA_PORT:-19999};
+        
+        # CRITICAL FIX: Pass the original host header that Netdata expects
+        proxy_set_header Host 127.0.0.1:${NETDATA_PORT:-19999};
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
+        
+        # CRITICAL FIX: Pass the request URI properly to Netdata
+        proxy_set_header X-Original-URI \$request_uri;
         
         # WebSocket support for real-time updates
         proxy_http_version 1.1;
