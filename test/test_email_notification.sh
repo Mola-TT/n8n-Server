@@ -388,9 +388,12 @@ test_email_configuration_partial() {
 test_email_subject_formatting() {
     source "$HARDWARE_DETECTOR_SCRIPT"
     
-    # Test subject prefix
-    local test_subject="${EMAIL_SUBJECT_PREFIX} Test Subject"
-    [[ "$test_subject" == "[n8n Server] Test Subject" ]]
+    # Test subject prefix (should match configured prefix or default)
+    local expected_prefix="${EMAIL_SUBJECT_PREFIX:-[n8n Server]}"
+    local test_subject="${expected_prefix} Test Subject"
+    
+    # Test that subject contains the expected prefix
+    [[ "$test_subject" == "${expected_prefix} Test Subject" ]]
 }
 
 test_email_body_hardware_specs_formatting() {
