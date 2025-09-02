@@ -34,24 +34,43 @@ load_environment_config() {
 install_email_tools() {
     log_info "Installing email tools..."
     
-    # Update package list
-    sudo apt-get update -qq
+    # Update package list silently
+    if ! sudo apt-get update -qq >/dev/null 2>&1; then
+        log_warn "Package list update failed, proceeding anyway"
+    fi
     
     # Set up unattended installation
     export DEBIAN_FRONTEND=noninteractive
     
-    # Install msmtp and dependencies with unattended options
-    sudo -E apt-get install -y -q \
+    # Install msmtp and dependencies with unattended options and capture output
+    log_info "Installing msmtp and dependencies (output suppressed for clean logs)..."
+    local install_log="/tmp/email_tools_install_$$.log"
+    if sudo -E apt-get install -y -qq \
         -o Dpkg::Options::="--force-confdef" \
         -o Dpkg::Options::="--force-confold" \
-        msmtp msmtp-mta ca-certificates apparmor-utils
+        msmtp msmtp-mta ca-certificates apparmor-utils > "$install_log" 2>&1; then
+        log_info "✓ Email tools packages installed successfully"
+        rm -f "$install_log"
+    else
+        log_error "Failed to install email tools packages"
+        log_error "Installation error details:"
+        head -10 "$install_log" | while read -r line; do
+            log_error "  $line"
+        done
+        rm -f "$install_log"
+        return 1
+    fi
     
     # Enable AppArmor profile for msmtp if available
     if command -v aa-enforce >/dev/null 2>&1; then
         # Check if msmtp AppArmor profile exists
         if [[ -f /etc/apparmor.d/usr.bin.msmtp ]]; then
             log_info "Enabling AppArmor profile for msmtp..."
-            sudo aa-enforce /etc/apparmor.d/usr.bin.msmtp 2>/dev/null || log_warn "Could not enforce msmtp AppArmor profile"
+            if sudo aa-enforce /etc/apparmor.d/usr.bin.msmtp >/dev/null 2>&1; then
+                log_info "✓ AppArmor profile enforced for msmtp"
+            else
+                log_warn "Could not enforce msmtp AppArmor profile"
+            fi
         else
             log_info "Creating and enabling AppArmor profile for msmtp..."
             # Create a basic AppArmor profile for msmtp
@@ -89,8 +108,16 @@ install_email_tools() {
 }
 EOF
             # Load and enforce the profile
-            sudo apparmor_parser -r /etc/apparmor.d/usr.bin.msmtp 2>/dev/null || log_warn "Could not load msmtp AppArmor profile"
-            sudo aa-enforce /etc/apparmor.d/usr.bin.msmtp 2>/dev/null || log_warn "Could not enforce msmtp AppArmor profile"
+            if sudo apparmor_parser -r /etc/apparmor.d/usr.bin.msmtp >/dev/null 2>&1; then
+                log_info "✓ AppArmor profile loaded for msmtp"
+            else
+                log_warn "Could not load msmtp AppArmor profile"
+            fi
+            if sudo aa-enforce /etc/apparmor.d/usr.bin.msmtp >/dev/null 2>&1; then
+                log_info "✓ AppArmor profile enforced for msmtp"
+            else
+                log_warn "Could not enforce msmtp AppArmor profile"
+            fi
         fi
         log_info "✓ AppArmor profile configured for msmtp"
     else
