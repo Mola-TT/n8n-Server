@@ -167,6 +167,82 @@ run_milestone_6_tests() {
     return $milestone_6_failed
 }
 
+# =============================================================================
+# MILESTONE 7 TESTS - Multi-User n8n Configuration
+# =============================================================================
+
+run_milestone_7_tests() {
+    echo "=================================================================================="
+    echo "MILESTONE 7 TESTS - Multi-User n8n Configuration"
+    echo "=================================================================================="
+    
+    local milestone_7_passed=0
+    local milestone_7_failed=0
+    
+    # Multi-User Configuration Tests
+    log_info "Running Multi-User Configuration Tests..."
+    if (source "$PROJECT_DIR/test/test_multi_user.sh" && main); then
+        log_pass "Multi-User Configuration Tests: PASSED"
+        milestone_7_passed=$((milestone_7_passed + 1))
+    else
+        log_error "Multi-User Configuration Tests: FAILED"
+        milestone_7_failed=$((milestone_7_failed + 1))
+    fi
+    
+    # Iframe Embedding Tests
+    log_info "Running Iframe Embedding Tests..."
+    if (source "$PROJECT_DIR/test/test_iframe_embedding.sh" && main); then
+        log_pass "Iframe Embedding Tests: PASSED"
+        milestone_7_passed=$((milestone_7_passed + 1))
+    else
+        log_error "Iframe Embedding Tests: FAILED"
+        milestone_7_failed=$((milestone_7_failed + 1))
+    fi
+    
+    # User Monitoring Tests
+    log_info "Running User Monitoring Tests..."
+    if (source "$PROJECT_DIR/test/test_user_monitoring.sh" && main); then
+        log_pass "User Monitoring Tests: PASSED"
+        milestone_7_passed=$((milestone_7_passed + 1))
+    else
+        log_error "User Monitoring Tests: FAILED"
+        milestone_7_failed=$((milestone_7_failed + 1))
+    fi
+    
+    # Cross-Server Communication Tests
+    log_info "Running Cross-Server Communication Tests..."
+    if (source "$PROJECT_DIR/test/test_cross_server.sh" && main); then
+        log_pass "Cross-Server Communication Tests: PASSED"
+        milestone_7_passed=$((milestone_7_passed + 1))
+    else
+        log_error "Cross-Server Communication Tests: FAILED"
+        milestone_7_failed=$((milestone_7_failed + 1))
+    fi
+    
+    # User Management API Tests
+    log_info "Running User Management API Tests..."
+    if (source "$PROJECT_DIR/test/test_user_api.sh" && main); then
+        log_pass "User Management API Tests: PASSED"
+        milestone_7_passed=$((milestone_7_passed + 1))
+    else
+        log_error "User Management API Tests: FAILED"
+        milestone_7_failed=$((milestone_7_failed + 1))
+    fi
+    
+    # Milestone 7 Summary
+    local milestone_7_total=$((milestone_7_passed + milestone_7_failed))
+    echo ""
+    echo "=================================================================================="
+    log_info "Milestone 7 Summary: $milestone_7_passed/$milestone_7_total test suites passed"
+    
+    # Update global counters
+    TESTS_RUN=$((TESTS_RUN + milestone_7_total))
+    TESTS_PASSED=$((TESTS_PASSED + milestone_7_passed))
+    TESTS_FAILED=$((TESTS_FAILED + milestone_7_failed))
+    
+    return $milestone_7_failed
+}
+
 # Main test execution
 main() {
     log_info "Starting n8n server initialization tests..."
@@ -297,6 +373,9 @@ main() {
     
     # Run Milestone 6 Tests
     run_milestone_6_tests
+    
+    # Run Milestone 7 Tests
+    run_milestone_7_tests
     
     # Print summary
     echo "=========================================="
