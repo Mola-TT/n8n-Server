@@ -9,9 +9,11 @@ sudo ./init.sh
 
 
 # For Updating
-git fetch origin
-git reset --hard origin/master
+cd ./
+rm -rf n8n-Server
+git clone https://github.com/Mola-TT/n8n-Server.git
 cd n8n-Server
+nano conf/user.env
 chmod +x init.sh
 clear
 sudo ./init.sh
