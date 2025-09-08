@@ -323,6 +323,11 @@ map \$http_x_frame_options \$iframe_allowed {
     "SAMEORIGIN" "SAMEORIGIN";
 }
 
+# Custom log format for user tracking
+log_format user_access '\$remote_addr - \$user_id [\$time_local] "\$request" '
+                      '\$status \$body_bytes_sent "\$http_referer" '
+                      '"\$http_user_agent" "\$http_x_forwarded_for"';
+
 # Upstream for load balancing (can be extended for multiple instances)
 upstream n8n_backend {
     server localhost:5678;
@@ -516,10 +521,6 @@ server {
     }
     
     # Logging with user context
-    log_format user_access '\$remote_addr - \$user_id [\$time_local] "\$request" '
-                          '\$status \$body_bytes_sent "\$http_referer" '
-                          '"\$http_user_agent" "\$http_x_forwarded_for"';
-    
     access_log ${NGINX_ACCESS_LOG:-/var/log/nginx/n8n_access.log} user_access;
     error_log ${NGINX_ERROR_LOG:-/var/log/nginx/n8n_error.log};
 }
