@@ -588,6 +588,12 @@ services:
       - /opt/n8n/files:/data/files
       - /opt/n8n/.n8n:/home/node/.n8n
       - /opt/n8n/ssl:/opt/ssl:ro
+      # Multi-user volume mounts
+      - /opt/n8n/users:/opt/n8n/users
+      - /opt/n8n/user-configs:/opt/n8n/user-configs:ro
+      - /opt/n8n/user-sessions:/opt/n8n/user-sessions
+      - /opt/n8n/user-logs:/opt/n8n/user-logs
+      - /opt/n8n/monitoring:/opt/n8n/monitoring
     depends_on:
       - redis
     networks:
@@ -1050,6 +1056,7 @@ setup_docker_infrastructure() {
     # Execute setup steps
     create_n8n_directories || return 1
     setup_user_permissions || return 1
+    configure_multiuser_docker || return 1
     create_docker_compose || return 1
     create_environment_file || return 1
     create_cleanup_scripts || return 1
@@ -1076,7 +1083,257 @@ setup_docker_infrastructure() {
     log_info "1. Update environment variables in /opt/n8n/docker/.env if needed"
     log_info "2. Check status: /opt/n8n/scripts/service.sh status"
     log_info "3. Access n8n via your configured domain or https://localhost"
+    log_info "4. Create users with: /opt/n8n/scripts/provision-user.sh <user_id>"
     
+    return 0
+}
+
+# =============================================================================
+# Multi-User Docker Configuration Functions
+# =============================================================================
+
+configure_multiuser_docker() {
+    log_info "Configuring Docker for multi-user architecture..."
+    
+    # Create user-specific volume structure
+    setup_multiuser_volumes || return 1
+    
+    # Configure user isolation in Docker
+    setup_docker_user_isolation || return 1
+    
+    # Create user management scripts
+    create_docker_user_management || return 1
+    
+    log_pass "Multi-user Docker configuration completed"
+    return 0
+}
+
+setup_multiuser_volumes() {
+    log_info "Setting up multi-user volume structure..."
+    
+    # Ensure user directories exist with proper permissions
+    execute_silently "sudo mkdir -p /opt/n8n/users"
+    execute_silently "sudo mkdir -p /opt/n8n/monitoring"
+    execute_silently "sudo mkdir -p /opt/n8n/user-configs"
+    execute_silently "sudo mkdir -p /opt/n8n/user-sessions"
+    execute_silently "sudo mkdir -p /opt/n8n/user-logs"
+    
+    # Set proper ownership for Docker user access
+    execute_silently "sudo chown -R $USER:docker /opt/n8n/users"
+    execute_silently "sudo chown -R $USER:docker /opt/n8n/monitoring"
+    execute_silently "sudo chown -R $USER:docker /opt/n8n/user-configs"
+    execute_silently "sudo chown -R $USER:docker /opt/n8n/user-sessions"
+    execute_silently "sudo chown -R $USER:docker /opt/n8n/user-logs"
+    
+    # Set permissions
+    execute_silently "sudo chmod -R 755 /opt/n8n/users"
+    execute_silently "sudo chmod -R 755 /opt/n8n/monitoring"
+    execute_silently "sudo chmod -R 755 /opt/n8n/user-configs"
+    execute_silently "sudo chmod -R 755 /opt/n8n/user-sessions"
+    execute_silently "sudo chmod -R 755 /opt/n8n/user-logs"
+    
+    log_pass "Multi-user volume structure configured"
+    return 0
+}
+
+setup_docker_user_isolation() {
+    log_info "Setting up Docker user isolation configuration..."
+    
+    # Create user isolation configuration
+    cat > /opt/n8n/user-configs/docker-isolation.json << 'EOF'
+{
+  "userIsolation": {
+    "enabled": true,
+    "sharedInstance": true,
+    "resourceLimits": {
+      "memory": "512MB",
+      "cpu": "0.5",
+      "maxProcesses": 100
+    },
+    "volumeMounts": {
+      "userDataPath": "/opt/n8n/users/{userId}",
+      "sharedLibsPath": "/opt/n8n/shared",
+      "logsPath": "/opt/n8n/user-logs/{userId}"
+    },
+    "environmentVariables": {
+      "N8N_USER_FOLDER": "/opt/n8n/users/{userId}",
+      "N8N_USER_ID": "{userId}",
+      "N8N_LOG_OUTPUT": "file",
+      "N8N_LOG_FILE": "/opt/n8n/user-logs/{userId}/n8n.log"
+    }
+  }
+}
+EOF
+    
+    log_pass "Docker user isolation configured"
+    return 0
+}
+
+create_docker_user_management() {
+    log_info "Creating Docker user management scripts..."
+    
+    # Create user container management script
+    cat > /opt/n8n/scripts/docker-user-manager.sh << 'EOF'
+#!/bin/bash
+
+# Docker User Management Script
+# Manages user-specific Docker configurations and monitoring
+
+DOCKER_COMPOSE_FILE="/opt/n8n/docker/docker-compose.yml"
+USER_CONFIG_DIR="/opt/n8n/user-configs"
+
+# Function to get container resource usage
+get_container_resources() {
+    echo "Container Resource Usage:"
+    docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}"
+}
+
+# Function to get user-specific metrics
+get_user_metrics() {
+    local user_id="$1"
+    
+    if [[ -z "$user_id" ]]; then
+        echo "Usage: get_user_metrics <user_id>"
+        return 1
+    fi
+    
+    local user_dir="/opt/n8n/users/$user_id"
+    local metrics_file="/opt/n8n/monitoring/metrics/${user_id}_current.json"
+    
+    if [[ -f "$metrics_file" ]]; then
+        echo "User Metrics for $user_id:"
+        cat "$metrics_file" | jq '.'
+    else
+        echo "No metrics found for user: $user_id"
+    fi
+    
+    if [[ -d "$user_dir" ]]; then
+        echo "Storage usage: $(du -sh "$user_dir" | cut -f1)"
+        echo "File count: $(find "$user_dir" -type f | wc -l)"
+    fi
+}
+
+# Function to monitor user resource usage
+monitor_user_usage() {
+    echo "Monitoring user resource usage..."
+    
+    # Get Docker container stats
+    echo "=== Container Resources ==="
+    get_container_resources
+    
+    echo ""
+    echo "=== User Storage Usage ==="
+    if [[ -d "/opt/n8n/users" ]]; then
+        for user_dir in /opt/n8n/users/*; do
+            if [[ -d "$user_dir" ]]; then
+                user_id=$(basename "$user_dir")
+                usage=$(du -sh "$user_dir" 2>/dev/null | cut -f1)
+                echo "$user_id: $usage"
+            fi
+        done
+    fi
+    
+    echo ""
+    echo "=== Active User Sessions ==="
+    if [[ -d "/opt/n8n/user-sessions" ]]; then
+        session_count=$(find /opt/n8n/user-sessions -name "session_*" -type f | wc -l)
+        echo "Active sessions: $session_count"
+    fi
+}
+
+# Function to restart container with user context
+restart_for_user() {
+    local user_id="$1"
+    
+    if [[ -z "$user_id" ]]; then
+        echo "Usage: restart_for_user <user_id>"
+        return 1
+    fi
+    
+    echo "Gracefully restarting n8n for user: $user_id"
+    
+    # Send signal to n8n process to save user data
+    docker-compose -f "$DOCKER_COMPOSE_FILE" exec n8n /bin/sh -c "kill -USR1 1" 2>/dev/null || true
+    
+    # Wait a moment for cleanup
+    sleep 2
+    
+    # Restart the container
+    docker-compose -f "$DOCKER_COMPOSE_FILE" restart n8n
+    
+    echo "Container restarted successfully"
+}
+
+# Function to backup user data
+backup_user_data() {
+    local user_id="$1"
+    local backup_path="/opt/n8n/backups/user_${user_id}_$(date +%Y%m%d_%H%M%S).tar.gz"
+    
+    if [[ -z "$user_id" ]]; then
+        echo "Usage: backup_user_data <user_id>"
+        return 1
+    fi
+    
+    local user_dir="/opt/n8n/users/$user_id"
+    
+    if [[ ! -d "$user_dir" ]]; then
+        echo "Error: User directory not found: $user_dir"
+        return 1
+    fi
+    
+    echo "Creating backup for user: $user_id"
+    
+    if tar -czf "$backup_path" -C "/opt/n8n/users" "$user_id"; then
+        echo "Backup created: $backup_path"
+        echo "Backup size: $(du -sh "$backup_path" | cut -f1)"
+    else
+        echo "Error: Failed to create backup"
+        return 1
+    fi
+}
+
+# Main function
+main() {
+    local command="$1"
+    shift
+    
+    case "$command" in
+        "resources")
+            get_container_resources
+            ;;
+        "user-metrics")
+            get_user_metrics "$@"
+            ;;
+        "monitor")
+            monitor_user_usage
+            ;;
+        "restart-user")
+            restart_for_user "$@"
+            ;;
+        "backup-user")
+            backup_user_data "$@"
+            ;;
+        *)
+            echo "Usage: $0 {resources|user-metrics|monitor|restart-user|backup-user} [args]"
+            echo ""
+            echo "Commands:"
+            echo "  resources              - Show container resource usage"
+            echo "  user-metrics <user_id> - Show metrics for specific user"
+            echo "  monitor                - Monitor all user resource usage"
+            echo "  restart-user <user_id> - Restart container for specific user"
+            echo "  backup-user <user_id>  - Create backup of user data"
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function
+main "$@"
+EOF
+
+    chmod +x /opt/n8n/scripts/docker-user-manager.sh
+    
+    log_pass "Docker user management scripts created"
     return 0
 }
 

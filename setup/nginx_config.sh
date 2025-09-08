@@ -272,7 +272,7 @@ configure_ssl_certificates() {
 # =============================================================================
 
 create_nginx_configuration() {
-    log_info "Creating Nginx configuration for n8n..."
+    log_info "Creating Nginx configuration for n8n with multi-user and iframe support..."
     
     # Load environment variables
     local script_dir="$(dirname "${BASH_SOURCE[0]}")"
@@ -290,21 +290,48 @@ create_nginx_configuration() {
         log_info "Removed default Nginx site"
     fi
     
-    # Create n8n site configuration
-    cat > "$config_file" << EOF
-# Nginx configuration for n8n - Milestone 3
-# Generated automatically by nginx_config.sh
+    # Create multi-user nginx configuration
+    create_multiuser_nginx_config "$config_file"
+}
 
-# Rate limiting zone
+create_multiuser_nginx_config() {
+    local config_file="$1"
+    
+    # Create n8n site configuration with multi-user and iframe support
+    cat > "$config_file" << EOF
+# Nginx configuration for n8n - Milestone 7 Multi-User
+# Generated automatically by nginx_config.sh with multi-user and iframe support
+
+# Rate limiting zones
 limit_req_zone \$binary_remote_addr zone=n8n_limit:10m rate=10r/m;
+limit_req_zone \$http_x_user_id zone=user_limit:10m rate=30r/m;
+
+# Map for user routing
+map \$request_uri \$user_id {
+    ~^/user/(?<id>[^/]+) \$id;
+    default "";
+}
+
+# Map for iframe embedding detection
+map \$http_x_frame_options \$iframe_allowed {
+    default "DENY";
+    "ALLOWALL" "ALLOWALL";
+    "SAMEORIGIN" "SAMEORIGIN";
+}
+
+# Upstream for load balancing (can be extended for multiple instances)
+upstream n8n_backend {
+    server ${NGINX_PROXY_PASS:-localhost:5678};
+    keepalive 32;
+}
 
 # HTTP server block (redirects to HTTPS)
 server {
     listen ${NGINX_HTTP_PORT:-80};
     server_name ${NGINX_SERVER_NAME:-localhost};
     
-    # Security headers for HTTP
-    add_header X-Frame-Options DENY always;
+    # Security headers for HTTP (iframe-friendly)
+    add_header X-Frame-Options \$iframe_allowed always;
     add_header X-Content-Type-Options nosniff always;
     
     # Redirect all HTTP traffic to HTTPS
@@ -330,16 +357,26 @@ server {
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
     
-    # Security Headers
+    # Security Headers (iframe-friendly)
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Frame-Options DENY always;
+    add_header X-Frame-Options \$iframe_allowed always;
     add_header X-Content-Type-Options nosniff always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss: https:;" always;
     
-    # Rate limiting
+    # Content Security Policy for iframe embedding
+    set \$csp_default "default-src 'self'";
+    set \$csp_script "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+    set \$csp_style "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com";
+    set \$csp_img "img-src 'self' data: https:";
+    set \$csp_font "font-src 'self' https://fonts.gstatic.com";
+    set \$csp_connect "connect-src 'self' wss: https: ${WEBAPP_DOMAIN:-*}";
+    set \$csp_frame_ancestors "frame-ancestors 'self' ${WEBAPP_DOMAIN:-*} ${WEBAPP_DOMAIN_ALT:-*}";
+    add_header Content-Security-Policy "\$csp_default; \$csp_script; \$csp_style; \$csp_img; \$csp_font; \$csp_connect; \$csp_frame_ancestors;" always;
+    
+    # Rate limiting (general and per-user)
     limit_req zone=n8n_limit burst=20 nodelay;
+    limit_req zone=user_limit burst=50 nodelay;
     
     # Client settings
     client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE:-100M};
@@ -352,6 +389,11 @@ server {
     proxy_set_header X-Forwarded-Host \$host;
     proxy_set_header X-Forwarded-Port \$server_port;
     
+    # Multi-user headers
+    proxy_set_header X-User-ID \$user_id;
+    proxy_set_header X-Original-URI \$request_uri;
+    proxy_set_header X-Iframe-Allowed \$iframe_allowed;
+    
     # Timeout settings
     proxy_connect_timeout ${NGINX_PROXY_TIMEOUT:-300s};
     proxy_send_timeout ${NGINX_PROXY_TIMEOUT:-300s};
@@ -363,9 +405,44 @@ server {
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
     
-    # Main location block
+    # User-specific routing
+    location ~ ^/user/([^/]+)/(.*) {
+        set \$requested_user \$1;
+        set \$path \$2;
+        
+        # Add user context headers
+        proxy_set_header X-User-ID \$requested_user;
+        proxy_set_header X-User-Path /\$path;
+        
+        # Per-user rate limiting
+        limit_req zone=user_limit burst=50 nodelay;
+        
+        proxy_pass http://n8n_backend/\$path\$is_args\$args;
+        
+        # Additional proxy settings
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_redirect off;
+    }
+    
+    # API endpoints for user management
+    location /api/user/ {
+        # API rate limiting
+        limit_req zone=n8n_limit burst=10 nodelay;
+        
+        # Add API headers
+        proxy_set_header X-API-Request "true";
+        
+        proxy_pass http://n8n_backend;
+        
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_redirect off;
+    }
+    
+    # Main location block (for non-user-specific access)
     location / {
-        proxy_pass ${NGINX_PROXY_PASS:-http://localhost:5678};
+        proxy_pass http://n8n_backend;
         
         # Additional proxy settings
         proxy_buffering off;
@@ -378,6 +455,18 @@ server {
         access_log off;
         return 200 "healthy\n";
         add_header Content-Type text/plain;
+    }
+    
+    # User metrics endpoint
+    location /metrics/user/ {
+        # Restrict access to monitoring
+        allow 127.0.0.1;
+        allow ::1;
+        deny all;
+        
+        proxy_pass http://n8n_backend;
+        proxy_buffering off;
+        proxy_cache off;
     }
     
     # Netdata monitoring proxy
@@ -417,14 +506,23 @@ server {
         deny all;
     }
     
-    # Logging
-    access_log ${NGINX_ACCESS_LOG:-/var/log/nginx/n8n_access.log};
+    # Security: Block direct access to user directories
+    location ~ ^/opt/n8n/users/ {
+        deny all;
+    }
+    
+    # Logging with user context
+    log_format user_access '\$remote_addr - \$user_id [\$time_local] "\$request" '
+                          '\$status \$body_bytes_sent "\$http_referer" '
+                          '"\$http_user_agent" "\$http_x_forwarded_for"';
+    
+    access_log ${NGINX_ACCESS_LOG:-/var/log/nginx/n8n_access.log} user_access;
     error_log ${NGINX_ERROR_LOG:-/var/log/nginx/n8n_error.log};
 }
 EOF
 
     if [[ -f "$config_file" ]]; then
-        log_info "Nginx configuration created: $config_file"
+        log_info "Multi-user Nginx configuration created: $config_file"
         
         # Enable the site
         if execute_silently "ln -sf $config_file /etc/nginx/sites-enabled/n8n"; then
