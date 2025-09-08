@@ -64,6 +64,13 @@ source "$SCRIPT_DIR/setup/ssl_renewal.sh"
 # Source dynamic optimization configuration (Milestone 6)
 source "$SCRIPT_DIR/setup/dynamic_optimization.sh"
 
+# Source multi-user configuration (Milestone 7)
+source "$SCRIPT_DIR/setup/multi_user_config.sh"
+source "$SCRIPT_DIR/setup/iframe_embedding_config.sh"
+source "$SCRIPT_DIR/setup/user_monitoring.sh"
+source "$SCRIPT_DIR/setup/cross_server_setup.sh"
+source "$SCRIPT_DIR/setup/user_management_api.sh"
+
 # Display init banner with enhanced logging
 display_banner() {
     if command -v log_section >/dev/null 2>&1; then
@@ -99,6 +106,71 @@ make_scripts_executable() {
     fi
     
     log_info "Scripts made executable successfully"
+}
+
+# Setup multi-user n8n configuration (Milestone 7)
+setup_multiuser_n8n() {
+    log_info "Setting up multi-user n8n configuration..."
+    
+    # Check if multi-user is enabled
+    if [[ "${MULTI_USER_ENABLED,,}" != "true" ]]; then
+        log_info "Multi-user functionality is disabled (MULTI_USER_ENABLED=false)"
+        return 0
+    fi
+    
+    # Configure multi-user isolation and directory structure
+    log_info "Configuring multi-user isolation..."
+    if ! bash "$SCRIPT_DIR/setup/multi_user_config.sh"; then
+        log_error "Failed to configure multi-user isolation"
+        return 1
+    fi
+    
+    # Setup iframe embedding if enabled
+    if [[ "${IFRAME_EMBEDDING_ENABLED,,}" == "true" ]]; then
+        log_info "Configuring iframe embedding..."
+        if ! bash "$SCRIPT_DIR/setup/iframe_embedding_config.sh"; then
+            log_error "Failed to configure iframe embedding"
+            return 1
+        fi
+    else
+        log_info "Iframe embedding is disabled"
+    fi
+    
+    # Setup user monitoring if enabled
+    if [[ "${USER_MONITORING_ENABLED,,}" == "true" ]]; then
+        log_info "Configuring user monitoring..."
+        if ! bash "$SCRIPT_DIR/setup/user_monitoring.sh"; then
+            log_error "Failed to configure user monitoring"
+            return 1
+        fi
+    else
+        log_info "User monitoring is disabled"
+    fi
+    
+    # Setup cross-server communication if enabled
+    if [[ "${API_AUTH_ENABLED,,}" == "true" ]]; then
+        log_info "Configuring cross-server communication..."
+        if ! bash "$SCRIPT_DIR/setup/cross_server_setup.sh"; then
+            log_error "Failed to configure cross-server communication"
+            return 1
+        fi
+    else
+        log_info "Cross-server communication is disabled"
+    fi
+    
+    # Setup user management API if enabled
+    if [[ "${USER_API_ENABLED,,}" == "true" ]]; then
+        log_info "Configuring user management API..."
+        if ! bash "$SCRIPT_DIR/setup/user_management_api.sh"; then
+            log_error "Failed to configure user management API"
+            return 1
+        fi
+    else
+        log_info "User management API is disabled"
+    fi
+    
+    log_pass "Multi-user n8n configuration completed successfully"
+    return 0
 }
 
 # Main function
@@ -166,6 +238,13 @@ main() {
     log_info "Note: Dynamic optimization will be configured for automatic hardware-based tuning"
     setup_dynamic_optimization
     
+    # Set up multi-user n8n configuration (Milestone 7)
+    echo "-----------------------------------------------"
+    echo "MILESTONE 7: Multi-User n8n Configuration Setup"
+    echo "-----------------------------------------------"
+    log_info "Note: Multi-user functionality with iframe embedding and monitoring will be configured"
+    setup_multiuser_n8n
+    
     # Print setup summary
     echo "-----------------------------------------------"
     echo "SETUP SUMMARY"
@@ -180,6 +259,7 @@ main() {
     log_info "✓ Netdata monitoring: SUCCESS"
     log_info "✓ SSL certificate management: SUCCESS"
     log_info "✓ Dynamic hardware optimization: SUCCESS"
+    log_info "✓ Multi-user n8n configuration: SUCCESS"
     echo "-----------------------------------------------"
     
     log_info "Initialization COMPLETE"
