@@ -688,11 +688,16 @@ test_email_functionality() {
     # Send test email
     local test_message="This is a test email from the n8n hardware change detector.
 
+Email Test Scope: HARDWARE_CHANGE_DETECTION
+Test Type: Hardware monitoring and change notification system
+Component: Hardware change detector and email notification
+
 Test details:
 - Server: $(hostname)
 - Timestamp: $(date)
 - User: $(whoami)
 - Script: $0
+- Purpose: Verify hardware change detection email notifications
 
 If you receive this email, the email notification system is working correctly."
     

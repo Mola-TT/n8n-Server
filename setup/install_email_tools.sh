@@ -226,11 +226,18 @@ test_email_sending() {
     local full_domain="${NGINX_SERVER_NAME:-$(hostname -d 2>/dev/null || echo 'server')}"
     local domain_name="${full_domain%%.*}"  # Extract just the domain name without TLD
     local test_subject="[${domain_name}] Email Configuration Test"
-    local test_body="This is a test email from your n8n server.
+    local test_body="This is a test email from your n8n server email configuration.
 
-Server: $(hostname)
-Timestamp: $(date)
-User: $(whoami)
+Email Test Scope: EMAIL_TOOLS_CONFIGURATION
+Test Type: Basic email sending functionality
+Component: Email tools installation and msmtp configuration
+
+Test Details:
+- Server: $(hostname)
+- Timestamp: $(date)
+- User: $(whoami)
+- Script: install_email_tools.sh
+- Purpose: Verify email tools installation and configuration
 
 If you receive this email, your email configuration is working correctly."
     

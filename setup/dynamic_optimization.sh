@@ -1322,11 +1322,16 @@ test_email_notification() {
     # Test email message
     local test_message="This is a test email from n8n dynamic optimization.
 
+Email Test Scope: DYNAMIC_OPTIMIZATION
+Test Type: Hardware optimization and performance tuning notifications
+Component: Dynamic optimization system and email reporting
+
 Test Details:
 - Server: $(hostname)
 - Timestamp: $(date)
 - User: $(whoami)
 - Script: dynamic_optimization.sh
+- Purpose: Verify optimization completion and performance reporting emails
 
 If you receive this email, the optimization email notifications are working correctly."
     
