@@ -3,16 +3,20 @@
 # Cross-Server Setup Configuration Script
 # Configures secure communication between web app server and n8n server
 
-source "$(dirname "$0")/../lib/logger.sh"
-source "$(dirname "$0")/../lib/utilities.sh"
+# Get the script's directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$PROJECT_ROOT/lib/logger.sh"
+source "$PROJECT_ROOT/lib/utilities.sh"
 
 # Load environment variables
 load_environment() {
-    if [[ -f "$(dirname "$0")/../conf/user.env" ]]; then
-        source "$(dirname "$0")/../conf/user.env"
+    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
+        source "$PROJECT_ROOT/conf/user.env"
     fi
-    if [[ -f "$(dirname "$0")/../conf/default.env" ]]; then
-        source "$(dirname "$0")/../conf/default.env"
+    if [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
+        source "$PROJECT_ROOT/conf/default.env"
     fi
 }
 

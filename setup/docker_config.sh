@@ -7,9 +7,13 @@
 # including Redis, PostgreSQL integration, and operational maintenance
 # =============================================================================
 
+# Get the script's directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Source required libraries
-source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/../lib/utilities.sh"
+source "$PROJECT_ROOT/lib/logger.sh"
+source "$PROJECT_ROOT/lib/utilities.sh"
 
 # =============================================================================
 # Repository Management Functions
