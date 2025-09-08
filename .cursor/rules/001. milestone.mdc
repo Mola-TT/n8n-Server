@@ -5,6 +5,105 @@ alwaysApply: true
 ---
 # Milestone
 
+## Milestone 7 (Current)
+- Create `multi_user_config.sh` under setup folder that:
+  - Implements multi-user n8n architecture with isolated user directories
+  - Creates per-user folder structure under `/opt/n8n/users/[user_id]/`
+  - Configures user-specific data isolation within single n8n instance
+  - Implements user session management and authentication
+  - Sets up user-specific workflow and credential storage
+  - Configures per-user file storage directories
+  - Creates user provisioning and deprovisioning automation
+  - Implements user access control and permission management
+- Create `iframe_embedding_config.sh` under setup folder that:
+  - Configures n8n for secure iframe embedding in external web applications
+  - Sets up CORS policies for cross-origin iframe access
+  - Implements Content Security Policy (CSP) headers for iframe security
+  - Configures X-Frame-Options for selective iframe embedding
+  - Sets up authentication token passing between parent app and n8n
+  - Implements session synchronization between web app and embedded n8n
+  - Configures URL path routing for user-specific iframe access
+  - Sets up postMessage API for parent-child window communication
+- Create `user_monitoring.sh` under setup folder that:
+  - Implements per-user execution time tracking and reporting
+  - Monitors storage usage per user with quotas and alerts
+  - Tracks workflow execution statistics per user
+  - Implements user resource usage analytics and billing data
+  - Creates performance metrics collection per user
+  - Sets up user-specific log aggregation and analysis
+  - Implements automated cleanup for inactive users
+  - Configures user usage dashboards in Netdata
+- Create `cross_server_setup.sh` under setup folder that:
+  - Configures secure communication between web app server and n8n server
+  - Sets up API authentication for cross-server requests
+  - Implements webhook forwarding and callback mechanisms
+  - Configures network security between servers (VPN/firewall rules)
+  - Sets up load balancing for multiple n8n server instances
+  - Implements health checks and failover mechanisms
+  - Configures shared session storage across servers
+  - Sets up secure file transfer mechanisms between servers
+- Update Nginx configuration for multi-user support:
+  - Implement user-specific URL routing and access control
+  - Configure rate limiting per user to prevent abuse
+  - Implement user session management through proxy headers
+  - Configure proxy rules for iframe embedding requirements
+  - Set up user-specific access logging and monitoring
+  - Configure WebSocket support for user sessions
+  - Implement security headers for user isolation
+  - Set up user authentication middleware integration
+- Update Docker configuration for multi-user architecture:
+  - Configure shared n8n instance with user isolation
+  - Implement user-specific volume mounting for data directories
+  - Set up user permission management within container
+  - Configure resource monitoring per user within single instance
+  - Implement user session management in containerized environment
+  - Set up user-specific environment variable injection
+  - Configure logging separation per user
+  - Implement user cleanup and maintenance automation
+- Create comprehensive user management API:
+  - Implement REST API for user provisioning/deprovisioning
+  - Create user authentication and authorization endpoints
+  - Set up user configuration management via API
+  - Implement user usage reporting and analytics API
+  - Create user backup and restore API endpoints
+  - Set up user data migration and export capabilities
+  - Implement user access control and permission management
+  - Create API documentation and integration examples
+- Create cross-server documentation (`README-WebApp-Server.md`):
+  - Document web app server requirements and dependencies
+  - Provide step-by-step setup instructions for embedding n8n
+  - Include iframe integration code examples and best practices
+  - Document authentication flow between web app and n8n server
+  - Provide security considerations and CORS configuration
+  - Include troubleshooting guide for common integration issues
+  - Document API endpoints for user management
+  - Provide performance optimization recommendations
+- Create comprehensive test scripts:
+  - `test_multi_user.sh` - Validate multi-user isolation and routing
+  - `test_iframe_embedding.sh` - Test iframe integration and security
+  - `test_user_monitoring.sh` - Validate metrics collection and reporting
+  - `test_cross_server.sh` - Test communication between servers
+  - `test_user_api.sh` - Validate user management API endpoints
+  - `test_performance_metrics.sh` - Test execution time and storage tracking
+  - `test_user_scaling.sh` - Validate user management and resource allocation
+- Enhanced environment configuration:
+  - Add multi-user specific configuration variables
+  - Add iframe embedding security settings
+  - Add cross-server communication configuration
+  - Add user resource limits and quotas
+  - Add monitoring and analytics preferences
+  - Add user cleanup and maintenance schedules
+  - Add API authentication and security settings
+- Performance and Analytics Features:
+  - Real-time execution time measurement per workflow
+  - Storage usage tracking with automated cleanup policies
+  - User performance benchmarking and optimization
+  - Predictive analytics for resource scaling
+  - Cost analysis and billing data generation
+  - User usage patterns analysis and reporting
+  - Performance bottleneck identification and alerts
+  - Resource utilization forecasting per user
+
 ## Milestone 6 (Completed)
 - Create `dynamic_optimization.sh` under setup folder that:
   - Detects hardware specifications (CPU cores, memory, disk size)
