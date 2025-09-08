@@ -19,20 +19,28 @@ update_system() {
             return 1
         fi
         
-        # Check for unattended-upgrades before attempting upgrade
+        # Handle unattended-upgrades - stop it for attended upgrade or wait
         if pgrep -f "unattended-upgr" >/dev/null; then
-            log_info "Detected unattended-upgrades running, waiting for completion..."
-            local wait_count=0
-            while pgrep -f "unattended-upgr" >/dev/null && [ $wait_count -lt 1200 ]; do
-                sleep 60
-                wait_count=$((wait_count + 60))
-                log_info "Still waiting for unattended-upgrades... ($((wait_count / 60)) minutes elapsed)"
-            done
-            
-            if pgrep -f "unattended-upgr" >/dev/null; then
-                log_warn "Unattended-upgrades still running after 20 minutes, proceeding with caution..."
+            if [[ "${FORCE_ATTENDED_UPGRADE:-false}" == "true" ]]; then
+                log_info "Detected unattended-upgrades running, stopping for attended upgrade..."
+                systemctl stop unattended-upgrades 2>/dev/null || true
+                pkill -f "unattended-upgr" 2>/dev/null || true
+                sleep 5  # Brief wait for cleanup
+                log_info "Unattended-upgrades stopped, proceeding with attended upgrade"
             else
-                log_info "Unattended-upgrades completed, proceeding with manual upgrade"
+                log_info "Detected unattended-upgrades running, waiting for completion..."
+                local wait_count=0
+                while pgrep -f "unattended-upgr" >/dev/null && [ $wait_count -lt 1200 ]; do
+                    sleep 60
+                    wait_count=$((wait_count + 60))
+                    log_info "Still waiting for unattended-upgrades... ($((wait_count / 60)) minutes elapsed)"
+                done
+                
+                if pgrep -f "unattended-upgr" >/dev/null; then
+                    log_warn "Unattended-upgrades still running after 20 minutes, proceeding with caution..."
+                else
+                    log_info "Unattended-upgrades completed, proceeding with manual upgrade"
+                fi
             fi
         fi
 
@@ -54,22 +62,29 @@ update_system() {
                 # Try to fix common issues before retrying
                 log_debug "Attempting to fix package manager lock issues..."
                 
-                # Check for unattended-upgrades and wait for it to complete
+                # Handle unattended-upgrades during retry
                 if pgrep -f "unattended-upgr" >/dev/null; then
-                    log_info "Waiting for unattended-upgrades to complete..."
-                    # Wait up to 20 minutes for unattended-upgrades to finish
-                    local wait_count=0
-                    while pgrep -f "unattended-upgr" >/dev/null && [ $wait_count -lt 1200 ]; do
-                        sleep 60
-                        wait_count=$((wait_count + 60))
-                        log_info "Still waiting for unattended-upgrades... ($((wait_count / 60)) minutes elapsed)"
-                    done
-                    
-                    if pgrep -f "unattended-upgr" >/dev/null; then
-                        log_warn "Unattended-upgrades still running after 20 minutes, force killing..."
+                    if [[ "${FORCE_ATTENDED_UPGRADE:-false}" == "true" ]]; then
+                        log_info "Killing unattended-upgrades for attended upgrade retry..."
+                        systemctl stop unattended-upgrades 2>/dev/null || true
                         pkill -9 -f "unattended-upgr" 2>/dev/null || true
+                        sleep 3
                     else
-                        log_info "Unattended-upgrades completed successfully"
+                        log_info "Waiting for unattended-upgrades to complete..."
+                        # Wait up to 20 minutes for unattended-upgrades to finish
+                        local wait_count=0
+                        while pgrep -f "unattended-upgr" >/dev/null && [ $wait_count -lt 1200 ]; do
+                            sleep 60
+                            wait_count=$((wait_count + 60))
+                            log_info "Still waiting for unattended-upgrades... ($((wait_count / 60)) minutes elapsed)"
+                        done
+                        
+                        if pgrep -f "unattended-upgr" >/dev/null; then
+                            log_warn "Unattended-upgrades still running after 20 minutes, force killing..."
+                            pkill -9 -f "unattended-upgr" 2>/dev/null || true
+                        else
+                            log_info "Unattended-upgrades completed successfully"
+                        fi
                     fi
                 fi
                 
