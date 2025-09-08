@@ -18,6 +18,15 @@ PROJECT_ROOT="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
 source "$PROJECT_ROOT/lib/logger.sh"
 source "$PROJECT_ROOT/lib/utilities.sh"
 
+# Load environment configuration
+if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
+    source "$PROJECT_ROOT/conf/user.env"
+elif [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
+    source "$PROJECT_ROOT/conf/default.env"
+else
+    log_warn "No environment configuration found, using system defaults"
+fi
+
 # =============================================================================
 # CONFIGURATION AND CONSTANTS
 # =============================================================================

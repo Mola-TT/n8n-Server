@@ -286,10 +286,23 @@ run_tests() {
     # Set the explicit path to the test runner in the test directory
     local script_path="$SCRIPT_DIR/test/run_tests.sh"
     
+    # Debug: show current paths
+    log_debug "Current working directory: $(pwd)"
+    log_debug "Script directory: $SCRIPT_DIR"
+    log_debug "Looking for test runner at: $script_path"
+    
     # Check if the file exists
     if [ ! -f "$script_path" ]; then
         log_error "Test runner not found at: $script_path"
-        return 1
+        # Try alternative paths
+        local alt_path="$(pwd)/test/run_tests.sh"
+        if [ -f "$alt_path" ]; then
+            log_info "Found test runner at alternative path: $alt_path"
+            script_path="$alt_path"
+        else
+            log_error "Test runner also not found at: $alt_path"
+            return 1
+        fi
     fi
     
     log_info "Found test runner at: $script_path"
