@@ -47,29 +47,29 @@ make_scripts_executable_early() {
 make_scripts_executable_early
 
 # Source general configuration
-source "$SCRIPT_DIR/setup/general_config.sh"
+source "$SETUP_DIR/general_config.sh"
 
 # Source Docker configuration (Milestone 2)
-source "$SCRIPT_DIR/setup/docker_config.sh"
+source "$SETUP_DIR/docker_config.sh"
 
 # Source Nginx configuration (Milestone 3)
-source "$SCRIPT_DIR/setup/nginx_config.sh"
+source "$SETUP_DIR/nginx_config.sh"
 
 # Source Netdata configuration (Milestone 4)
-source "$SCRIPT_DIR/setup/netdata_config.sh"
+source "$SETUP_DIR/netdata_config.sh"
 
 # Source SSL renewal configuration (Milestone 5)
-source "$SCRIPT_DIR/setup/ssl_renewal.sh"
+source "$SETUP_DIR/ssl_renewal.sh"
 
 # Source dynamic optimization configuration (Milestone 6)
-source "$SCRIPT_DIR/setup/dynamic_optimization.sh"
+source "$SETUP_DIR/dynamic_optimization.sh"
 
 # Source multi-user configuration (Milestone 7)
-source "$SCRIPT_DIR/setup/multi_user_config.sh"
-source "$SCRIPT_DIR/setup/iframe_embedding_config.sh"
-source "$SCRIPT_DIR/setup/user_monitoring.sh"
-source "$SCRIPT_DIR/setup/cross_server_setup.sh"
-source "$SCRIPT_DIR/setup/user_management_api.sh"
+source "$SETUP_DIR/multi_user_config.sh"
+source "$SETUP_DIR/iframe_embedding_config.sh"
+source "$SETUP_DIR/user_monitoring.sh"
+source "$SETUP_DIR/cross_server_setup.sh"
+source "$SETUP_DIR/user_management_api.sh"
 
 # Display init banner with enhanced logging
 display_banner() {
@@ -120,7 +120,7 @@ setup_multiuser_n8n() {
     
     # Configure multi-user isolation and directory structure
     log_info "Configuring multi-user isolation..."
-    if ! bash "$SCRIPT_DIR/setup/multi_user_config.sh"; then
+    if ! bash "$SETUP_DIR/multi_user_config.sh"; then
         log_error "Failed to configure multi-user isolation"
         return 1
     fi
@@ -128,7 +128,7 @@ setup_multiuser_n8n() {
     # Setup iframe embedding if enabled
     if [[ "${IFRAME_EMBEDDING_ENABLED,,}" == "true" ]]; then
         log_info "Configuring iframe embedding..."
-        if ! bash "$SCRIPT_DIR/setup/iframe_embedding_config.sh"; then
+        if ! bash "$SETUP_DIR/iframe_embedding_config.sh"; then
             log_error "Failed to configure iframe embedding"
             return 1
         fi
@@ -139,7 +139,7 @@ setup_multiuser_n8n() {
     # Setup user monitoring if enabled
     if [[ "${USER_MONITORING_ENABLED,,}" == "true" ]]; then
         log_info "Configuring user monitoring..."
-        if ! bash "$SCRIPT_DIR/setup/user_monitoring.sh"; then
+        if ! bash "$SETUP_DIR/user_monitoring.sh"; then
             log_error "Failed to configure user monitoring"
             return 1
         fi
@@ -150,7 +150,7 @@ setup_multiuser_n8n() {
     # Setup cross-server communication if enabled
     if [[ "${API_AUTH_ENABLED,,}" == "true" ]]; then
         log_info "Configuring cross-server communication..."
-        if ! bash "$SCRIPT_DIR/setup/cross_server_setup.sh"; then
+        if ! bash "$SETUP_DIR/cross_server_setup.sh"; then
             log_error "Failed to configure cross-server communication"
             return 1
         fi
@@ -161,7 +161,7 @@ setup_multiuser_n8n() {
     # Setup user management API if enabled
     if [[ "${USER_API_ENABLED,,}" == "true" ]]; then
         log_info "Configuring user management API..."
-        if ! bash "$SCRIPT_DIR/setup/user_management_api.sh"; then
+        if ! bash "$SETUP_DIR/user_management_api.sh"; then
             log_error "Failed to configure user management API"
             return 1
         fi
@@ -197,7 +197,7 @@ main() {
     
     # Install email tools for notifications
     log_info "Installing email tools for system notifications..."
-    bash "$SCRIPT_DIR/setup/install_email_tools.sh" --install
+    bash "$SETUP_DIR/install_email_tools.sh" --install
     
     # Set up Docker infrastructure (Milestone 2)
     if command -v log_subsection >/dev/null 2>&1; then
