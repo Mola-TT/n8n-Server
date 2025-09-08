@@ -325,7 +325,7 @@ map \$http_x_frame_options \$iframe_allowed {
 
 # Upstream for load balancing (can be extended for multiple instances)
 upstream n8n_backend {
-    server ${NGINX_PROXY_PASS:-localhost:5678};
+    server localhost:5678;
     keepalive 32;
 }
 
