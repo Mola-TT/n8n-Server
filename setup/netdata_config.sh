@@ -58,6 +58,127 @@ EOF
 # Netdata Installation Functions
 # =============================================================================
 
+# Download Netdata installer with multiple fallback methods
+download_netdata_installer() {
+    local installer_path="/tmp/netdata-kickstart.sh"
+    local download_urls=(
+        "https://get.netdata.cloud/kickstart.sh"
+        "https://raw.githubusercontent.com/netdata/netdata/master/packaging/installer/kickstart.sh"
+        "https://github.com/netdata/netdata/raw/master/packaging/installer/kickstart.sh"
+    )
+    
+    # Test DNS resolution first
+    log_info "Testing network connectivity..."
+    
+    # Try multiple DNS resolution tests
+    local dns_working=false
+    if nslookup google.com >/dev/null 2>&1; then
+        dns_working=true
+        log_info "DNS resolution is working (google.com)"
+    elif nslookup github.com >/dev/null 2>&1; then
+        dns_working=true
+        log_info "DNS resolution is working (github.com)"
+    elif host 8.8.8.8 >/dev/null 2>&1; then
+        dns_working=true
+        log_info "Basic network connectivity confirmed"
+    fi
+    
+    if [ "$dns_working" = false ]; then
+        log_warn "DNS resolution issues detected - this may cause download failures"
+        log_warn "Trying alternative methods..."
+    fi
+    
+    # Ensure we have download tools
+    if ! command -v wget >/dev/null 2>&1 && ! command -v curl >/dev/null 2>&1; then
+        log_error "Neither wget nor curl is available for downloading"
+        return 1
+    fi
+    
+    # Try each download URL
+    for url in "${download_urls[@]}"; do
+        log_info "Attempting download from: $url"
+        
+        # Try wget first
+        if command -v wget >/dev/null 2>&1; then
+            if wget --timeout=30 --tries=2 -O "$installer_path" "$url" >/dev/null 2>&1; then
+                if [ -s "$installer_path" ]; then
+                    log_info "✓ Successfully downloaded installer from: $url"
+                    # Verify it's a valid script
+                    if head -1 "$installer_path" | grep -q "#!/"; then
+                        return 0
+                    else
+                        log_warn "Downloaded file doesn't appear to be a valid script"
+                    fi
+                fi
+            fi
+        fi
+        
+        # Try curl as fallback
+        if command -v curl >/dev/null 2>&1; then
+            if curl --connect-timeout 30 --max-time 60 -f -s -L -o "$installer_path" "$url" >/dev/null 2>&1; then
+                if [ -s "$installer_path" ]; then
+                    log_info "✓ Successfully downloaded installer from: $url"
+                    # Verify it's a valid script
+                    if head -1 "$installer_path" | grep -q "#!/"; then
+                        return 0
+                    else
+                        log_warn "Downloaded file doesn't appear to be a valid script"
+                    fi
+                fi
+            fi
+        fi
+        
+        log_warn "Failed to download from: $url"
+        rm -f "$installer_path" 2>/dev/null
+    done
+    
+    log_error "Failed to download Netdata installer from any source"
+    return 1
+}
+
+# Install Netdata from Ubuntu packages as fallback
+install_netdata_from_packages() {
+    log_info "Installing Netdata from Ubuntu packages (fallback method)..."
+    
+    # Update package lists
+    if ! sudo apt-get update >/dev/null 2>&1; then
+        log_error "Failed to update package lists for Netdata installation"
+        return 1
+    fi
+    
+    # Install Netdata package
+    if execute_silently "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y netdata" "Installing Netdata from packages"; then
+        log_info "✓ Netdata installed successfully from packages"
+        
+        # Wait a moment for installation to complete
+        sleep 3
+        
+        # Enable and start the service
+        if sudo systemctl enable netdata >/dev/null 2>&1; then
+            log_info "Netdata service enabled"
+        else
+            log_warn "Failed to enable Netdata service"
+        fi
+        
+        if sudo systemctl start netdata >/dev/null 2>&1; then
+            log_info "Netdata service started"
+        else
+            log_warn "Failed to start Netdata service initially (may start later)"
+        fi
+        
+        # Check if netdata user was created
+        if ! id netdata >/dev/null 2>&1; then
+            log_warn "Netdata user not found, creating..."
+            sudo useradd -r -d /var/lib/netdata -s /bin/false netdata 2>/dev/null || true
+        fi
+        
+        return 0
+    else
+        log_error "Failed to install Netdata from packages"
+        return 1
+    fi
+}
+
 install_netdata() {
     log_info "Installing Netdata system monitoring..."
     
@@ -67,15 +188,23 @@ install_netdata() {
         return 1
     fi
     
-    # Download Netdata installer
+    # Download Netdata installer with fallback methods
     log_info "Downloading Netdata installer..."
-    if ! execute_silently "wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh" "Downloading Netdata installer"; then
-        log_error "Failed to download Netdata installer"
-        return 1
+    if ! download_netdata_installer; then
+        log_error "Failed to download Netdata installer from all sources"
+        log_info "Attempting package manager installation as fallback..."
+        return install_netdata_from_packages
     fi
     
     log_info "Installing Netdata (this may take a few minutes)..."
     log_info "Installation progress will be shown - please wait..."
+    
+    # Verify installer exists and is valid
+    if [ ! -f "/tmp/netdata-kickstart.sh" ] || [ ! -s "/tmp/netdata-kickstart.sh" ]; then
+        log_error "Netdata installer not found or empty"
+        log_info "Attempting package manager installation as fallback..."
+        return install_netdata_from_packages
+    fi
     
     # Run Netdata installer with proper logging through execute_silently
     local install_cmd="bash /tmp/netdata-kickstart.sh --dont-wait --disable-telemetry --stable-channel"
@@ -84,7 +213,8 @@ install_netdata() {
         log_info "✓ Netdata installation completed successfully"
     else
         log_error "✗ Netdata installation failed"
-        return 1
+        log_info "Attempting package manager installation as fallback..."
+        return install_netdata_from_packages
     fi
     
     # Clean up temporary files
@@ -195,6 +325,21 @@ install_netdata_dependencies() {
 configure_netdata_security() {
     log_info "Configuring Netdata security settings..."
     
+    # Wait for Netdata to be available
+    local max_wait=30
+    local wait_count=0
+    while [ $wait_count -lt $max_wait ]; do
+        if systemctl is-active netdata >/dev/null 2>&1; then
+            log_info "Netdata service is active"
+            break
+        fi
+        if [ $wait_count -eq 0 ]; then
+            log_info "Waiting for Netdata service to start..."
+        fi
+        sleep 2
+        wait_count=$((wait_count + 1))
+    done
+    
     # CRITICAL FIX: Detect installation type and use correct paths
     local netdata_conf=""
     local netdata_type=""
@@ -238,6 +383,21 @@ configure_netdata_security() {
         
     else
         log_error "Could not detect Netdata installation type"
+        log_error "Checked paths:"
+        log_error "  - /usr/sbin/netdata: $([ -f "/usr/sbin/netdata" ] && echo "EXISTS" || echo "NOT FOUND")"
+        log_error "  - /etc/netdata: $([ -d "/etc/netdata" ] && echo "EXISTS" || echo "NOT FOUND")"
+        log_error "  - /opt/netdata/usr/sbin/netdata: $([ -f "/opt/netdata/usr/sbin/netdata" ] && echo "EXISTS" || echo "NOT FOUND")"
+        log_error "  - /opt/netdata: $([ -d "/opt/netdata" ] && echo "EXISTS" || echo "NOT FOUND")"
+        
+        # Try to find netdata binary in other locations
+        if command -v netdata >/dev/null 2>&1; then
+            local netdata_path=$(which netdata)
+            log_error "  - Found netdata binary at: $netdata_path"
+        else
+            log_error "  - No netdata binary found in PATH"
+        fi
+        
+        log_error "Netdata installation appears to have failed completely"
         return 1
     fi
     
