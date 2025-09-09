@@ -6,7 +6,7 @@ alwaysApply: true
 # n8n Server Initialization Core Rules
 
 ## Project Purpose
-This project contains Ubuntu scripts for initializing a n8n server. The scripts are developed on a Windows machine but deployed on Ubuntu systems.
+This project contains Ubuntu scripts for initializing a n8n server. The scripts are developed on a Windows machine but deployed on Ubuntu systems. The working directory on the Ubuntu server is "/root/n8n-Server"
 
 ## Core Development Rules
 
