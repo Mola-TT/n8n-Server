@@ -268,13 +268,17 @@ log_subsection() {
 # Execute command with enhanced logging and output capture
 execute_with_structured_logging() {
   local cmd="$1"
-  local description="${2:-Executing command}"
+  local description="${2:-}"
   local suppress_output="${3:-false}"
   local log_level="${4:-INFO}"
   local temp_log_file="/tmp/exec_$$.log"
   
   log_debug "Command: $cmd"
-  log_info "🔄 $description..."
+  
+  # Only show progress message if description is provided
+  if [[ -n "$description" ]]; then
+    log_info "🔄 $description..."
+  fi
   
   # Create temporary log file
   : > "$temp_log_file"
@@ -304,7 +308,10 @@ execute_with_structured_logging() {
     
     if [[ $exit_code -eq 0 ]]; then
       if [[ "$suppress_output" == "true" ]]; then
-        log_info "✓ $description completed successfully (${duration}s, $line_count lines of output)"
+        # Only show completion message if description was provided
+        if [[ -n "$description" ]]; then
+          log_info "✓ $description completed successfully (${duration}s, $line_count lines of output)"
+        fi
         log_debug "Command output summary:"
         head -3 "$temp_log_file" | while IFS= read -r line; do
           log_debug "  $(normalize_line_endings "$line")"
@@ -318,10 +325,18 @@ execute_with_structured_logging() {
           done
         fi
       else
-        log_info "✓ $description completed successfully (${duration}s)"
+        # Only show completion message if description was provided
+        if [[ -n "$description" ]]; then
+          log_info "✓ $description completed successfully (${duration}s)"
+        fi
       fi
     else
-      log_error "✗ $description failed with exit code $exit_code (${duration}s)"
+      # Always show error messages, even without description
+      if [[ -n "$description" ]]; then
+        log_error "✗ $description failed with exit code $exit_code (${duration}s)"
+      else
+        log_error "✗ Command failed with exit code $exit_code (${duration}s)"
+      fi
       log_error "Error output:"
       tail -10 "$temp_log_file" | while IFS= read -r line; do
         log_error "  $(normalize_line_endings "$line")"
@@ -330,7 +345,11 @@ execute_with_structured_logging() {
     
     # Append processed output to main log file
     {
-      echo "# External Process Output: $description"
+      if [[ -n "$description" ]]; then
+        echo "# External Process Output: $description"
+      else
+        echo "# External Process Output: [Command execution]"
+      fi
       echo "# Command: $cmd"
       echo "# Exit Code: $exit_code"
       echo "# Duration: ${duration}s"
@@ -344,9 +363,17 @@ execute_with_structured_logging() {
     } >> "$LOG_FILE"
   else
     if [[ $exit_code -eq 0 ]]; then
-      log_info "✓ $description completed successfully (${duration}s, no output)"
+      # Only show completion message if description was provided
+      if [[ -n "$description" ]]; then
+        log_info "✓ $description completed successfully (${duration}s, no output)"
+      fi
     else
-      log_error "✗ $description failed with exit code $exit_code (${duration}s, no output)"
+      # Always show error messages, even without description
+      if [[ -n "$description" ]]; then
+        log_error "✗ $description failed with exit code $exit_code (${duration}s, no output)"
+      else
+        log_error "✗ Command failed with exit code $exit_code (${duration}s, no output)"
+      fi
     fi
   fi
   

@@ -21,7 +21,8 @@ execute_silently() {
         if [[ -n "$msg" ]]; then
             execute_with_structured_logging "$cmd" "$msg" "true"
         else
-            execute_with_structured_logging "$cmd" "Running command" "true"
+            # Don't show generic "Running command" - just execute silently
+            execute_with_structured_logging "$cmd" "" "true"
         fi
     else
         # Fallback to original implementation
