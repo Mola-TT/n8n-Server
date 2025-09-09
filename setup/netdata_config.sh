@@ -136,9 +136,63 @@ download_netdata_installer() {
     return 1
 }
 
+# Verify Netdata installation actually worked
+verify_netdata_installation() {
+    log_info "Verifying Netdata installation..."
+    
+    # Check for netdata binary in common locations
+    local netdata_binary=""
+    if [ -f "/usr/sbin/netdata" ]; then
+        netdata_binary="/usr/sbin/netdata"
+    elif [ -f "/opt/netdata/usr/sbin/netdata" ]; then
+        netdata_binary="/opt/netdata/usr/sbin/netdata"
+    elif command -v netdata >/dev/null 2>&1; then
+        netdata_binary=$(which netdata)
+    fi
+    
+    if [ -z "$netdata_binary" ]; then
+        log_warn "No netdata binary found"
+        return 1
+    fi
+    
+    log_info "Found netdata binary at: $netdata_binary"
+    
+    # Check for config directories
+    local config_dir=""
+    if [ -d "/etc/netdata" ]; then
+        config_dir="/etc/netdata"
+    elif [ -d "/opt/netdata/etc/netdata" ]; then
+        config_dir="/opt/netdata/etc/netdata"
+    fi
+    
+    if [ -z "$config_dir" ]; then
+        log_warn "No netdata config directory found"
+        return 1
+    fi
+    
+    log_info "Found netdata config at: $config_dir"
+    
+    # Try to start the service if it exists
+    if systemctl list-unit-files | grep -q "netdata.service"; then
+        log_info "Netdata systemd service detected"
+        return 0
+    fi
+    
+    log_warn "Netdata installation incomplete - missing systemd service"
+    return 1
+}
+
 # Install Netdata from Ubuntu packages as fallback
 install_netdata_from_packages() {
     log_info "Installing Netdata from Ubuntu packages (fallback method)..."
+    
+    # Clean up any partial installations from failed installer
+    log_info "Cleaning up any partial installations..."
+    sudo pkill -f netdata 2>/dev/null || true
+    sudo rm -rf /opt/netdata 2>/dev/null || true
+    sudo rm -rf /etc/netdata 2>/dev/null || true
+    sudo systemctl stop netdata 2>/dev/null || true
+    sudo systemctl disable netdata 2>/dev/null || true
     
     # Update package lists
     if ! sudo apt-get update >/dev/null 2>&1; then
@@ -210,9 +264,22 @@ install_netdata() {
     local install_cmd="bash /tmp/netdata-kickstart.sh --dont-wait --disable-telemetry --stable-channel"
     
     if execute_silently "$install_cmd" "Installing Netdata"; then
-        log_info "✓ Netdata installation completed successfully"
+        log_info "Netdata installer completed, verifying installation..."
+        
+        # CRITICAL: Verify the installation actually worked
+        # The installer can return success even if it failed silently
+        sleep 3  # Give it a moment to settle
+        
+        if verify_netdata_installation; then
+            log_info "✓ Netdata installation verified successfully"
+        else
+            log_warn "Netdata installer succeeded but installation verification failed"
+            log_info "This usually means network issues prevented proper installation"
+            log_info "Attempting package manager installation as fallback..."
+            return install_netdata_from_packages
+        fi
     else
-        log_error "✗ Netdata installation failed"
+        log_error "✗ Netdata installer failed"
         log_info "Attempting package manager installation as fallback..."
         return install_netdata_from_packages
     fi
@@ -350,7 +417,7 @@ configure_netdata_security() {
     local run_dir="/run/netdata"
     
     # Detect installation type by checking where the binary and config are located
-    if [ -f "/usr/sbin/netdata" ] && [ -d "/etc/netdata" ]; then
+    if [ -f "/usr/sbin/netdata" ] || [ -d "/etc/netdata" ] || (dpkg -l | grep -q "^ii.*netdata"); then
         # System package installation (apt/yum)
         netdata_type="system"
         netdata_conf="/etc/netdata/netdata.conf"
@@ -359,6 +426,9 @@ configure_netdata_security() {
         lib_dir="/var/lib/netdata"
         log_dir="/var/log/netdata"
         log_info "Detected system package installation of Netdata"
+        
+        # Ensure config directory exists for package installation
+        sudo mkdir -p "/etc/netdata"
         
         # Remove systemd override that's designed for official installer
         if [ -d "/etc/systemd/system/netdata.service.d" ]; then
