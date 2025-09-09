@@ -297,15 +297,10 @@ run_tests() {
     # Check if the file exists
     if [ ! -f "$script_path" ]; then
         log_error "Test runner not found at: $script_path"
-        # Try alternative paths
-        local alt_path="$(pwd)/test/run_tests.sh"
-        if [ -f "$alt_path" ]; then
-            log_info "Found test runner at alternative path: $alt_path"
-            script_path="$alt_path"
-        else
-            log_error "Test runner also not found at: $alt_path"
-            return 1
-        fi
+        log_error "Current working directory: $(pwd)"
+        log_error "Project root: $project_root"
+        log_error "Please ensure the test directory exists with run_tests.sh"
+        return 1
     fi
     
     log_info "Found test runner at: $script_path"
