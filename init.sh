@@ -6,8 +6,12 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Script directory
+# Script directory - ensure we get the project root, not setup subdirectory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# If SCRIPT_DIR ends with /setup, move up one level to project root
+if [[ "$SCRIPT_DIR" == */setup ]]; then
+    SCRIPT_DIR="$(dirname "$SCRIPT_DIR")"
+fi
 # Setup directory
 SETUP_DIR="$SCRIPT_DIR/setup"
 
