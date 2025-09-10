@@ -28,17 +28,25 @@ perform_attended_upgrade() {
     # Monitor progress from the pipe
     {
         local last_status=""
+        local last_download_status=""
         local package_count=0
         local total_packages=""
+        local last_progress_time=0
+        local progress_interval=30  # Log progress every 30 seconds
         
         while IFS= read -r line < "$upgrade_pipe" 2>/dev/null; do
+            local current_time=$(date +%s)
+            
             if [[ "$line" =~ ^dlstatus: ]]; then
                 # Download status: dlstatus:1:0.0000:Downloading package
                 local status_part="${line#dlstatus:}"
                 local current_pkg="${status_part##*:}"
-                if [[ "$current_pkg" != "$last_status" ]]; then
+                
+                # Only log download progress every 30 seconds or when package changes
+                if [[ "$current_pkg" != "$last_download_status" ]] || [[ $((current_time - last_progress_time)) -ge $progress_interval ]]; then
                     log_info "Downloading: $current_pkg"
-                    last_status="$current_pkg"
+                    last_download_status="$current_pkg"
+                    last_progress_time="$current_time"
                 fi
             elif [[ "$line" =~ ^pmstatus: ]]; then
                 # Package manager status: pmstatus:package:percentage:description
