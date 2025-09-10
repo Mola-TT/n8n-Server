@@ -8,9 +8,12 @@ set -e
 
 # Script directory - ensure we get the project root, not setup subdirectory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Debug: show initial script directory detection
+echo "DEBUG: Initial SCRIPT_DIR: $SCRIPT_DIR"
 # If SCRIPT_DIR ends with /setup, move up one level to project root
 if [[ "$SCRIPT_DIR" == */setup ]]; then
     SCRIPT_DIR="$(dirname "$SCRIPT_DIR")"
+    echo "DEBUG: Adjusted SCRIPT_DIR to project root: $SCRIPT_DIR"
 fi
 # Setup directory
 SETUP_DIR="$SCRIPT_DIR/setup"
@@ -287,14 +290,22 @@ run_tests() {
     # Flush stdout to ensure immediate display
     sync
     
+    # Find the project root directory (where init.sh is located)
+    local project_root
+    if [[ "$SCRIPT_DIR" == */setup ]]; then
+        project_root="$(dirname "$SCRIPT_DIR")"
+    else
+        project_root="$SCRIPT_DIR"
+    fi
+    
     # Set the explicit path to the test runner in the test directory
-    # Use SCRIPT_DIR which was set at the beginning of the script
-    local script_path="$SCRIPT_DIR/test/run_tests.sh"
+    local script_path="$project_root/test/run_tests.sh"
     
     # Debug: show current paths
-    log_debug "Current working directory: $(pwd)"
-    log_debug "Script directory: $SCRIPT_DIR"
-    log_debug "Looking for test runner at: $script_path"
+    log_info "DEBUG: Current working directory: $(pwd)"
+    log_info "DEBUG: Script directory: $SCRIPT_DIR"
+    log_info "DEBUG: Project root: $project_root"
+    log_info "DEBUG: Looking for test runner at: $script_path"
     
     # Check if the file exists
     if [ ! -f "$script_path" ]; then
