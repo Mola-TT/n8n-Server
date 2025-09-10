@@ -284,21 +284,19 @@ run_tests() {
     sync
     
     # Set the explicit path to the test runner in the test directory
-    # Resolve the correct path relative to where init.sh is located
-    local project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local script_path="$project_root/test/run_tests.sh"
+    # Use SCRIPT_DIR which was set at the beginning of the script
+    local script_path="$SCRIPT_DIR/test/run_tests.sh"
     
     # Debug: show current paths
     log_debug "Current working directory: $(pwd)"
     log_debug "Script directory: $SCRIPT_DIR"
-    log_debug "Project root: $project_root"
     log_debug "Looking for test runner at: $script_path"
     
     # Check if the file exists
     if [ ! -f "$script_path" ]; then
         log_error "Test runner not found at: $script_path"
         log_error "Current working directory: $(pwd)"
-        log_error "Project root: $project_root"
+        log_error "Script directory: $SCRIPT_DIR"
         log_error "Please ensure the test directory exists with run_tests.sh"
         return 1
     fi
