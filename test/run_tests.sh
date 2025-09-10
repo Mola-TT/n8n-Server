@@ -90,6 +90,33 @@ test_utilities() {
     command -v execute_silently >/dev/null 2>&1
 }
 
+# Test attended upgrade configuration
+test_attended_upgrade_config() {
+    # Test that FORCE_ATTENDED_UPGRADE is set to true in default.env
+    if [[ "${FORCE_ATTENDED_UPGRADE:-false}" != "true" ]]; then
+        log_error "FORCE_ATTENDED_UPGRADE should be set to true by default"
+        return 1
+    fi
+    
+    # Test that perform_attended_upgrade function exists in general_config.sh
+    source "$PROJECT_DIR/setup/general_config.sh" || return 1
+    type perform_attended_upgrade >/dev/null 2>&1 || {
+        log_error "perform_attended_upgrade function not found in general_config.sh"
+        return 1
+    }
+    
+    # Test update_system function exists
+    type update_system >/dev/null 2>&1 || {
+        log_error "update_system function not found in general_config.sh"
+        return 1
+    }
+    
+    log_info "✓ FORCE_ATTENDED_UPGRADE is set to: ${FORCE_ATTENDED_UPGRADE}"
+    log_info "✓ Attended upgrade functions are properly defined"
+    
+    return 0
+}
+
 # Test script permissions
 test_script_permissions() {
     # Check if main scripts are executable (on systems that support it)
@@ -259,6 +286,7 @@ main() {
     run_test "Environment loading" "test_env_loading"
     run_test "Logging functions" "test_logging"
     run_test "Utility functions" "test_utilities"
+    run_test "Attended Upgrade Configuration" "test_attended_upgrade_config"
     echo "=========================================="
     
     # Milestone 2 Tests (Docker Infrastructure)

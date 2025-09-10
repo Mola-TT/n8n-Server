@@ -5,6 +5,85 @@
 # Script directory - using unique variable name to avoid conflicts
 GENERAL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Perform attended upgrade with progress reporting
+perform_attended_upgrade() {
+    local upgrade_log="$1"
+    local progress_log="$2"
+    
+    # Create named pipes for real-time progress monitoring
+    local upgrade_pipe="/tmp/apt_upgrade_pipe_$$"
+    mkfifo "$upgrade_pipe" 2>/dev/null || {
+        log_warn "Failed to create named pipe, falling back to standard upgrade"
+        return 1
+    }
+    
+    # Start upgrade process in background
+    {
+        DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Progress-Fancy="true" \
+            -o APT::Status-Fd=3 3>"$upgrade_pipe" > "$upgrade_log" 2>&1
+        echo $? > "${upgrade_log}.exitcode"
+    } &
+    local upgrade_pid=$!
+    
+    # Monitor progress from the pipe
+    {
+        local last_status=""
+        local package_count=0
+        local total_packages=""
+        
+        while IFS= read -r line < "$upgrade_pipe" 2>/dev/null; do
+            if [[ "$line" =~ ^dlstatus: ]]; then
+                # Download status: dlstatus:1:0.0000:Downloading package
+                local status_part="${line#dlstatus:}"
+                local current_pkg="${status_part##*:}"
+                if [[ "$current_pkg" != "$last_status" ]]; then
+                    log_info "Downloading: $current_pkg"
+                    last_status="$current_pkg"
+                fi
+            elif [[ "$line" =~ ^pmstatus: ]]; then
+                # Package manager status: pmstatus:package:percentage:description
+                local status_part="${line#pmstatus:}"
+                local pkg_name="${status_part%%:*}"
+                local rest="${status_part#*:}"
+                local percentage="${rest%%:*}"
+                local description="${rest#*:}"
+                
+                if [[ "$description" != "$last_status" ]]; then
+                    if [[ -n "$percentage" && "$percentage" != "0.0000" ]]; then
+                        log_info "Processing $pkg_name: $description (${percentage%.*}%)"
+                    else
+                        log_info "Processing $pkg_name: $description"
+                    fi
+                    last_status="$description"
+                fi
+            elif [[ "$line" =~ ^processing: ]]; then
+                # Processing status: processing:package:action
+                local status_part="${line#processing:}"
+                local pkg_name="${status_part%%:*}"
+                local action="${status_part#*:}"
+                log_info "Installing: $pkg_name ($action)"
+            fi
+        done
+    } &
+    local monitor_pid=$!
+    
+    # Wait for upgrade to complete
+    wait $upgrade_pid
+    local exit_code
+    if [[ -f "${upgrade_log}.exitcode" ]]; then
+        exit_code=$(cat "${upgrade_log}.exitcode")
+        rm -f "${upgrade_log}.exitcode"
+    else
+        exit_code=1
+    fi
+    
+    # Clean up monitoring
+    kill $monitor_pid 2>/dev/null || true
+    rm -f "$upgrade_pipe" 2>/dev/null || true
+    
+    return $exit_code
+}
+
 # Update system packages silently
 update_system() {
     if [ "$SYSTEM_UPDATE" = true ]; then
@@ -46,17 +125,60 @@ update_system() {
 
         # Upgrade packages with retry logic for apt lock issues
         local upgrade_log="/tmp/apt_upgrade_$$.log"
-        if ! DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq > "$upgrade_log" 2>&1; then
-            local retry_count=0
-            local max_retries=5
+        local upgrade_progress_log="/tmp/apt_upgrade_progress_$$.log"
+        
+        # Choose upgrade method based on FORCE_ATTENDED_UPGRADE setting
+        if [[ "${FORCE_ATTENDED_UPGRADE:-false}" == "true" ]]; then
+            log_info "Starting attended system package upgrade with progress reporting..."
             
-            # Log the initial error
-            log_warn "Initial upgrade failed. Error details:"
-            head -5 "$upgrade_log" | while read -r line; do
-                log_warn "  $line"
-            done
-            
-            while [ $retry_count -lt $max_retries ]; do
+            # Start upgrade in background with progress monitoring
+            if ! perform_attended_upgrade "$upgrade_log" "$upgrade_progress_log"; then
+                local retry_count=0
+                local max_retries=5
+                
+                # Log the initial error
+                log_warn "Attended upgrade failed. Error details:"
+                head -5 "$upgrade_log" | while read -r line; do
+                    log_warn "  $line"
+                done
+                
+                # Retry with standard method
+                while [ $retry_count -lt $max_retries ]; do
+                    log_warn "Retrying with standard upgrade method (retry $((retry_count+1))/$max_retries)..."
+                    
+                    # Clear log file for retry
+                    > "$upgrade_log"
+                    if DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq > "$upgrade_log" 2>&1; then
+                        log_info "System packages upgraded successfully on attended retry $retry_count"
+                        rm -f "$upgrade_log" "$upgrade_progress_log"
+                        break
+                    fi
+                    
+                    retry_count=$((retry_count + 1))
+                    if [ $retry_count -ge $max_retries ]; then
+                        log_error "Failed to upgrade packages after $max_retries attended retries"
+                        rm -f "$upgrade_log" "$upgrade_progress_log"
+                        return 1
+                    fi
+                    sleep 30
+                done
+            else
+                log_info "Attended system package upgrade completed successfully"
+                rm -f "$upgrade_log" "$upgrade_progress_log"
+            fi
+        else
+            # Standard unattended upgrade (original logic)
+            if ! DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq > "$upgrade_log" 2>&1; then
+                local retry_count=0
+                local max_retries=5
+                
+                # Log the initial error
+                log_warn "Initial upgrade failed. Error details:"
+                head -5 "$upgrade_log" | while read -r line; do
+                    log_warn "  $line"
+                done
+                
+                while [ $retry_count -lt $max_retries ]; do
                 log_warn "Failed to upgrade packages, retrying in 45 seconds (retry $((retry_count+1))/$max_retries)..."
                 
                 # Try to fix common issues before retrying
@@ -134,8 +256,9 @@ update_system() {
                     return 1
                 fi
             done
-        else
-            rm -f "$upgrade_log"
+            else
+                rm -f "$upgrade_log"
+            fi
         fi
         
         log_info "System packages updated successfully"
