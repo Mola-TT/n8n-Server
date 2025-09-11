@@ -273,12 +273,10 @@ run_milestone_7_tests() {
 # Main test execution
 main() {
     log_info "Starting n8n server initialization tests..."
-    echo "=========================================="
+    log_section "Test Execution Summary"
     
     # Milestone 1 Tests
-    echo "=========================================="
-    echo "MILESTONE 1 Tests:"
-    echo "=========================================="
+    log_subsection "MILESTONE 1 Tests:"
     run_test "Directory structure" "test_directories"
     run_test "Required files exist" "test_required_files"
     run_test "Script permissions" "test_script_permissions"

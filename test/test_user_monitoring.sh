@@ -26,7 +26,7 @@ run_test() {
     
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     
-    echo "Running test: $test_name"
+    log_info "Running test: $test_name"
     
     if $test_function; then
         log_pass "✓ $test_name"
@@ -51,7 +51,7 @@ test_monitoring_directories() {
     
     for dir in "${required_dirs[@]}"; do
         if [[ ! -d "$dir" ]]; then
-            echo "Missing monitoring directory: $dir"
+            log_error "Missing monitoring directory: $dir"
             return 1
         fi
     done
@@ -440,13 +440,11 @@ test_system_metrics() {
 
 # Main test execution
 main() {
-    echo "=============================================="
-    echo "User Monitoring Configuration Tests"
-    echo "=============================================="
+    log_section "User Monitoring Configuration Tests"
     
     # Check if user monitoring is enabled
     if [[ "${USER_MONITORING_ENABLED,,}" != "true" ]]; then
-        echo "User monitoring is disabled, skipping tests"
+        log_info "User monitoring is disabled, skipping tests"
         return 0
     fi
     
@@ -465,12 +463,10 @@ main() {
     run_test "Docker user manager" test_docker_user_manager
     run_test "System metrics collection" test_system_metrics
     
-    echo "=============================================="
-    echo "User Monitoring Test Results:"
-    echo "Total tests: $TOTAL_TESTS"
-    echo "Passed: $PASSED_TESTS"
-    echo "Failed: $FAILED_TESTS"
-    echo "=============================================="
+    log_subsection "User Monitoring Test Results:"
+    log_info "Total tests: $TOTAL_TESTS"
+    log_info "Passed: $PASSED_TESTS"
+    log_info "Failed: $FAILED_TESTS"
     
     if [[ $FAILED_TESTS -eq 0 ]]; then
         log_pass "All user monitoring tests passed!"

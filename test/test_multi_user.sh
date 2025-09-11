@@ -26,7 +26,7 @@ run_test() {
     
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     
-    echo "Running test: $test_name"
+    log_info "Running test: $test_name"
     
     if $test_function; then
         log_pass "✓ $test_name"
@@ -383,13 +383,11 @@ test_environment_variables() {
 
 # Main test execution
 main() {
-    echo "=============================================="
-    echo "Multi-User n8n Configuration Tests"
-    echo "=============================================="
+    log_section "Multi-User n8n Configuration Tests"
     
     # Check if multi-user is enabled
     if [[ "${MULTI_USER_ENABLED,,}" != "true" ]]; then
-        echo "Multi-user functionality is disabled, skipping tests"
+        log_info "Multi-user functionality is disabled, skipping tests"
         return 0
     fi
     
@@ -407,12 +405,10 @@ main() {
     run_test "Docker volume mounts" test_docker_volumes
     run_test "Environment variables" test_environment_variables
     
-    echo "=============================================="
-    echo "Multi-User Test Results:"
-    echo "Total tests: $TOTAL_TESTS"
-    echo "Passed: $PASSED_TESTS"
-    echo "Failed: $FAILED_TESTS"
-    echo "=============================================="
+    log_subsection "Multi-User Test Results:"
+    log_info "Total tests: $TOTAL_TESTS"
+    log_info "Passed: $PASSED_TESTS"
+    log_info "Failed: $FAILED_TESTS"
     
     if [[ $FAILED_TESTS -eq 0 ]]; then
         log_pass "All multi-user tests passed!"
