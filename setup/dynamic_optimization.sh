@@ -1149,13 +1149,10 @@ run_optimization() {
 # =============================================================================
 
 configure_msmtp() {
-    # Check if msmtp is properly configured (system or user config exists)
-    if [[ -f "/etc/msmtprc" ]] || [[ -f "$HOME/.msmtprc" ]]; then
-        log_debug "Using existing msmtp configuration"
-        return 0
-    fi
+    # Always create fresh msmtp configuration from current environment variables
+    # This ensures we use the latest email settings from user.env
     
-    # Fallback: Configure msmtp if SMTP settings are available
+    # Configure msmtp if SMTP settings are available
     if [[ -n "${SMTP_SERVER:-}" ]] && [[ -n "${SMTP_USERNAME:-}" ]] && [[ -n "${SMTP_PASSWORD:-}" ]]; then
         local msmtp_config="/tmp/.msmtprc"
         
@@ -1208,6 +1205,9 @@ send_optimization_email_notification() {
         log_debug "EMAIL_RECIPIENT: '${EMAIL_RECIPIENT:-}', EMAIL_SENDER: '${EMAIL_SENDER:-}'"
         return 0
     fi
+    
+    # Debug: Log current email configuration being used
+    log_debug "Using email configuration: FROM=${EMAIL_SENDER}, TO=${EMAIL_RECIPIENT}, SMTP=${SMTP_SERVER}:${SMTP_PORT}"
     
     # Check if email recipient is valid (contains @ and domain, not placeholder)
     if [[ "$EMAIL_RECIPIENT" == "root" ]] || [[ ! "$EMAIL_RECIPIENT" =~ ^[^@]+@[^@]+\.[^@]+$ ]] || [[ "$EMAIL_RECIPIENT" =~ @(example\.|test\.|localhost$) ]]; then
