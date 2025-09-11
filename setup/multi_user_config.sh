@@ -18,6 +18,9 @@ load_environment() {
     if [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
         source "$PROJECT_ROOT/conf/default.env"
     fi
+    
+    # Set environment file path for JWT_SECRET updates
+    ENV_FILE="$PROJECT_ROOT/conf/user.env"
 }
 
 # Create multi-user directory structure
@@ -288,7 +291,14 @@ EOF
     
     # Update environment file with JWT secret
     if [[ -f "$ENV_FILE" ]]; then
-        sed -i "s/^JWT_SECRET=.*/JWT_SECRET=\"$JWT_SECRET\"/" "$ENV_FILE"
+        # Check if JWT_SECRET exists in the file
+        if grep -q "^JWT_SECRET=" "$ENV_FILE"; then
+            # Update existing JWT_SECRET
+            sed -i "s/^JWT_SECRET=.*/JWT_SECRET=\"$JWT_SECRET\"/" "$ENV_FILE"
+        else
+            # Append JWT_SECRET if it doesn't exist
+            echo "JWT_SECRET=\"$JWT_SECRET\"" >> "$ENV_FILE"
+        fi
     fi
     
     # Export for current session
