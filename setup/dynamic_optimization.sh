@@ -129,11 +129,6 @@ detect_cpu_cores() {
     
     CPU_CORES="$cores"
     log_info "CPU cores detected: $CPU_CORES"
-    
-    # Echo the result for subshell capture (suppress in test mode)
-    if [[ "${TEST_MODE:-false}" != "true" ]]; then
-        echo "$cores"
-    fi
     return 0
 }
 
@@ -1221,6 +1216,13 @@ send_optimization_email_notification() {
     if [[ -z "${EMAIL_RECIPIENT:-}" ]] || [[ -z "${EMAIL_SENDER:-}" ]]; then
         log_info "Email notification skipped - email configuration not found"
         log_debug "EMAIL_RECIPIENT: '${EMAIL_RECIPIENT:-}', EMAIL_SENDER: '${EMAIL_SENDER:-}'"
+        return 0
+    fi
+    
+    # Check if email recipient is valid (contains @ and domain)
+    if [[ "$EMAIL_RECIPIENT" == "root" ]] || [[ ! "$EMAIL_RECIPIENT" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
+        log_info "Email notification skipped - invalid recipient address: $EMAIL_RECIPIENT"
+        log_info "Please configure EMAIL_RECIPIENT in conf/user.env with a valid email address"
         return 0
     fi
     
