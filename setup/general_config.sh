@@ -177,20 +177,26 @@ update_system() {
                 local retry_count=0
                 local max_retries=5
                 
-                # Log the initial error
-                log_warn "Attended upgrade failed. Error details:"
-                head -5 "$upgrade_log" | while read -r line; do
-                    log_warn "  $line"
-                done
+                # Check if this is just deferred phasing (normal behavior)
+                if grep -q "deferred due to phasing" "$upgrade_log" 2>/dev/null; then
+                    log_info "Some packages were deferred due to phasing (normal Ubuntu behavior)"
+                    log_info "Proceeding with standard upgrade method to complete remaining packages..."
+                else
+                    # Log the actual error for other failures
+                    log_warn "Attended upgrade failed. Error details:"
+                    head -5 "$upgrade_log" | while read -r line; do
+                        log_warn "  $line"
+                    done
+                fi
                 
                 # Retry with standard method
                 while [ $retry_count -lt $max_retries ]; do
-                    log_warn "Retrying with standard upgrade method (retry $((retry_count+1))/$max_retries)..."
+                    log_info "Retrying with standard upgrade method (retry $((retry_count+1))/$max_retries)..."
                     
                     # Clear log file for retry
                     > "$upgrade_log"
                     if DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq > "$upgrade_log" 2>&1; then
-                        log_info "System packages upgraded successfully on attended retry $retry_count"
+                        log_info "System packages upgraded successfully using standard method"
                         rm -f "$upgrade_log" "$upgrade_progress_log"
                         break
                     fi
