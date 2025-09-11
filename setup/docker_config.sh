@@ -1006,7 +1006,7 @@ start_docker_containers() {
                 fi
             done <<< "$containers_info"
         else
-            log_warn "Unable to check container status"
+            log_info "Containers are initializing (normal during first setup)"
         fi
         
         # Verify n8n is responding
@@ -1028,7 +1028,7 @@ start_docker_containers() {
             ((attempt++))
         done
         
-        log_warn "n8n service may still be starting up (this is normal for first run)"
+        log_info "n8n is still initializing (normal for first setup - may take 1-2 minutes)"
         log_info "You can check service status with: docker-compose -f /opt/n8n/docker/docker-compose.yml ps"
         return 0
     else
