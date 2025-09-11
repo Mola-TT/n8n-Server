@@ -11,6 +11,7 @@ sudo ./init.sh
 # For Updating
 cd ~
 rm -rf n8n-Server
+rm /var/log/server_init.log
 git clone https://github.com/Mola-TT/n8n-Server.git
 cd n8n-Server
 nano conf/user.env
