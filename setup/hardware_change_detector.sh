@@ -337,9 +337,9 @@ validate_email_configuration() {
         return 1
     fi
     
-    # Check if email recipient is valid (contains @ and domain)
-    if [[ "$EMAIL_RECIPIENT" == "root" ]] || [[ ! "$EMAIL_RECIPIENT" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
-        echo "Invalid recipient address: $EMAIL_RECIPIENT (must be a valid email address)"
+    # Check if email recipient is valid (contains @ and domain, not placeholder)
+    if [[ "$EMAIL_RECIPIENT" == "root" ]] || [[ ! "$EMAIL_RECIPIENT" =~ ^[^@]+@[^@]+\.[^@]+$ ]] || [[ "$EMAIL_RECIPIENT" =~ @(example\.|test\.|localhost$) ]]; then
+        echo "Invalid recipient address: $EMAIL_RECIPIENT (must be a real email address, not placeholder)"
         return 1
     fi
     

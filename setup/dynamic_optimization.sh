@@ -165,12 +165,7 @@ detect_memory_gb() {
     MEMORY_MB="$memory_mb"                   # For precise calculations
     MEMORY_GB_PRECISE="$memory_gb_precise"   # For logging actual value
     
-    log_info "Memory detected: ${MEMORY_GB}GB (${memory_mb}MB available, ${memory_gb_precise}GB precise)"
-    
-    # Echo the result for subshell capture (suppress in test mode)
-    if [[ "${TEST_MODE:-false}" != "true" ]]; then
-        echo "$memory_gb_display"
-    fi
+    log_info "Memory detected: ${memory_gb_precise}GB (${memory_mb}MB available)"
     return 0
 }
 
@@ -191,11 +186,6 @@ detect_disk_gb() {
     
     DISK_GB="$disk_size_gb"
     log_info "Disk space detected: ${DISK_GB}GB"
-    
-    # Echo the result for subshell capture (suppress in test mode)
-    if [[ "${TEST_MODE:-false}" != "true" ]]; then
-        echo "$disk_size_gb"
-    fi
     return 0
 }
 
@@ -219,7 +209,7 @@ get_hardware_specs() {
     local memory_gb_precise="$MEMORY_GB_PRECISE"
     local disk_gb="$DISK_GB"
     
-    log_info "Hardware detected: ${cpu_cores} CPU cores, ${memory_gb}GB RAM (${memory_mb}MB), ${disk_gb}GB disk"
+    log_info "Hardware detected: ${cpu_cores} CPU cores, ${memory_gb_precise}GB RAM (${memory_mb}MB), ${disk_gb}GB disk"
     
     # Export for use by other functions
     export HW_CPU_CORES="$cpu_cores"
@@ -1219,10 +1209,10 @@ send_optimization_email_notification() {
         return 0
     fi
     
-    # Check if email recipient is valid (contains @ and domain)
-    if [[ "$EMAIL_RECIPIENT" == "root" ]] || [[ ! "$EMAIL_RECIPIENT" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
-        log_info "Email notification skipped - invalid recipient address: $EMAIL_RECIPIENT"
-        log_info "Please configure EMAIL_RECIPIENT in conf/user.env with a valid email address"
+    # Check if email recipient is valid (contains @ and domain, not placeholder)
+    if [[ "$EMAIL_RECIPIENT" == "root" ]] || [[ ! "$EMAIL_RECIPIENT" =~ ^[^@]+@[^@]+\.[^@]+$ ]] || [[ "$EMAIL_RECIPIENT" =~ @(example\.|test\.|localhost$) ]]; then
+        log_info "Email notification skipped - placeholder or invalid recipient: $EMAIL_RECIPIENT"
+        log_info "Please configure EMAIL_RECIPIENT in conf/user.env with a real email address"
         return 0
     fi
     
