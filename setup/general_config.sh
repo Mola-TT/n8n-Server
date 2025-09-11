@@ -46,15 +46,29 @@ perform_attended_upgrade() {
                 local base_pkg_name="${current_pkg%% (*}"
                 local last_base_name="${last_download_status%% (*}"
                 
+                # Clean up the display text to avoid line wrapping
+                local display_text="$current_pkg"
+                if [[ "$display_text" =~ \([0-9]+min.*remaining\) ]]; then
+                    # Extract just the time part and make it shorter
+                    local time_part="${display_text##*\(}"
+                    time_part="${time_part%\)}"
+                    # Convert "4min 29s remaining" to "4m29s left"
+                    time_part="${time_part//min /m}"
+                    time_part="${time_part//sec/s}"
+                    time_part="${time_part// remaining/ left}"
+                    time_part="${time_part// left/}"
+                    display_text="${base_pkg_name} (${time_part} left)"
+                fi
+                
                 # Only log download progress every 30 seconds or when package changes
                 if [[ "$base_pkg_name" != "$last_base_name" ]]; then
-                    # New package - log immediately
-                    log_info "Downloading: $current_pkg"
+                    # New package/file - log immediately (this ensures file 1 of 6, 2 of 6, etc. are shown)
+                    log_info "Downloading: $display_text"
                     last_download_status="$current_pkg"
                     last_progress_time="$current_time"
                 elif [[ $((current_time - last_progress_time)) -ge $progress_interval ]]; then
                     # Same package - only log every 30 seconds
-                    log_info "Downloading: $current_pkg"
+                    log_info "Downloading: $display_text"
                     last_progress_time="$current_time"
                 fi
             elif [[ "$line" =~ ^pmstatus: ]]; then
