@@ -1302,21 +1302,33 @@ verify_netdata_installation() {
     fi
     log_info "✓ Netdata configuration file exists: $netdata_conf"
     
-    # CRITICAL: Check required directories exist
-    local required_dirs=(
-        "/run/netdata"
-        "/var/lib/netdata"
-        "/opt/netdata/var/lib/netdata"
-        "/opt/netdata/var/cache/netdata"
-    )
+    # Check directories based on installation type
+    local system_dirs=("/run/netdata" "/var/lib/netdata")
+    local official_dirs=("/opt/netdata/var/lib/netdata" "/opt/netdata/var/cache/netdata")
     
-    for dir in "${required_dirs[@]}"; do
+    # Check system directories (always required)
+    for dir in "${system_dirs[@]}"; do
         if [ ! -d "$dir" ]; then
-            log_warn "Required directory missing: $dir"
+            log_info "Creating directory: $dir"
+            sudo mkdir -p "$dir"
+            sudo chown netdata:netdata "$dir" 2>/dev/null || true
         else
             log_info "✓ Required directory exists: $dir"
         fi
     done
+    
+    # Check official installer directories only if they should exist
+    if [ -d "/opt/netdata" ]; then
+        for dir in "${official_dirs[@]}"; do
+            if [ ! -d "$dir" ]; then
+                log_info "Creating directory: $dir"
+                sudo mkdir -p "$dir"
+                sudo chown netdata:netdata "$dir" 2>/dev/null || true
+            else
+                log_info "✓ Required directory exists: $dir"
+            fi
+        done
+    fi
     
     # Check if required files exist
     local required_files=(
