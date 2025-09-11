@@ -19,7 +19,7 @@ perform_attended_upgrade() {
     
     # Start upgrade process in background
     {
-        DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Progress-Fancy="true" \
+        DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Progress-Fancy="false" \
             -o APT::Status-Fd=3 3>"$upgrade_pipe" > "$upgrade_log" 2>&1
         echo $? > "${upgrade_log}.exitcode"
     } &
@@ -70,6 +70,16 @@ perform_attended_upgrade() {
                 local pkg_name="${status_part%%:*}"
                 local action="${status_part#*:}"
                 log_info "Installing: $pkg_name ($action)"
+            else
+                # Suppress any other frequent status messages that don't match expected patterns
+                # Only log unexpected messages with throttling to avoid spam
+                if [[ $((current_time - last_progress_time)) -ge $progress_interval ]]; then
+                    # Check if this looks like a progress/download message
+                    if [[ "$line" =~ (Retrieving|Downloading|file.*of.*remaining) ]]; then
+                        log_info "Download progress: $(echo "$line" | cut -c1-80)..."
+                        last_progress_time="$current_time"
+                    fi
+                fi
             fi
         done
     } &
