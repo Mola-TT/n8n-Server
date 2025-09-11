@@ -43,9 +43,14 @@ perform_attended_upgrade() {
                 local current_pkg="${status_part##*:}"
                 
                 # Only log download progress every 30 seconds or when package changes
-                if [[ "$current_pkg" != "$last_download_status" ]] || [[ $((current_time - last_progress_time)) -ge $progress_interval ]]; then
+                if [[ "$current_pkg" != "$last_download_status" ]]; then
+                    # New package - log immediately
                     log_info "Downloading: $current_pkg"
                     last_download_status="$current_pkg"
+                    last_progress_time="$current_time"
+                elif [[ $((current_time - last_progress_time)) -ge $progress_interval ]]; then
+                    # Same package - only log every 30 seconds
+                    log_info "Downloading: $current_pkg"
                     last_progress_time="$current_time"
                 fi
             elif [[ "$line" =~ ^pmstatus: ]]; then
@@ -77,7 +82,7 @@ perform_attended_upgrade() {
                     # Check if this looks like a progress/download message
                     if [[ "$line" =~ (Retrieving|Downloading|file.*of.*remaining) ]]; then
                         log_info "Download progress: $(echo "$line" | cut -c1-80)..."
-                        last_progress_time="$current_time"
+                        # Don't update last_progress_time here to avoid interference with dlstatus timing
                     fi
                 fi
             fi
