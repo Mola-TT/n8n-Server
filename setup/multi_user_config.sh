@@ -287,14 +287,17 @@ EOF
 
     # Generate JWT secret
     JWT_SECRET=$(openssl rand -base64 32)
-    sed -i "s/REPLACE_WITH_ACTUAL_JWT_SECRET/$JWT_SECRET/" /opt/n8n/user-configs/auth-config.json
+    # Escape special characters for sed
+    JWT_SECRET_ESCAPED=$(printf '%s\n' "$JWT_SECRET" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    sed -i "s/REPLACE_WITH_ACTUAL_JWT_SECRET/$JWT_SECRET_ESCAPED/" /opt/n8n/user-configs/auth-config.json
     
     # Update environment file with JWT secret
     if [[ -f "$ENV_FILE" ]]; then
         # Check if JWT_SECRET exists in the file
         if grep -q "^JWT_SECRET=" "$ENV_FILE"; then
-            # Update existing JWT_SECRET
-            sed -i "s/^JWT_SECRET=.*/JWT_SECRET=\"$JWT_SECRET\"/" "$ENV_FILE"
+            # Update existing JWT_SECRET using a different approach to avoid sed escaping issues
+            grep -v "^JWT_SECRET=" "$ENV_FILE" > "${ENV_FILE}.tmp" && mv "${ENV_FILE}.tmp" "$ENV_FILE"
+            echo "JWT_SECRET=\"$JWT_SECRET\"" >> "$ENV_FILE"
         else
             # Append JWT_SECRET if it doesn't exist
             echo "JWT_SECRET=\"$JWT_SECRET\"" >> "$ENV_FILE"
