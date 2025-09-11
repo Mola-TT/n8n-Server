@@ -998,9 +998,11 @@ start_docker_containers() {
                 if [[ -n "$name" ]]; then
                     local status_msg="$name: $state"
                     if [[ -n "$ports" && "$ports" != "" ]]; then
-                        # Extract just the essential port info
-                        local simplified_ports=$(echo "$ports" | sed 's/0\.0\.0\.0://g' | sed 's/\[::\]://g' | sed 's/->/→/g')
-                        status_msg="$status_msg (ports: $simplified_ports)"
+                        # Show just the main port mapping, remove duplicates and IPs
+                        local main_port=$(echo "$ports" | grep -o '[0-9]*:[0-9]*/[a-z]*' | head -1)
+                        if [[ -n "$main_port" ]]; then
+                            status_msg="$status_msg ($main_port)"
+                        fi
                     fi
                     log_info "$status_msg"
                 fi
