@@ -42,8 +42,12 @@ perform_attended_upgrade() {
                 local status_part="${line#dlstatus:}"
                 local current_pkg="${status_part##*:}"
                 
+                # Extract base package name without time estimates for comparison
+                local base_pkg_name="${current_pkg%% (*}"
+                local last_base_name="${last_download_status%% (*}"
+                
                 # Only log download progress every 30 seconds or when package changes
-                if [[ "$current_pkg" != "$last_download_status" ]]; then
+                if [[ "$base_pkg_name" != "$last_base_name" ]]; then
                     # New package - log immediately
                     log_info "Downloading: $current_pkg"
                     last_download_status="$current_pkg"
