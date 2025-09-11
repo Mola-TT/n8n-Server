@@ -26,7 +26,7 @@ run_test() {
     
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     
-    echo "Running test: $test_name"
+    log_info "Running test: $test_name"
     
     if $test_function; then
         log_pass "✓ $test_name"
@@ -420,13 +420,11 @@ test_network_connectivity() {
 
 # Main test execution
 main() {
-    echo "=============================================="
-    echo "Cross-Server Communication Tests"
-    echo "=============================================="
+    log_section "Cross-Server Communication Tests"
     
     # Check if cross-server communication is enabled
     if [[ "${API_AUTH_ENABLED,,}" != "true" ]]; then
-        echo "Cross-server communication is disabled, skipping tests"
+        log_info "Cross-server communication is disabled, skipping tests"
         return 0
     fi
     
@@ -448,12 +446,10 @@ main() {
     run_test "Configuration file permissions" test_config_permissions
     run_test "Network connectivity" test_network_connectivity
     
-    echo "=============================================="
-    echo "Cross-Server Communication Test Results:"
-    echo "Total tests: $TOTAL_TESTS"
-    echo "Passed: $PASSED_TESTS"
-    echo "Failed: $FAILED_TESTS"
-    echo "=============================================="
+    log_subsection "Cross-Server Communication Test Results:"
+    log_info "Total tests: $TOTAL_TESTS"
+    log_info "Passed: $PASSED_TESTS"
+    log_info "Failed: $FAILED_TESTS"
     
     if [[ $FAILED_TESTS -eq 0 ]]; then
         log_pass "All cross-server communication tests passed!"

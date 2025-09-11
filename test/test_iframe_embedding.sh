@@ -26,7 +26,7 @@ run_test() {
     
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     
-    echo "Running test: $test_name"
+    log_info "Running test: $test_name"
     
     if $test_function; then
         log_pass "✓ $test_name"
@@ -375,13 +375,11 @@ test_javascript_configs() {
 
 # Main test execution
 main() {
-    echo "=============================================="
-    echo "Iframe Embedding Configuration Tests"
-    echo "=============================================="
+    log_section "Iframe Embedding Configuration Tests"
     
     # Check if iframe embedding is enabled
     if [[ "${IFRAME_EMBEDDING_ENABLED,,}" != "true" ]]; then
-        echo "Iframe embedding is disabled, skipping tests"
+        log_info "Iframe embedding is disabled, skipping tests"
         return 0
     fi
     
@@ -401,12 +399,10 @@ main() {
     run_test "HTTP headers" test_http_headers
     run_test "HTTPS headers" test_https_headers
     
-    echo "=============================================="
-    echo "Iframe Embedding Test Results:"
-    echo "Total tests: $TOTAL_TESTS"
-    echo "Passed: $PASSED_TESTS"
-    echo "Failed: $FAILED_TESTS"
-    echo "=============================================="
+    log_subsection "Iframe Embedding Test Results:"
+    log_info "Total tests: $TOTAL_TESTS"
+    log_info "Passed: $PASSED_TESTS"
+    log_info "Failed: $FAILED_TESTS"
     
     if [[ $FAILED_TESTS -eq 0 ]]; then
         log_pass "All iframe embedding tests passed!"

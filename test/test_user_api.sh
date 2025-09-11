@@ -26,7 +26,7 @@ run_test() {
     
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     
-    echo "Running test: $test_name"
+    log_info "Running test: $test_name"
     
     if $test_function; then
         log_pass "✓ $test_name"
@@ -472,13 +472,11 @@ EOF
 
 # Main test execution
 main() {
-    echo "=============================================="
-    echo "User Management API Tests"
-    echo "=============================================="
+    log_section "User Management API Tests"
     
     # Check if user management API is enabled
     if [[ "${USER_API_ENABLED,,}" != "true" ]]; then
-        echo "User management API is disabled, skipping tests"
+        log_info "User management API is disabled, skipping tests"
         return 0
     fi
     
@@ -500,12 +498,10 @@ main() {
     run_test "API configuration files" test_api_config_files
     run_test "Health endpoint structure" test_health_endpoint
     
-    echo "=============================================="
-    echo "User Management API Test Results:"
-    echo "Total tests: $TOTAL_TESTS"
-    echo "Passed: $PASSED_TESTS"
-    echo "Failed: $FAILED_TESTS"
-    echo "=============================================="
+    log_subsection "User Management API Test Results:"
+    log_info "Total tests: $TOTAL_TESTS"
+    log_info "Passed: $PASSED_TESTS"
+    log_info "Failed: $FAILED_TESTS"
     
     if [[ $FAILED_TESTS -eq 0 ]]; then
         log_pass "All user management API tests passed!"

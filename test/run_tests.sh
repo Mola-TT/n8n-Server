@@ -199,9 +199,7 @@ run_milestone_6_tests() {
 # =============================================================================
 
 run_milestone_7_tests() {
-    echo "=================================================================================="
-    echo "MILESTONE 7 TESTS - Multi-User n8n Configuration"
-    echo "=================================================================================="
+    log_section "MILESTONE 7 TESTS - Multi-User n8n Configuration"
     
     local milestone_7_passed=0
     local milestone_7_failed=0
