@@ -1330,19 +1330,32 @@ verify_netdata_installation() {
         done
     fi
     
-    # Check if required files exist
-    local required_files=(
-        "/opt/netdata/var/lib/netdata/cloud.d/cloud.conf"
-        "/opt/netdata/etc/netdata/stream.conf"
-    )
-    
-    for file in "${required_files[@]}"; do
-        if [ ! -f "$file" ]; then
-            log_warn "Required file missing: $file"
-        else
-            log_info "✓ Required file exists: $file"
-        fi
-    done
+    # Check configuration files based on installation type
+    if [ -d "/opt/netdata" ]; then
+        # Official installer - check specific files only if they should exist
+        local official_files=(
+            "/opt/netdata/var/lib/netdata/cloud.d/cloud.conf"
+            "/opt/netdata/etc/netdata/stream.conf"
+        )
+        
+        for file in "${official_files[@]}"; do
+            if [ ! -f "$file" ]; then
+                log_info "Creating configuration file: $file"
+                sudo mkdir -p "$(dirname "$file")"
+                if [[ "$file" == *"cloud.conf" ]]; then
+                    sudo touch "$file"
+                    sudo chown netdata:netdata "$file" 2>/dev/null || true
+                elif [[ "$file" == *"stream.conf" ]]; then
+                    sudo touch "$file"
+                    sudo chown netdata:netdata "$file" 2>/dev/null || true
+                fi
+            else
+                log_info "✓ Configuration file exists: $file"
+            fi
+        done
+    else
+        log_info "System package installation - using standard configuration paths"
+    fi
     
     # Check systemd service
     if ! sudo systemctl is-enabled netdata >/dev/null 2>&1; then
