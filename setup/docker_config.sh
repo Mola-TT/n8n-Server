@@ -1377,7 +1377,7 @@ create_environment_file() {
         db_ssl_reject_unauthorized="true"
         node_tls_reject_unauthorized="1"
     else
-        log_info "Development mode: enabling SSL but disabling certificate validation for self-signed certificates"
+        log_info "Development mode: SSL enabled with relaxed certificate validation"
         db_ssl_reject_unauthorized="false"
         node_tls_reject_unauthorized="0"
     fi
