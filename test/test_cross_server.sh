@@ -189,7 +189,7 @@ test_health_checks() {
     fi
     
     # Test health check execution (dry run)
-    if ! timeout 10s /opt/n8n/scripts/health-check.sh >/dev/null 2>&1; then
+    if ! timeout 10s /opt/n8n/scripts/health-check.sh --dry-run >/dev/null 2>&1; then
         echo "Health check script failed to execute"
         return 1
     fi

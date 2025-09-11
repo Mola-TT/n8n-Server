@@ -634,6 +634,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 EOF
     
+    # Replace template variables in the JavaScript files
+    sed -i "s/\${WEBAPP_DOMAIN}/${WEBAPP_DOMAIN//\//\\/}/g" /opt/n8n/scripts/iframe-security.js
+    sed -i "s/\${WEBAPP_DOMAIN_ALT}/${WEBAPP_DOMAIN_ALT//\//\\/}/g" /opt/n8n/scripts/iframe-security.js
+    sed -i "s/\${N8N_DOMAIN}/${N8N_DOMAIN//\//\\/}/g" /opt/n8n/scripts/iframe-security.js
+    
     log_pass "Security middleware created"
 }
 

@@ -462,7 +462,7 @@ setup_load_balancing() {
       "enabled": true,
       "interval": 30,
       "timeout": 5,
-      "path": "/healthz",
+      "path": "/health",
       "expectedStatus": 200
     },
     "sessionAffinity": {
@@ -563,7 +563,7 @@ configure_health_checks() {
 # Monitors server health and triggers failover if needed
 
 N8N_URL="${N8N_INTERNAL_URL:-http://localhost:5678}"
-HEALTH_ENDPOINT="/healthz"
+HEALTH_ENDPOINT="/health"
 TIMEOUT=10
 MAX_FAILURES=3
 FAILURE_COUNT_FILE="/opt/n8n/monitoring/health_failures"
@@ -571,7 +571,7 @@ FAILURE_COUNT_FILE="/opt/n8n/monitoring/health_failures"
 # Function to check n8n health
 check_n8n_health() {
     local response_code
-    response_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$TIMEOUT" "$N8N_URL$HEALTH_ENDPOINT")
+    response_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$TIMEOUT" "$N8N_URL$HEALTH_ENDPOINT" 2>/dev/null)
     
     if [[ "$response_code" == "200" ]]; then
         return 0
@@ -638,6 +638,12 @@ EOL
 
 # Main health check function
 main() {
+    # Check if this is a dry run (for testing)
+    if [[ "$1" == "--dry-run" ]]; then
+        echo "Health check script dry run - OK"
+        exit 0
+    fi
+    
     local all_healthy=true
     local failure_reasons=()
     

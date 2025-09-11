@@ -344,10 +344,7 @@ server {
     add_header X-Content-Type-Options nosniff always;
     
     # Redirect all HTTP traffic to HTTPS
-    if (\$host = ${NGINX_SERVER_NAME:-localhost}) {
-        return 301 https://\$host\$request_uri;
-    }
-    return 404;
+    return 301 https://\$host\$request_uri;
 }
 
 # HTTPS server block (main configuration)

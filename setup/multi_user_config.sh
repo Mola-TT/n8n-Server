@@ -32,7 +32,6 @@ create_user_directories() {
     # User management directories
     execute_silently "sudo mkdir -p /opt/n8n/user-sessions"
     execute_silently "sudo mkdir -p /opt/n8n/user-configs"
-    execute_silently "sudo mkdir -p /opt/n8n/user-metrics"
     execute_silently "sudo mkdir -p /opt/n8n/user-logs"
     
     # Set proper permissions
@@ -132,7 +131,7 @@ cat > "$BASE_DIR/user-config.json" << EOL
 EOL
 
 # Create user metrics file
-cat > "/opt/n8n/user-metrics/$USER_ID.json" << EOL
+cat > "/opt/n8n/monitoring/metrics/$USER_ID.json" << EOL
 {
   "userId": "$USER_ID",
   "metrics": {
@@ -194,7 +193,7 @@ fi
 rm -rf "$BASE_DIR"
 
 # Remove user metrics
-rm -f "/opt/n8n/user-metrics/$USER_ID.json"
+rm -f "/opt/n8n/monitoring/metrics/$USER_ID.json"
 
 # Remove user session files
 rm -f "/opt/n8n/user-sessions/$USER_ID"*
@@ -286,6 +285,14 @@ EOF
     # Generate JWT secret
     JWT_SECRET=$(openssl rand -base64 32)
     sed -i "s/REPLACE_WITH_ACTUAL_JWT_SECRET/$JWT_SECRET/" /opt/n8n/user-configs/auth-config.json
+    
+    # Update environment file with JWT secret
+    if [[ -f "$ENV_FILE" ]]; then
+        sed -i "s/^JWT_SECRET=.*/JWT_SECRET=\"$JWT_SECRET\"/" "$ENV_FILE"
+    fi
+    
+    # Export for current session
+    export JWT_SECRET
     
     log_pass "User authentication configured"
 }
