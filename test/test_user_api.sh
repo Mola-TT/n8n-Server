@@ -349,15 +349,39 @@ test_api_port() {
 
 # Test JWT secret configuration
 test_jwt_secret() {
-    # Check if JWT_SECRET is set
+    # Check if JWT_SECRET is set in environment
+    if [[ -n "$JWT_SECRET" ]] && [[ ${#JWT_SECRET} -ge 32 ]]; then
+        return 0
+    fi
+    
+    # If not set in environment, try to load from user.env file
+    local project_root="$(cd "$(dirname "$0")/.." && pwd)"
+    if [[ -f "$project_root/conf/user.env" ]]; then
+        source "$project_root/conf/user.env"
+        if [[ -n "$JWT_SECRET" ]] && [[ ${#JWT_SECRET} -ge 32 ]]; then
+            return 0
+        fi
+    fi
+    
+    # Check if it exists in auth-config.json (created during multi-user setup)
+    if [[ -f "/opt/n8n/user-configs/auth-config.json" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            local jwt_from_config=$(jq -r '.authentication.jwtSecret' "/opt/n8n/user-configs/auth-config.json" 2>/dev/null)
+            if [[ -n "$jwt_from_config" ]] && [[ "$jwt_from_config" != "null" ]] && [[ "$jwt_from_config" != "REPLACE_WITH_ACTUAL_JWT_SECRET" ]] && [[ ${#jwt_from_config} -ge 32 ]]; then
+                return 0
+            fi
+        fi
+    fi
+    
+    # Final fallback: check if JWT_SECRET exists anywhere in configuration
     if [[ -z "$JWT_SECRET" ]]; then
-        echo "JWT_SECRET environment variable not set"
+        echo "JWT_SECRET not found in environment variables, user.env, or auth-config.json"
         return 1
     fi
     
     # Check JWT secret length (should be at least 32 characters)
     if [[ ${#JWT_SECRET} -lt 32 ]]; then
-        echo "JWT_SECRET is too short (should be at least 32 characters)"
+        echo "JWT_SECRET is too short (should be at least 32 characters): ${#JWT_SECRET} characters"
         return 1
     fi
     
