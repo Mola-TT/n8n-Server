@@ -246,9 +246,9 @@ log_section() {
   local right_padding=$(printf "%*s" $right_padding_len | tr ' ' "$separator_char")
   
   echo ""
-  log_info "$separator"
-  log_info "$left_padding $header_text $right_padding"
-  log_info "$separator"
+  echo "$separator"
+  echo "$left_padding $header_text $right_padding"
+  echo "$separator"
 }
 
 # Log subsection header with visual separator
@@ -260,9 +260,9 @@ log_subsection() {
   local separator=$(printf "%*s" $separator_length | tr ' ' "$separator_char")
   
   echo ""
-  log_info "$separator"
-  log_info "$subsection_name"
-  log_info "$separator"
+  echo "$separator"
+  echo "$subsection_name"
+  echo "$separator"
 }
 
 # Execute command with enhanced logging and output capture
