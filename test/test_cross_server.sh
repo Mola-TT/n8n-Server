@@ -273,7 +273,7 @@ test_health_check_cron() {
 test_ufw_rules() {
     # Skip if UFW is not installed
     if ! command -v ufw >/dev/null 2>&1; then
-        echo "UFW not installed, skipping firewall tests"
+        log_info "UFW not installed, skipping firewall tests"
         return 0
     fi
     
@@ -308,7 +308,7 @@ test_ufw_rules() {
 test_api_endpoints() {
     # Skip if n8n is not running
     if ! curl -s "http://localhost:5678" >/dev/null 2>&1; then
-        echo "n8n server not accessible, skipping API endpoint tests"
+        log_info "n8n server not accessible, skipping API endpoint tests"
         return 0
     fi
     
@@ -325,7 +325,7 @@ test_api_endpoints() {
 test_webhook_signatures() {
     # Test if openssl is available for signature generation
     if ! command -v openssl >/dev/null 2>&1; then
-        echo "OpenSSL not available for webhook signatures"
+        log_info "OpenSSL not available for webhook signatures"
         return 1
     fi
     

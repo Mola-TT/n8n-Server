@@ -310,7 +310,7 @@ test_iframe_environment() {
 test_http_headers() {
     # Skip if server is not running
     if ! curl -s -I "http://localhost:${NGINX_HTTP_PORT:-80}" >/dev/null 2>&1; then
-        echo "Server not accessible, skipping HTTP header tests"
+        log_info "Server not accessible, skipping HTTP header tests"
         return 0
     fi
     
@@ -328,7 +328,7 @@ test_http_headers() {
 test_https_headers() {
     # Skip if HTTPS server is not accessible
     if ! curl -s -k -I "https://localhost:${NGINX_HTTPS_PORT:-443}" >/dev/null 2>&1; then
-        echo "HTTPS server not accessible, skipping HTTPS header tests"
+        log_info "HTTPS server not accessible, skipping HTTPS header tests"
         return 0
     fi
     

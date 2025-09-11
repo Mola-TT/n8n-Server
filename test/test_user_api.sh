@@ -200,7 +200,7 @@ test_api_documentation() {
 test_api_dependencies() {
     # Skip if npm is not available
     if ! command -v npm >/dev/null 2>&1; then
-        echo "npm not available, skipping dependency test"
+        log_info "npm not available, skipping dependency test"
         return 0
     fi
     
@@ -228,7 +228,7 @@ test_api_dependencies() {
 test_api_server_startup() {
     # Skip if Node.js is not available
     if ! command -v node >/dev/null 2>&1; then
-        echo "Node.js not available, skipping server startup test"
+        log_info "Node.js not available, skipping server startup test"
         return 0
     fi
     
