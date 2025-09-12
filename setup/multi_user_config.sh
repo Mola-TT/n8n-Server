@@ -287,9 +287,8 @@ EOF
 
     # Generate JWT secret
     JWT_SECRET=$(openssl rand -base64 32)
-    # Escape special characters for sed
-    JWT_SECRET_ESCAPED=$(printf '%s\n' "$JWT_SECRET" | sed 's/[[\.*^$()+?{|]/\\&/g')
-    sed -i "s/REPLACE_WITH_ACTUAL_JWT_SECRET/$JWT_SECRET_ESCAPED/" /opt/n8n/user-configs/auth-config.json
+    # Use a safer approach without complex sed escaping
+    sed -i "s|REPLACE_WITH_ACTUAL_JWT_SECRET|$JWT_SECRET|" /opt/n8n/user-configs/auth-config.json
     
     # Update environment file with JWT secret
     if [[ -f "$ENV_FILE" ]]; then
