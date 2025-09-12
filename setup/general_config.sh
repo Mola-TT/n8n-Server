@@ -186,10 +186,13 @@ update_system() {
                 local retry_count=0
                 local max_retries=5
                 
-                # Check if this is just deferred phasing (normal behavior)
+                # Check if this is just deferred phasing or kept back packages (normal behavior)
                 if grep -q "deferred due to phasing" "$upgrade_log" 2>/dev/null; then
                     log_info "Some packages were deferred due to phasing (normal Ubuntu behavior)"
                     log_info "Proceeding with standard upgrade method to complete remaining packages..."
+                elif grep -q "kept back" "$upgrade_log" 2>/dev/null; then
+                    log_info "Some packages were kept back (normal Ubuntu behavior when dependencies change)"
+                    log_info "Proceeding with standard upgrade method to handle kept back packages..."
                 else
                     # Log the actual error for other failures
                     log_warn "Attended upgrade failed. Error details:"
