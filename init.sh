@@ -80,9 +80,9 @@ display_banner() {
     if command -v log_section >/dev/null 2>&1; then
         log_section "n8n Server Initialization"
     else
-        echo "-----------------------------------------------"
+        echo "================================================================================"
         echo "n8n Server Initialization"
-        echo "-----------------------------------------------"
+        echo "================================================================================"
     fi
     log_info "Starting initialization process"
 }
@@ -207,52 +207,52 @@ main() {
     if command -v log_subsection >/dev/null 2>&1; then
         log_subsection "MILESTONE 2: Docker Infrastructure Setup"
     else
-        echo "-----------------------------------------------"
+        echo "================================================================================"
         echo "MILESTONE 2: Docker Infrastructure Setup"
-        echo "-----------------------------------------------"
+        echo "================================================================================"
     fi
     log_info "Note: Docker and Docker Compose will be automatically installed if not present"
     setup_docker_infrastructure
     
     # Set up Nginx infrastructure (Milestone 3)
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     echo "MILESTONE 3: Nginx Reverse Proxy Setup"
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     log_info "Note: Nginx will be configured as a secure reverse proxy for n8n"
     setup_nginx_infrastructure
     
     # Set up Netdata monitoring (Milestone 4)
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     echo "MILESTONE 4: Netdata Monitoring Setup"
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     log_info "Note: Netdata will be configured for system resource monitoring with secure access"
     setup_netdata_monitoring
     
     # Set up SSL certificate management (Milestone 5)
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     echo "MILESTONE 5: SSL Certificate Management Setup"
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     log_info "Note: SSL certificates will be configured for automatic renewal"
     setup_ssl_certificate_management
     
     # Set up dynamic hardware optimization (Milestone 6)
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     echo "MILESTONE 6: Dynamic Hardware Optimization Setup"
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     log_info "Note: Dynamic optimization will be configured for automatic hardware-based tuning"
     setup_dynamic_optimization
     
     # Set up multi-user n8n configuration (Milestone 7)
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     echo "MILESTONE 7: Multi-User n8n Configuration Setup"
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     log_info "Note: Multi-user functionality with iframe embedding and monitoring will be configured"
     setup_multiuser_n8n
     
     # Print setup summary
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     echo "SETUP SUMMARY"
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     log_info "✓ Script permissions: SUCCESS"
     log_info "✓ System update: SUCCESS"
     log_info "✓ Timezone configuration: SUCCESS"
@@ -264,7 +264,7 @@ main() {
     log_info "✓ SSL certificate management: SUCCESS"
     log_info "✓ Dynamic hardware optimization: SUCCESS"
     log_info "✓ Multi-user n8n configuration: SUCCESS"
-    echo "-----------------------------------------------"
+    echo "================================================================================"
     
     log_info "Initialization COMPLETE"
     echo ""
