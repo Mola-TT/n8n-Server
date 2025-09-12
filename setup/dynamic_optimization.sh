@@ -70,9 +70,9 @@ load_environment_config() {
 # Load environment configuration at startup
 load_environment_config
 
-# =============================================================================
+# ==============================================================================
 # Hardware Detection Constants and Limits
-# =============================================================================
+# ==============================================================================
 
 if [[ "$SKIP_VARIABLE_DECLARATIONS" != "true" ]]; then
     # CPU cores limits
@@ -88,9 +88,9 @@ if [[ "$SKIP_VARIABLE_DECLARATIONS" != "true" ]]; then
     [[ -z "${DISK_MIN_GB:-}" ]] && readonly DISK_MIN_GB=10
     [[ -z "${DISK_MAX_GB:-}" ]] && readonly DISK_MAX_GB=10000
 
-    # =============================================================================
+    # ==============================================================================
     # Optimization Parameters and Ratios
-    # =============================================================================
+    # ==============================================================================
 
     # Optimization ratios and constants
     N8N_EXECUTION_PROCESS_RATIO=0.75
@@ -107,9 +107,9 @@ if [[ "$SKIP_VARIABLE_DECLARATIONS" != "true" ]]; then
     BACKUP_DIR="/opt/n8n/backups/optimization"
 fi
 
-# =============================================================================
+# ==============================================================================
 # HARDWARE DETECTION FUNCTIONS
-# =============================================================================
+# ==============================================================================
 
 detect_cpu_cores() {
     log_info "Detecting CPU cores..."
@@ -219,9 +219,9 @@ get_hardware_specs() {
     export HW_DISK_GB="$disk_gb"
 }
 
-# =============================================================================
+# ==============================================================================
 # OPTIMIZATION CALCULATION FUNCTIONS
-# =============================================================================
+# ==============================================================================
 
 calculate_n8n_parameters() {
     # Support both HW_* variables (from get_hardware_specs) and direct variables (for tests)
@@ -448,9 +448,9 @@ calculate_netdata_parameters() {
     log_info "Netdata parameters: ${update_every}s updates, ${memory_limit_mb}MB memory, ${history_hours}h history"
 }
 
-# =============================================================================
+# ==============================================================================
 # INDIVIDUAL CALCULATION FUNCTIONS (For Test Compatibility)
-# =============================================================================
+# ==============================================================================
 
 calculate_docker_memory() {
     # Support both HW_* variables (from get_hardware_specs) and direct variables (for tests)
@@ -536,9 +536,9 @@ calculate_redis_memory() {
     echo "${redis_memory_mb}MB"
 }
 
-# =============================================================================
+# ==============================================================================
 # CONFIGURATION UPDATE FUNCTIONS
-# =============================================================================
+# ==============================================================================
 
 backup_configurations() {
     log_info "Creating configuration backups..."
@@ -762,9 +762,9 @@ update_netdata_configuration() {
     log_info "Netdata configuration updated successfully"
 }
 
-# =============================================================================
+# ==============================================================================
 # Performance Testing Functions with Resource Limits
-# =============================================================================
+# ==============================================================================
 
 test_parameter_calculation_performance() {
     log_info "Testing parameter calculation performance with resource limits..."
@@ -849,9 +849,9 @@ test_hardware_detection_performance() {
     return 0
 }
 
-# =============================================================================
+# ==============================================================================
 # SERVICE MANAGEMENT FUNCTIONS
-# =============================================================================
+# ==============================================================================
 
 restart_services() {
     log_info "Restarting services to apply optimizations..."
@@ -968,9 +968,9 @@ verify_optimization() {
     return $verification_failed
 }
 
-# =============================================================================
+# ==============================================================================
 # REPORTING FUNCTIONS
-# =============================================================================
+# ==============================================================================
 
 generate_optimization_report() {
     # Default report file path with timestamp format that tests expect
@@ -1082,9 +1082,9 @@ generate_performance_recommendations() {
     echo "Next optimization should be run when hardware changes are detected."
 }
 
-# =============================================================================
+# ==============================================================================
 # MAIN OPTIMIZATION FUNCTION
-# =============================================================================
+# ==============================================================================
 
 run_optimization() {
     local start_time
@@ -1144,9 +1144,9 @@ run_optimization() {
     return 0
 }
 
-# =============================================================================
+# ==============================================================================
 # EMAIL NOTIFICATION FUNCTIONS
-# =============================================================================
+# ==============================================================================
 
 configure_msmtp() {
     # Always create fresh msmtp configuration from current environment variables
@@ -1337,9 +1337,9 @@ If you receive this email, the optimization email notifications are working corr
     fi
 }
 
-# =============================================================================
+# ==============================================================================
 # INITIALIZATION SETUP FUNCTION
-# =============================================================================
+# ==============================================================================
 
 setup_dynamic_optimization() {
     log_info "Setting up dynamic hardware optimization infrastructure..."
@@ -1401,9 +1401,9 @@ setup_dynamic_optimization() {
     log_info "Optimization can be re-run manually with: bash $PROJECT_ROOT/setup/dynamic_optimization.sh --optimize"
 }
 
-# =============================================================================
+# ==============================================================================
 # COMMAND LINE INTERFACE
-# =============================================================================
+# ==============================================================================
 
 show_help() {
     cat << EOF
