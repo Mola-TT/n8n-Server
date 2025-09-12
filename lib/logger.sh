@@ -37,7 +37,7 @@ declare -A LOG_LEVELS
 LOG_LEVELS=([DEBUG]=0 [INFO]=1 [WARNING]=2 [ERROR]=3 [PASS]=1)
 
 # Maximum width for log messages
-MAX_LOG_WIDTH=120
+MAX_LOG_WIDTH=150
 
 # Padding for levels to ensure alignment
 LEVEL_PADDING=9  # Allow for longest level (WARNING) plus some spacing
@@ -82,11 +82,11 @@ log() {
     local term_width
     if command -v tput >/dev/null 2>&1; then
       term_width=$(tput cols 2>/dev/null || echo "$MAX_LOG_WIDTH")
-      # Ensure width is reasonable (between 80 and 200 chars)
-      if [ "$term_width" -lt 80 ]; then
-        term_width=80
-      elif [ "$term_width" -gt 200 ]; then
-        term_width=200
+      # Ensure width is reasonable (between 120 and 250 chars) - increased for better download progress display
+      if [ "$term_width" -lt 120 ]; then
+        term_width=120
+      elif [ "$term_width" -gt 250 ]; then
+        term_width=250
       fi
     else
       term_width=$MAX_LOG_WIDTH
@@ -97,8 +97,8 @@ log() {
     local prefix_no_color="[${timestamp}] [${level}]${padding}"
     local prefix_len=${#prefix_no_color}
     
-    # Calculate max message length
-    local max_msg_len=$((term_width - prefix_len - 2))  # -2 for good measure
+    # Calculate max message length - be more generous to avoid wrapping download progress
+    local max_msg_len=$((term_width - prefix_len - 1))  # -1 for minimal padding
     
     # Handle multi-line messages properly
     if [[ "$message" == *$'\n'* ]]; then
