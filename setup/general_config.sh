@@ -48,16 +48,20 @@ perform_attended_upgrade() {
                 
                 # Clean up the display text to avoid line wrapping
                 local display_text="$current_pkg"
-                if [[ "$display_text" =~ \([0-9]+min.*remaining\) ]]; then
-                    # Extract just the time part and make it shorter
+                if [[ "$display_text" =~ \([0-9]+.*remaining\) ]]; then
+                    # Extract just the time part and make it much shorter
                     local time_part="${display_text##*\(}"
                     time_part="${time_part%\)}"
-                    # Convert "4min 29s remaining" to "4m29s left"
+                    # Convert "4min 29s remaining" to "4m29s"
                     time_part="${time_part//min /m}"
                     time_part="${time_part//sec/s}"
-                    time_part="${time_part// remaining/ left}"
+                    time_part="${time_part// remaining/}"
                     time_part="${time_part// left/}"
-                    display_text="${base_pkg_name} (${time_part} left)"
+                    # Truncate very long time estimates
+                    if [[ ${#time_part} -gt 10 ]]; then
+                        time_part="${time_part:0:7}..."
+                    fi
+                    display_text="${base_pkg_name} (${time_part})"
                 fi
                 
                 # Only log download progress every 30 seconds or when package changes
@@ -99,7 +103,12 @@ perform_attended_upgrade() {
                 if [[ $((current_time - last_progress_time)) -ge $progress_interval ]]; then
                     # Check if this looks like a progress/download message
                     if [[ "$line" =~ (Retrieving|Downloading|file.*of.*remaining) ]]; then
-                        log_info "Download progress: $(echo "$line" | cut -c1-80)..."
+                        # Truncate long progress messages to prevent wrapping
+                        local progress_msg="$line"
+                        if [[ ${#progress_msg} -gt 60 ]]; then
+                            progress_msg="${progress_msg:0:57}..."
+                        fi
+                        log_info "Progress: $progress_msg"
                         # Don't update last_progress_time here to avoid interference with dlstatus timing
                     fi
                 fi
