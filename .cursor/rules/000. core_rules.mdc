@@ -16,6 +16,7 @@ This project contains Ubuntu scripts for initializing a n8n server. The scripts 
 - **Line Endings** – Be mindful of Windows vs Ubuntu newline character differences
 - **Single Source of Truth** – All configuration and setup logic in main initialization scripts
 - **NO HOTFIXES** – All fixes must be implemented directly in the main scripts
+- **Consistent Formatting** – All separators and headers must be exactly 80 characters long
 
 ### Version Control Practices
 - **Logical Commits** – Group related changes into meaningful commits
@@ -54,11 +55,18 @@ This project contains Ubuntu scripts for initializing a n8n server. The scripts 
 - **Zero tolerance** for temporary hotfixes or workarounds
 - Maintain a **clear and traceable** development history
 
+### Formatting Standards
+- **Echo Separators** – Use exactly 80 equal signs: `echo "================================================================================"`
+- **Comment Headers** – Use exactly 78 equal signs: `# ==============================================================================` (80 total chars)
+- **Use log_section()** – Prefer the standardized `log_section()` function from `lib/logger.sh` for new code
+- **Visual Consistency** – All headers and separators must align properly regardless of terminal width
+
 ### Development Workflow
 1. Identify issues or improvements needed
 2. Modify main script files directly - NEVER create separate fix scripts
 3. Test changes thoroughly on Windows
 4. Ensure line endings are properly handled for Ubuntu deployment
-5. Commit logical changes with descriptive messages
-6. Push commits to remote repository
-7. Generate code according to the current milestone stated in `001.milestone.mdc` and minimize modifications that affect other milestones 
+5. Follow formatting standards for any new separators or headers
+6. Commit logical changes with descriptive messages
+7. Push commits to remote repository
+8. Generate code according to the current milestone stated in `001.milestone.mdc` and minimize modifications that affect other milestones 
