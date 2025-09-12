@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# =============================================================================
+# ==============================================================================
 # Netdata Tests - Test Suite for Netdata Monitoring Configuration
 # Part of Milestone 4
-# =============================================================================
+# ==============================================================================
 # This script validates the Netdata monitoring system setup including:
 # - Netdata service installation and configuration
 # - Security settings and localhost binding
@@ -11,16 +11,16 @@
 # - Basic authentication setup
 # - Health monitoring alerts
 # - Firewall configuration
-# =============================================================================
+# ==============================================================================
 
 # Source required libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 source "$PROJECT_DIR/lib/logger.sh"
 
-# =============================================================================
+# ==============================================================================
 # Netdata Service Tests
-# =============================================================================
+# ==============================================================================
 
 test_netdata_service_running() {
     systemctl is-active netdata &>/dev/null
@@ -40,9 +40,9 @@ test_netdata_listening_localhost() {
     ss -tlnp 2>/dev/null | grep ":${NETDATA_PORT:-19999}" | grep "127.0.0.1" >/dev/null 2>&1
 }
 
-# =============================================================================
+# ==============================================================================
 # Netdata Configuration Tests
-# =============================================================================
+# ==============================================================================
 
 test_netdata_config_exists() {
     [ -f "/etc/netdata/netdata.conf" ]
@@ -69,9 +69,9 @@ test_netdata_email_notifications_configured() {
     grep -q "SEND_EMAIL.*YES" "/etc/netdata/health_alarm_notify.conf" 2>/dev/null
 }
 
-# =============================================================================
+# ==============================================================================
 # Netdata API and Connectivity Tests
-# =============================================================================
+# ==============================================================================
 
 test_netdata_api_localhost_accessible() {
     # Test if Netdata API responds on localhost
@@ -89,9 +89,9 @@ test_netdata_web_interface_localhost() {
     curl -s --connect-timeout 5 "http://127.0.0.1:${NETDATA_PORT:-19999}/" >/dev/null 2>&1
 }
 
-# =============================================================================
+# ==============================================================================
 # Nginx Proxy Tests
-# =============================================================================
+# ==============================================================================
 
 test_netdata_nginx_config_exists() {
     [ -f "/etc/nginx/sites-available/netdata" ] &&
@@ -181,9 +181,9 @@ test_netdata_http_to_https_redirect() {
     [ "$response_code" = "301" ]
 }
 
-# =============================================================================
+# ==============================================================================
 # Firewall and Security Tests
-# =============================================================================
+# ==============================================================================
 
 test_netdata_firewall_blocks_direct_access() {
     # Check if UFW is configured to block direct access to Netdata port
@@ -246,9 +246,9 @@ test_netdata_security_headers() {
     echo "$headers" | grep -qi "x-frame-options"
 }
 
-# =============================================================================
+# ==============================================================================
 # Netdata Health Monitoring Tests
-# =============================================================================
+# ==============================================================================
 
 test_netdata_health_monitoring_active() {
     # Test if health monitoring is active
@@ -265,9 +265,9 @@ test_netdata_health_alerts_configured() {
     echo "$health_api_response" | grep -q "cpu_usage_high\|ram_usage_high\|disk_space_usage_high\|load_average_high" 2>/dev/null
 }
 
-# =============================================================================
+# ==============================================================================
 # Netdata File and Directory Tests
-# =============================================================================
+# ==============================================================================
 
 test_netdata_directories_exist() {
     [ -d "/var/cache/netdata" ] &&
@@ -300,9 +300,9 @@ test_netdata_permissions() {
     return 0
 }
 
-# =============================================================================
+# ==============================================================================
 # Nginx Log Tests
-# =============================================================================
+# ==============================================================================
 
 test_netdata_nginx_log_files() {
     # Check if Nginx log files for Netdata are configured
