@@ -1407,8 +1407,11 @@ verify_netdata_installation() {
     local netdata_port="${NETDATA_PORT:-19999}"
     local bind_ip="${NETDATA_BIND_IP:-127.0.0.1}"
     
+    # Check if Netdata is listening on the configured address or 0.0.0.0 (which includes bind_ip)
     if sudo ss -tlnp | grep -q "${bind_ip}:${netdata_port}"; then
         log_info "✓ Netdata is listening on ${bind_ip}:${netdata_port}"
+    elif sudo ss -tlnp | grep -q "0.0.0.0:${netdata_port}"; then
+        log_info "✓ Netdata is listening on 0.0.0.0:${netdata_port} (accessible on ${bind_ip})"
     else
         log_warn "Netdata may not be listening on expected address ${bind_ip}:${netdata_port}"
         log_info "Current listening ports:"
