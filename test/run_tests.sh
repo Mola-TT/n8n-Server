@@ -131,9 +131,9 @@ test_script_permissions() {
     return 0
 }
 
-# =============================================================================
+# ==============================================================================
 # MILESTONE 6 TESTS - Dynamic Hardware Optimization
-# =============================================================================
+# ==============================================================================
 
 run_milestone_6_tests() {
     echo "=================================================================================="
@@ -194,9 +194,9 @@ run_milestone_6_tests() {
     return $milestone_6_failed
 }
 
-# =============================================================================
+# ==============================================================================
 # MILESTONE 7 TESTS - Multi-User n8n Configuration
-# =============================================================================
+# ==============================================================================
 
 run_milestone_7_tests() {
     log_section "MILESTONE 7 TESTS - Multi-User n8n Configuration"
@@ -257,7 +257,7 @@ run_milestone_7_tests() {
     # Milestone 7 Summary
     local milestone_7_total=$((milestone_7_passed + milestone_7_failed))
     echo ""
-    echo "=================================================================================="
+    echo "================================================================================"
     log_info "Milestone 7 Summary: $milestone_7_passed/$milestone_7_total test suites passed"
     
     # Update global counters
@@ -283,13 +283,13 @@ main() {
     run_test "Logging functions" "test_logging"
     run_test "Utility functions" "test_utilities"
     run_test "Attended Upgrade Configuration" "test_attended_upgrade_config"
-    echo "=========================================="
+    echo "================================================================================"
     
     # Milestone 2 Tests (Docker Infrastructure)
     echo ""
-    echo "=========================================="
+    echo "================================================================================"
     echo "MILESTONE 2 Tests (Docker Infrastructure):"
-    echo "=========================================="
+    echo "================================================================================"
     run_test "n8n Directory Structure" "test_n8n_directories"
     run_test "Directory Permissions" "test_directory_permissions"
     run_test "Docker Compose File" "test_docker_compose_file"
@@ -300,13 +300,13 @@ main() {
     run_test "Docker Installation" "test_docker_installation"
     run_test "Volume Mounts" "test_volume_mounts"
     run_test "Network Configuration" "test_network_configuration"
-    echo "=========================================="
+    echo "================================================================================"
     
     # Milestone 2 Tests (n8n Application)
     echo ""
-    echo "=========================================="
+    echo "================================================================================"
     echo "MILESTONE 2 Tests (n8n Application):"
-    echo "=========================================="
+    echo "================================================================================"
     run_test "n8n Environment Configuration" "test_n8n_environment_file"
     run_test "Authentication Configuration" "test_n8n_authentication_configuration"
     run_test "Timezone Configuration" "test_n8n_timezone_configuration"
@@ -319,14 +319,14 @@ main() {
     run_test "n8n Web Accessibility" "test_n8n_web_accessibility"
     run_test "Authentication Challenge" "test_n8n_authentication_challenge"
     run_test "Authentication Login" "test_n8n_authentication_login"
-    echo "=========================================="
+    echo "================================================================================"
     echo ""
     
     # Milestone 4 Tests (Netdata Monitoring)
     echo ""
-    echo "=========================================="
+    echo "================================================================================"
     echo "MILESTONE 4 Tests (Netdata Monitoring):"
-    echo "=========================================="
+    echo "================================================================================"
     run_test "Netdata Service Running" "test_netdata_service_running"
     run_test "Netdata Service Enabled" "test_netdata_service_enabled"
     run_test "Netdata Process Running" "test_netdata_process_running"
@@ -354,14 +354,14 @@ main() {
     run_test "Netdata Log Files" "test_netdata_log_files_exist"
     run_test "Netdata Permissions" "test_netdata_permissions"
     run_test "Netdata Nginx Logs" "test_netdata_nginx_log_files"
-    echo "=========================================="
+    echo "================================================================================"
     echo ""
     
     # Milestone 5 Tests (SSL Certificate Management)
     echo ""
-    echo "=========================================="
+    echo "================================================================================"
     echo "MILESTONE 5 Tests (SSL Certificate Management):"
-    echo "=========================================="
+    echo "================================================================================"
     run_test "SSL Script Exists" "test_ssl_script_exists"
     run_test "SSL Script Executable" "test_ssl_script_executable"
     run_test "SSL Script Help" "test_ssl_script_help"
@@ -392,7 +392,7 @@ main() {
     run_test "Environment Loading" "test_environment_loading"
     run_test "SSL Directory Structure" "test_ssl_directory_structure"
     run_test "OpenSSL Availability" "test_openssl_availability"
-    echo "=========================================="
+    echo "================================================================================"
     echo ""
     
     # Run Milestone 6 Tests
@@ -402,13 +402,13 @@ main() {
     run_milestone_7_tests
     
     # Print summary
-    echo "=========================================="
+    echo "================================================================================"
     echo "Test Summary:"
-    echo "=========================================="
+    echo "================================================================================"
     log_info "  Total tests: $TESTS_RUN"
     log_info "  Passed: $TESTS_PASSED"
     log_info "  Failed: $TESTS_FAILED"
-    echo "=========================================="
+    echo "================================================================================"
     
     if [ $TESTS_FAILED -eq 0 ]; then
         log_pass "All tests passed!"
