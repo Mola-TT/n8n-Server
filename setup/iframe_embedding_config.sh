@@ -54,6 +54,32 @@ EOF
 configure_csp_headers() {
     log_info "Configuring Content Security Policy headers..."
     
+    # Build frame-ancestors array based on PRODUCTION flag
+    local frame_ancestors_json
+    if [[ "${PRODUCTION:-false}" == "false" ]]; then
+        # Development mode: include localhost domains
+        log_info "Development mode: Adding localhost domains to CSP frame-ancestors"
+        frame_ancestors_json=$(
+cat << 'FRAME_EOF'
+        "${WEBAPP_DOMAIN:-https://app.example.com}",
+        "${WEBAPP_DOMAIN_ALT:-https://webapp.example.com}",
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:3000",
+        "http://host.docker.internal:3000"
+FRAME_EOF
+        )
+    else
+        # Production mode: only production domains
+        log_info "Production mode: Using production-only CSP frame-ancestors"
+        frame_ancestors_json=$(
+cat << 'FRAME_EOF'
+        "${WEBAPP_DOMAIN:-https://app.example.com}",
+        "${WEBAPP_DOMAIN_ALT:-https://webapp.example.com}"
+FRAME_EOF
+        )
+    fi
+    
     # Create CSP configuration
     cat > /opt/n8n/user-configs/csp-config.json << EOF
 {
@@ -67,8 +93,7 @@ configure_csp_headers() {
       "img-src": ["'self'", "data:", "https:"],
       "connect-src": ["'self'", "wss:", "https:"],
       "frame-ancestors": [
-        "${WEBAPP_DOMAIN:-https://app.example.com}",
-        "${WEBAPP_DOMAIN_ALT:-https://webapp.example.com}"
+$frame_ancestors_json
       ],
       "frame-src": ["'self'"],
       "object-src": ["'none'"],
