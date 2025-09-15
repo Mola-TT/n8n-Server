@@ -301,6 +301,19 @@ create_nginx_configuration() {
 create_multiuser_nginx_config() {
     local config_file="$1"
     
+    # Build CSP frame-ancestors based on PRODUCTION flag
+    local csp_frame_base="'self' ${WEBAPP_DOMAIN:-*} ${WEBAPP_DOMAIN_ALT:-*}"
+    if [[ "${PRODUCTION:-false}" == "false" ]]; then
+        # Development mode: include localhost domains
+        local csp_frame_dev="${CSP_FRAME_ANCESTORS_DEV:-http://localhost:3000 http://localhost:8080 http://127.0.0.1:3000 http://host.docker.internal:3000}"
+        local csp_frame_full="$csp_frame_base $csp_frame_dev"
+        log_info "Development mode: Adding localhost domains to CSP frame-ancestors"
+    else
+        # Production mode: only production domains
+        local csp_frame_full="$csp_frame_base"
+        log_info "Production mode: Using production-only CSP frame-ancestors"
+    fi
+    
     # Create n8n site configuration with multi-user and iframe support
     cat > "$config_file" << EOF
 # Nginx configuration for n8n - Milestone 7 Multi-User
@@ -377,7 +390,9 @@ server {
     set \$csp_img "img-src 'self' data: https:";
     set \$csp_font "font-src 'self' https://fonts.gstatic.com";
     set \$csp_connect "connect-src 'self' wss: https: ${WEBAPP_DOMAIN:-*}";
-    set \$csp_frame_ancestors "frame-ancestors 'self' ${WEBAPP_DOMAIN:-*} ${WEBAPP_DOMAIN_ALT:-*}";
+    
+    # Build frame-ancestors based on PRODUCTION flag (auto-includes localhost in dev)
+    set \$csp_frame_ancestors "frame-ancestors $csp_frame_full";
     add_header Content-Security-Policy "\$csp_default; \$csp_script; \$csp_style; \$csp_img; \$csp_font; \$csp_connect; \$csp_frame_ancestors;" always;
     
     # Rate limiting (general and per-user)
