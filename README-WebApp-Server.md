@@ -37,21 +37,42 @@ sudo yum update
 sudo yum install -y nodejs npm nginx certbot python3-certbot-nginx
 ```
 
-### Node.js Dependencies
+### Frontend Dependencies (Next.js)
 
-Add these to your `package.json`:
+Add these to your frontend `package.json`:
 
 ```json
 {
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.0.0",
-    "jsonwebtoken": "^9.0.1",
-    "axios": "^1.4.0",
-    "socket.io": "^4.7.2"
+    "next": "14.0.4",
+    "react": "^18",
+    "react-dom": "^18",
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "axios": "^1.6.2",
+    "tailwindcss": "^3.3.6"
   }
 }
+```
+
+### Backend Dependencies (FastAPI)
+
+Add these to your backend `requirements.txt`:
+
+```txt
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.4.2
+pydantic-settings==2.0.3
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+httpx==0.25.2
+python-dotenv==1.0.0
 ```
 
 ## Server Setup
@@ -61,8 +82,13 @@ Add these to your `package.json`:
 Create a `.env` file in your web app root:
 
 ```bash
-# Web App Configuration
-WEB_APP_PORT=3000
+# Frontend Configuration (Next.js)
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_N8N_URL=https://n8n.example.com
+NEXT_PUBLIC_WEBAPP_URL=https://app.example.com
+
+# Backend Configuration (FastAPI)
+FAST_API_PORT=8000
 WEB_APP_DOMAIN=https://app.example.com
 
 # n8n Server Configuration
@@ -222,75 +248,98 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 
 ## Authentication Integration
 
-### 1. User Authentication Service
+### 1. FastAPI Authentication Service
 
-Create `services/auth.js`:
+Create `backend/app/auth/service.py`:
 
-```javascript
-const jwt = require('jsonwebtoken');
-const axios = require('axios');
+```python
+import httpx
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 
-class AuthService {
-    constructor() {
-        this.n8nApiUrl = process.env.N8N_API_URL;
-        this.apiKey = process.env.N8N_API_KEY;
-        this.jwtSecret = process.env.JWT_SECRET;
-    }
+from app.core.config import settings
 
-    // Create user in both systems
-    async createUser(userData) {
-        try {
-            // Create user in your database first
-            const localUser = await this.createLocalUser(userData);
-            
-            // Create user in n8n
-            const n8nUser = await this.createN8nUser({
-                userId: localUser.id,
-                email: localUser.email,
-                password: userData.password,
-                role: 'user'
-            });
-            
-            return { localUser, n8nUser };
-        } catch (error) {
-            console.error('Error creating user:', error);
-            throw error;
-        }
-    }
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    // Login user and get n8n token
-    async loginUser(email, password) {
-        try {
-            // Authenticate with your local system
-            const localUser = await this.authenticateLocal(email, password);
+class AuthService:
+    def __init__(self):
+        self.n8n_api_url = settings.N8N_API_URL
+        self.api_key = settings.N8N_API_KEY
+        self.jwt_secret = settings.JWT_SECRET
+        
+    async def authenticate_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+        """Authenticate user with local system and get n8n token"""
+        try:
+            # Step 1: Authenticate with your local system
+            local_user = await self._authenticate_local(email, password)
+            if not local_user:
+                return None
             
-            if (!localUser) {
-                throw new Error('Invalid credentials');
-            }
+            # Step 2: Get n8n authentication token
+            n8n_token = await self._get_n8n_token(local_user["id"], email, password)
             
-            // Get n8n token
-            const n8nToken = await this.getN8nToken(localUser.id, password);
-            
-            // Generate local JWT
-            const localToken = jwt.sign(
-                { 
-                    userId: localUser.id,
-                    email: localUser.email 
-                },
-                this.jwtSecret,
-                { expiresIn: process.env.JWT_EXPIRES_IN }
-            );
+            # Step 3: Generate local JWT
+            local_token = self._create_access_token({"sub": str(local_user["id"])})
             
             return {
-                user: localUser,
-                localToken,
-                n8nToken: n8nToken.token
-            };
-        } catch (error) {
-            console.error('Error during login:', error);
-            throw error;
-        }
-    }
+                "user": local_user,
+                "local_token": local_token,
+                "n8n_token": n8n_token
+            }
+        except Exception as e:
+            print(f"Authentication error: {e}")
+            return None
+    
+    async def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create user in both local and n8n systems"""
+        try:
+            # Create user locally first
+            local_user = await self._create_local_user(user_data)
+            
+            # Create user in n8n
+            n8n_user = await self._create_n8n_user({
+                "userId": local_user["id"],
+                "email": local_user["email"],
+                "password": user_data["password"],
+                "role": "user"
+            })
+            
+            return {"local_user": local_user, "n8n_user": n8n_user}
+        except Exception as e:
+            print(f"User creation error: {e}")
+            raise
+
+    async def _authenticate_local(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+        """Implement your local authentication logic here"""
+        # Example implementation - replace with your actual auth logic
+        if email == "test@example.com" and password == "password123":
+            return {
+                "id": 1,
+                "email": email,
+                "name": "Test User"
+            }
+        return None
+    
+    async def _get_n8n_token(self, user_id: int, email: str, password: str) -> str:
+        """Get authentication token from n8n server"""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.n8n_api_url}/auth/login",
+                json={"userId": user_id, "email": email, "password": password},
+                headers={"Content-Type": "application/json"}
+            )
+            response.raise_for_status()
+            return response.json()["token"]
+    
+    def _create_access_token(self, data: Dict[str, Any]) -> str:
+        """Create JWT access token"""
+        to_encode = data.copy()
+        expire = datetime.utcnow() + timedelta(hours=24)
+        to_encode.update({"exp": expire})
+        
+        return jwt.encode(to_encode, self.jwt_secret, algorithm="HS256")
 
     // Create user in n8n system
     async createN8nUser(userData) {
@@ -355,59 +404,91 @@ class AuthService {
 module.exports = new AuthService();
 ```
 
-### 2. Authentication Middleware
+### 2. FastAPI Authentication Router
 
-Create `middleware/auth.js`:
+Create `backend/app/auth/router.py`:
 
-```javascript
-const authService = require('../services/auth');
+```python
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import HTTPBearer
+from pydantic import BaseModel
+from typing import Dict, Any
 
-const requireAuth = async (req, res, next) => {
-    try {
-        const token = req.headers.authorization?.replace('Bearer ', '');
-        
-        if (!token) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-        
-        const decoded = authService.validateToken(token);
-        
-        if (!decoded) {
-            return res.status(401).json({ error: 'Invalid token' });
-        }
-        
-        req.user = decoded;
-        next();
-    } catch (error) {
-        return res.status(401).json({ error: 'Authentication failed' });
-    }
-};
+from .service import auth_service
 
-module.exports = { requireAuth };
+router = APIRouter()
+security = HTTPBearer()
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+
+class AuthResponse(BaseModel):
+    user: Dict[str, Any]
+    local_token: str
+    n8n_token: str
+
+@router.post("/login", response_model=AuthResponse)
+async def login(request: LoginRequest):
+    """Authenticate user and return tokens"""
+    result = await auth_service.authenticate_user(request.email, request.password)
+    
+    if not result:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    return AuthResponse(**result)
+
+@router.post("/register")
+async def register(request: RegisterRequest):
+    """Register new user in both systems"""
+    try:
+        result = await auth_service.create_user({
+            "email": request.email,
+            "password": request.password,
+            "name": request.name
+        })
+        return {"message": "User created successfully", "user_id": result["local_user"]["id"]}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 ```
 
 ## Iframe Embedding
 
-### 1. Frontend Integration
+### 1. Next.js Frontend Integration
 
-Create `components/N8nEmbed.js` (React example):
+Create `frontend/src/components/N8nEmbed.tsx`:
 
-```javascript
+```typescript
+'use client';
+
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
-const N8nEmbed = ({ userId, height = '600px' }) => {
-    const iframeRef = useRef(null);
+interface N8nEmbedProps {
+  userId?: number;
+  height?: string;
+  className?: string;
+}
+
+const N8nEmbed: React.FC<N8nEmbedProps> = ({ userId, height = '600px', className = '' }) => {
+    const iframeRef = useRef<HTMLIFrameElement>(null);
     const { user, n8nToken } = useAuth();
     const [isReady, setIsReady] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     
     useEffect(() => {
         const iframe = iframeRef.current;
         if (!iframe || !n8nToken) return;
 
         // Set up postMessage communication
-        const handleMessage = (event) => {
-            if (event.origin !== process.env.REACT_APP_N8N_SERVER_URL) {
+        const handleMessage = (event: MessageEvent) => {
+            if (event.origin !== process.env.NEXT_PUBLIC_N8N_URL) {
+                console.warn('Received message from unauthorized origin:', event.origin);
                 return;
             }
 
@@ -415,18 +496,26 @@ const N8nEmbed = ({ userId, height = '600px' }) => {
 
             switch (type) {
                 case 'IFRAME_READY':
+                    console.log('n8n iframe ready');
                     // Send authentication data to n8n
-                    iframe.contentWindow.postMessage({
+                    iframe.contentWindow?.postMessage({
                         type: 'AUTH_TOKEN',
                         data: {
                             token: n8nToken,
                             userId: user.id
                         }
-                    }, process.env.REACT_APP_N8N_SERVER_URL);
+                    }, process.env.NEXT_PUBLIC_N8N_URL!);
                     break;
                     
                 case 'AUTH_SUCCESS':
+                    console.log('n8n authentication successful');
                     setIsReady(true);
+                    setError(null);
+                    break;
+
+                case 'AUTH_ERROR':
+                    console.error('n8n authentication failed:', data);
+                    setError('Authentication failed');
                     break;
                     
                 case 'WORKFLOW_EXECUTED':
@@ -435,9 +524,13 @@ const N8nEmbed = ({ userId, height = '600px' }) => {
                     break;
                     
                 case 'SESSION_REFRESH':
+                    console.log('Session refresh requested');
                     // Handle session refresh requests
                     refreshN8nToken();
                     break;
+
+                default:
+                    console.log('Unhandled message type:', type);
             }
         };
 
@@ -450,44 +543,64 @@ const N8nEmbed = ({ userId, height = '600px' }) => {
 
     const refreshN8nToken = async () => {
         try {
-            // Refresh n8n token and send to iframe
-            const newToken = await authService.refreshN8nToken();
-            
-            iframeRef.current?.contentWindow.postMessage({
-                type: 'SESSION_REFRESH',
-                data: { token: newToken }
-            }, process.env.REACT_APP_N8N_SERVER_URL);
+            // In a real implementation, you'd refresh the token
+            console.log('Refreshing n8n token...');
+            // const newToken = await refreshToken();
+            // Send updated token to iframe
         } catch (error) {
             console.error('Error refreshing n8n token:', error);
+            setError('Session refresh failed');
         }
     };
 
     if (!user || !n8nToken) {
-        return <div>Please log in to access workflows</div>;
+        return (
+            <div className={`flex items-center justify-center bg-gray-100 rounded-lg ${className}`} style={{ height }}>
+                <div className="text-center">
+                    <p className="text-gray-600">Please log in to access n8n workflows</p>
+                </div>
+            </div>
+        );
     }
 
-    const iframeSrc = `${process.env.REACT_APP_N8N_SERVER_URL}/user/${userId}`;
+    if (error) {
+        return (
+            <div className={`flex items-center justify-center bg-red-50 border border-red-200 rounded-lg ${className}`} style={{ height }}>
+                <div className="text-center">
+                    <p className="text-red-600">{error}</p>
+                    <button 
+                        onClick={() => window.location.reload()} 
+                        className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const iframeSrc = `${process.env.NEXT_PUBLIC_N8N_URL}/user/${user.id}`;
 
     return (
-        <div className="n8n-embed-container">
+        <div className={`relative ${className}`} style={{ height }}>
             {!isReady && (
-                <div className="loading-overlay">
-                    <div className="spinner">Loading n8n...</div>
+                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="mt-2 text-gray-600">Loading n8n...</p>
+                    </div>
                 </div>
             )}
             <iframe
                 ref={iframeRef}
                 src={iframeSrc}
                 width="100%"
-                height={height}
+                height="100%"
                 frameBorder="0"
                 allow="fullscreen"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                style={{ 
-                    display: isReady ? 'block' : 'none',
-                    border: '1px solid #ddd',
-                    borderRadius: '8px'
-                }}
+                className={`rounded-lg border border-gray-300 ${isReady ? 'block' : 'opacity-50'}`}
+                title="n8n Workflow Editor"
             />
         </div>
     );
@@ -625,78 +738,73 @@ For non-React applications:
 
 ## API Integration
 
-### 1. User Management API Client
+### 1. FastAPI User Management API Client
 
-Create `services/n8nApi.js`:
+Create `backend/app/n8n/client.py`:
 
-```javascript
-const axios = require('axios');
+```python
+import httpx
+from typing import Dict, Any, Optional
+from app.core.config import settings
 
-class N8nApiClient {
-    constructor() {
-        this.baseUrl = process.env.N8N_API_URL;
-        this.apiKey = process.env.N8N_API_KEY;
+class N8nApiClient:
+    def __init__(self):
+        self.base_url = settings.N8N_API_URL
+        self.api_key = settings.N8N_API_KEY
+        self.timeout = 10.0
+    
+    async def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+        """Make HTTP request to n8n API"""
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        headers = {
+            'X-API-Key': self.api_key,
+            'Content-Type': 'application/json'
+        }
         
-        this.client = axios.create({
-            baseURL: this.baseUrl,
-            headers: {
-                'X-API-Key': this.apiKey,
-                'Content-Type': 'application/json'
-            },
-            timeout: 10000
-        });
-    }
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.request(method, url, headers=headers, **kwargs)
+            response.raise_for_status()
+            return response.json()
 
-    // User management
-    async createUser(userData) {
-        const response = await this.client.post('/users', userData);
-        return response.data;
-    }
+    # User management
+    async def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._make_request('POST', '/users', json=user_data)
 
-    async getUser(userId) {
-        const response = await this.client.get(`/users/${userId}`);
-        return response.data;
-    }
+    async def get_user(self, user_id: int) -> Dict[str, Any]:
+        return await self._make_request('GET', f'/users/{user_id}')
 
-    async updateUser(userId, updates) {
-        const response = await this.client.put(`/users/${userId}`, updates);
-        return response.data;
-    }
+    async def update_user(self, user_id: int, updates: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._make_request('PUT', f'/users/{user_id}', json=updates)
 
-    async deleteUser(userId) {
-        const response = await this.client.delete(`/users/${userId}`);
-        return response.data;
-    }
+    async def delete_user(self, user_id: int) -> Dict[str, Any]:
+        return await self._make_request('DELETE', f'/users/{user_id}')
 
-    // User metrics
-    async getUserMetrics(userId) {
-        const response = await this.client.get(`/metrics/users/${userId}`);
-        return response.data;
-    }
+    # User metrics
+    async def get_user_metrics(self, user_id: int) -> Dict[str, Any]:
+        return await self._make_request('GET', f'/metrics/users/{user_id}')
 
-    async getUserUsage(userId, period = 'daily') {
-        const response = await this.client.get(`/reports/users/${userId}/${period}`);
-        return response.data;
-    }
+    async def get_user_usage(self, user_id: int, period: str = 'daily') -> Dict[str, Any]:
+        return await self._make_request('GET', f'/reports/users/{user_id}/{period}')
 
-    // System analytics
-    async getSystemOverview() {
-        const response = await this.client.get('/reports/system/overview');
-        return response.data;
-    }
-}
+    # System analytics
+    async def get_system_overview(self) -> Dict[str, Any]:
+        return await self._make_request('GET', '/reports/system/overview')
 
-module.exports = new N8nApiClient();
+n8n_client = N8nApiClient()
 ```
 
-### 2. Webhook Handler
+### 2. FastAPI Webhook Handler
 
-Create `routes/webhooks.js`:
+Create `backend/app/n8n/webhooks.py`:
 
-```javascript
-const express = require('express');
-const crypto = require('crypto');
-const router = express.Router();
+```python
+from fastapi import APIRouter, HTTPException, Request
+import hashlib
+import hmac
+from typing import Dict, Any
+from app.core.config import settings
+
+router = APIRouter()
 
 // Webhook verification middleware
 const verifyWebhook = (req, res, next) => {
