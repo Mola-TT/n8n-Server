@@ -1458,6 +1458,9 @@ N8N_USER_MANAGEMENT_DISABLED="${N8N_USER_MANAGEMENT_DISABLED}"
 N8N_SECURE_COOKIE="${N8N_SECURE_COOKIE}"
 JWT_SECRET="${JWT_SECRET}"
 
+# Proxy Configuration (for Nginx reverse proxy)
+N8N_PROXY_HOPS="1"
+
 # SSL Configuration
 N8N_SSL_KEY="${n8n_ssl_key}"
 N8N_SSL_CERT="${n8n_ssl_cert}"
