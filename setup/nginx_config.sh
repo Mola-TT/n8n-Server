@@ -383,17 +383,17 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     
-    # Content Security Policy for iframe embedding
-    set \$csp_default "default-src 'self'";
-    set \$csp_script "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
-    set \$csp_style "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com";
-    set \$csp_img "img-src 'self' data: https:";
-    set \$csp_font "font-src 'self' https://fonts.gstatic.com";
-    set \$csp_connect "connect-src 'self' wss: https: ${WEBAPP_DOMAIN:-*}";
-    
-    # Build frame-ancestors based on PRODUCTION flag (auto-includes localhost in dev)
-    set \$csp_frame_ancestors "frame-ancestors $csp_frame_full";
-    add_header Content-Security-Policy "\$csp_default; \$csp_script; \$csp_style; \$csp_img; \$csp_font; \$csp_connect; \$csp_frame_ancestors;" always;
+    # Content Security Policy - DISABLED
+    # n8n manages its own CSP internally. Nginx CSP was causing conflicts with n8n's JavaScript execution.
+    # If you need CSP for iframe embedding, configure it within n8n's settings instead.
+    # set \$csp_default "default-src 'self'";
+    # set \$csp_script "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+    # set \$csp_style "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com";
+    # set \$csp_img "img-src 'self' data: https:";
+    # set \$csp_font "font-src 'self' https://fonts.gstatic.com";
+    # set \$csp_connect "connect-src 'self' wss: https: ${WEBAPP_DOMAIN:-*}";
+    # set \$csp_frame_ancestors "frame-ancestors $csp_frame_full";
+    # add_header Content-Security-Policy "\$csp_default; \$csp_script; \$csp_style; \$csp_img; \$csp_font; \$csp_connect; \$csp_frame_ancestors;" always;
     
     # Rate limiting (general and per-user)
     limit_req zone=n8n_limit burst=20 nodelay;
