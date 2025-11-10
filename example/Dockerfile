@@ -1,28 +1,26 @@
 # n8n User Management Web Application
-# Lightweight Nginx-based container for serving the static web app
+# Lightweight Python-based container for serving the static web app
 
-FROM nginx:alpine
+FROM python:3.11-alpine
 
-# Remove default Nginx configuration
-RUN rm -rf /usr/share/nginx/html/*
+# Set working directory
+WORKDIR /app
 
-# Copy application files to Nginx web root
-COPY index.html /usr/share/nginx/html/
-COPY styles.css /usr/share/nginx/html/
-COPY app.js /usr/share/nginx/html/
-COPY config.js /usr/share/nginx/html/
-COPY README.md /usr/share/nginx/html/
+# Copy application files
+COPY index.html /app/
+COPY styles.css /app/
+COPY app.js /app/
+COPY env-config.js /app/
+COPY serve.py /app/
+COPY README.md /app/
 
-# Copy custom Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Expose port 80
-EXPOSE 80
+# Expose port 8080
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost:8080/ || exit 1
 
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Run the Python server
+CMD ["python", "serve.py"]
 
