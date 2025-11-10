@@ -32,20 +32,69 @@ The application features:
 ### Prerequisites
 
 - A running n8n server with the user management API enabled
-- Docker and Docker Compose installed (for Docker deployment)
-- OR Web server (Apache, Nginx, or any static file server) for traditional deployment
+- **For Windows Local Development**: Python 3.7+ installed
+- **For Docker**: Docker and Docker Compose installed
 - Modern web browser (Chrome, Firefox, Safari, Edge)
 
-### Option 1: Docker Deployment (Recommended)
+### Option 1: Windows Local Development (Recommended for Local PC)
+
+**Quick Start:**
+
+```batch
+REM Navigate to the example directory
+cd example
+
+REM Run the batch script (it will guide you through setup)
+serve.bat
+```
+
+The batch script will:
+1. Check if Python is installed
+2. Create `webapp.env` from template if it doesn't exist
+3. Prompt you to configure your n8n API settings
+4. Start the server on `http://localhost:8080`
+
+**Manual Setup:**
+
+```batch
+REM 1. Copy the environment template
+copy env.template webapp.env
+
+REM 2. Edit webapp.env with your settings
+notepad webapp.env
+
+REM 3. Start the Python server
+python serve.py
+```
+
+**Or use PowerShell:**
+
+```powershell
+# Navigate to the example directory
+cd example
+
+# Copy and edit configuration
+Copy-Item env.template webapp.env
+notepad webapp.env
+
+# Start the server
+python serve.py
+```
+
+The application will be available at `http://localhost:8080`
+
+### Option 2: Docker Deployment
 
 **Quick Start:**
 
 ```bash
-# Navigate to the webapp directory
-cd user-management-webapp
+# Navigate to the example directory
+cd example
 
-# Configure the API connection (edit config.js)
-# Update baseUrl and apiKey to match your n8n server
+# Configure the API connection
+# Copy the template and edit webapp.env
+cp env.template webapp.env
+# Edit webapp.env and set your N8N_API_BASE_URL and N8N_API_KEY
 
 # Build and run with Docker Compose
 docker-compose up -d
@@ -71,8 +120,8 @@ docker run -d \
 
 - **Image Name**: `n8n-user-management-example`
 - **Container Name**: `n8n-user-management-example`
-- **Port Mapping**: `8080:80` (host:container)
-- **Base Image**: `nginx:alpine` (lightweight, ~23MB)
+- **Port Mapping**: `8080:8080` (host:container)
+- **Base Image**: `python:3.11-alpine` (lightweight, ~50MB)
 - **Restart Policy**: `unless-stopped`
 
 **Stopping the Container:**
@@ -105,68 +154,89 @@ docker-compose down
 docker-compose up -d --build
 ```
 
-### Option 2: Traditional Web Server Deployment
+### Option 3: Traditional Web Server Deployment
+
+For production deployments on Linux servers, you can use any web server (Apache, Nginx, etc.):
 
 1. **Copy the files to your web server:**
 
 ```bash
-# Copy the entire webapp directory to your web server's document root
-cp -r user-management-webapp /var/www/html/n8n-admin
+# Copy files to your web server's document root
+cp -r example /var/www/html/n8n-admin
+cd /var/www/html/n8n-admin
 ```
 
 2. **Configure the API connection:**
 
-Edit `config.js` and update the following values:
-
-```javascript
-const API_CONFIG = {
-    baseUrl: 'https://your-n8n-domain.com/api/v1',
-    apiKey: 'your-api-key-here'
-};
+```bash
+# Copy and edit the environment file
+cp env.template webapp.env
+nano webapp.env
 ```
 
-3. **Set up your n8n server:**
+3. **Run the Python server as a service:**
 
-Ensure your n8n server has the user management API enabled. The API should be accessible at the URL you configured in step 2.
+```bash
+# Start the server
+python3 serve.py
+
+# Or use systemd for production
+# Create /etc/systemd/system/n8n-webapp.service
+```
 
 4. **Access the application:**
 
 Open your web browser and navigate to:
 ```
-http://your-server/n8n-admin/
+http://your-server:8080/
 ```
 
 ## Configuration
 
-### API Configuration (`config.js`)
+### Environment-Based Configuration
 
-```javascript
-const API_CONFIG = {
-    // Base URL for the n8n user management API
-    baseUrl: 'https://your-n8n-domain.com/api/v1',
-    
-    // API Key for authentication
-    apiKey: 'your-api-key-here',
-    
-    // Refresh interval (milliseconds)
-    refreshInterval: 30000,
-    
-    // Enable debug logging
-    debug: false
-};
+The application uses environment variables for configuration, stored in the `webapp.env` file.
+
+**Configuration File: `webapp.env`**
+
+```bash
+# n8n API Configuration
+N8N_API_BASE_URL=http://localhost:5678/api/v1
+N8N_API_KEY=your-api-key-here
+
+# Application Settings
+REFRESH_INTERVAL=30000
+DEBUG_MODE=false
 ```
+
+### Configuration Options
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `N8N_API_BASE_URL` | Base URL for n8n API | `http://localhost:5678/api/v1` | `https://n8n.yourdomain.com/api/v1` |
+| `N8N_API_KEY` | API key for authentication | `your-api-key-here` | `n8n_api_abc123...` |
+| `REFRESH_INTERVAL` | Auto-refresh interval (ms) | `30000` | `60000` |
+| `DEBUG_MODE` | Enable debug logging | `false` | `true` |
 
 ### Environment-Specific Configuration
 
 **Local Development:**
-```javascript
-API_CONFIG.baseUrl = 'http://localhost:5678/api/v1';
+```bash
+N8N_API_BASE_URL=http://localhost:5678/api/v1
+N8N_API_KEY=your-local-api-key
+DEBUG_MODE=true
 ```
 
-**Production with Nginx:**
-```javascript
-API_CONFIG.baseUrl = 'https://n8n.yourdomain.com/api/v1';
+**Production:**
+```bash
+N8N_API_BASE_URL=https://n8n.yourdomain.com/api/v1
+N8N_API_KEY=your-production-api-key
+DEBUG_MODE=false
 ```
+
+**Docker Deployment:**
+
+The Docker container automatically reads environment variables from `webapp.env` and injects them into the web application at startup. No need to modify JavaScript files directly.
 
 ## API Endpoints
 
@@ -226,18 +296,24 @@ POST /users
 
 ⚠️ **IMPORTANT SECURITY NOTES:**
 
-1. **API Key Exposure**: The current implementation stores the API key in client-side code. For production deployments, you should:
+1. **Environment File Security**: 
+   - Never commit `webapp.env` to version control (it's gitignored by default)
+   - Use `env.template` as a reference for required variables
+   - Store production credentials securely (e.g., secrets manager, encrypted vault)
+   - Rotate API keys regularly
+
+2. **API Key Exposure**: While environment variables improve security, the API key is still exposed in the browser. For production deployments, you should:
    - Implement a backend proxy that handles API authentication
    - Use session-based authentication instead of API keys
    - Store sensitive credentials on the server side
 
-2. **CORS Configuration**: Ensure your n8n server has proper CORS policies configured to allow requests from your web application domain.
+3. **CORS Configuration**: Ensure your n8n server has proper CORS policies configured to allow requests from your web application domain.
 
-3. **HTTPS**: Always use HTTPS in production to encrypt data in transit.
+4. **HTTPS**: Always use HTTPS in production to encrypt data in transit.
 
-4. **Authentication**: Consider implementing additional authentication layers for the web application itself.
+5. **Authentication**: Consider implementing additional authentication layers for the web application itself.
 
-5. **Rate Limiting**: Implement rate limiting on the API to prevent abuse.
+6. **Rate Limiting**: Implement rate limiting on the API to prevent abuse.
 
 ## Production Deployment Recommendations
 
@@ -345,16 +421,18 @@ The main application logic is in `app.js`. You can extend it to:
 ### File Structure
 
 ```
-user-management-webapp/
-├── index.html          # Main HTML structure
-├── styles.css          # All styling and responsive design
-├── app.js              # Application logic and API integration
-├── config.js           # API configuration
-├── Dockerfile          # Docker image configuration
-├── docker-compose.yml  # Docker Compose configuration
-├── nginx.conf          # Nginx web server configuration
-├── .dockerignore       # Docker build exclusions
-└── README.md           # This file
+example/
+├── index.html              # Main HTML structure
+├── styles.css              # All styling and responsive design
+├── app.js                  # Application logic and API integration
+├── env-config.js           # Environment variable loader
+├── webapp.env              # Environment configuration (gitignored)
+├── env.template            # Environment configuration template
+├── serve.py                # Python HTTP server with config injection
+├── serve.bat               # Windows batch script to start server
+├── Dockerfile              # Docker image configuration
+├── docker-compose.yml      # Docker Compose configuration
+└── README.md               # This file
 ```
 
 ### Adding New Features
@@ -397,11 +475,12 @@ Contributions are welcome! Please follow the project's coding standards:
 
 ### Container Specifications
 
-- **Base Image**: `nginx:alpine` (~23MB compressed)
-- **Exposed Port**: 80 (mapped to 8080 on host)
+- **Base Image**: `python:3.11-alpine` (~50MB compressed)
+- **Exposed Port**: 8080
 - **Health Check**: Automatic health monitoring every 30 seconds
 - **Restart Policy**: Automatically restarts unless manually stopped
 - **Network**: Uses `n8n-network` bridge network for container communication
+- **Server**: Python built-in HTTP server with config injection
 
 ### Customizing Docker Configuration
 
@@ -410,7 +489,7 @@ Contributions are welcome! Please follow the project's coding standards:
 Edit `docker-compose.yml`:
 ```yaml
 ports:
-  - "3000:80"  # Access on port 3000 instead of 8080
+  - "3000:8080"  # Access on port 3000 instead of 8080
 ```
 
 **Connect to Existing n8n Network:**
@@ -432,7 +511,7 @@ environment:
 
 ### Building for Different Architectures
 
-The Dockerfile uses `nginx:alpine` which supports multiple architectures:
+The Dockerfile uses `python:3.11-alpine` which supports multiple architectures:
 
 ```bash
 # Build for ARM64 (e.g., Raspberry Pi, Apple Silicon)
@@ -445,7 +524,79 @@ docker buildx build --platform linux/amd64 -t n8n-user-management-example .
 docker buildx build --platform linux/amd64,linux/arm64 -t n8n-user-management-example .
 ```
 
+## Windows Local Development
+
+### Running the Server
+
+**Using the Batch Script (Easiest):**
+
+Simply double-click `serve.bat` or run it from Command Prompt:
+
+```batch
+serve.bat
+```
+
+**Using Python Directly:**
+
+```batch
+python serve.py
+```
+
+**Using PowerShell:**
+
+```powershell
+python serve.py
+```
+
+### Changing the Port
+
+By default, the server runs on port 8080. To change it:
+
+```batch
+set PORT=3000
+python serve.py
+```
+
+Or in PowerShell:
+
+```powershell
+$env:PORT=3000
+python serve.py
+```
+
+### Troubleshooting Windows Setup
+
+**Python Not Found:**
+- Download and install Python from https://www.python.org/
+- Make sure to check "Add Python to PATH" during installation
+- Restart your terminal after installation
+
+**Port Already in Use:**
+- Change the port using the PORT environment variable
+- Or stop the application using that port
+
+**Configuration Not Loading:**
+- Make sure `webapp.env` exists in the same directory as `serve.py`
+- Check that the file format is correct (KEY=value, one per line)
+- Verify there are no special characters or extra spaces
+
 ## Version History
+
+- **1.3.0** - Simplified for Windows local development
+  - Removed Nginx dependency
+  - Added Python HTTP server (`serve.py`)
+  - Created Windows batch script (`serve.bat`) for easy startup
+  - Simplified Docker setup with Python base image
+  - Better suited for local PC development
+  - Cross-platform support (Windows, Linux, macOS)
+
+- **1.2.0** - Environment-based configuration
+  - Moved configuration to environment variables
+  - Added `webapp.env` file for easy configuration
+  - Created `env.template` for reference
+  - Docker container auto-injects environment variables
+  - No need to modify JavaScript files for configuration
+  - Improved security by separating config from code
 
 - **1.1.0** - Docker support added
   - Dockerfile for containerized deployment
