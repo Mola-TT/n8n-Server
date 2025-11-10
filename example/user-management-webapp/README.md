@@ -32,10 +32,80 @@ The application features:
 ### Prerequisites
 
 - A running n8n server with the user management API enabled
-- Web server (Apache, Nginx, or any static file server)
+- Docker and Docker Compose installed (for Docker deployment)
+- OR Web server (Apache, Nginx, or any static file server) for traditional deployment
 - Modern web browser (Chrome, Firefox, Safari, Edge)
 
-### Setup Steps
+### Option 1: Docker Deployment (Recommended)
+
+**Quick Start:**
+
+```bash
+# Navigate to the webapp directory
+cd user-management-webapp
+
+# Configure the API connection (edit config.js)
+# Update baseUrl and apiKey to match your n8n server
+
+# Build and run with Docker Compose
+docker-compose up -d
+```
+
+The application will be available at `http://localhost:8080`
+
+**Manual Docker Commands:**
+
+```bash
+# Build the Docker image
+docker build -t n8n-user-management-example .
+
+# Run the container
+docker run -d \
+  --name n8n-user-management-example \
+  -p 8080:80 \
+  --restart unless-stopped \
+  n8n-user-management-example
+```
+
+**Docker Configuration:**
+
+- **Image Name**: `n8n-user-management-example`
+- **Container Name**: `n8n-user-management-example`
+- **Port Mapping**: `8080:80` (host:container)
+- **Base Image**: `nginx:alpine` (lightweight, ~23MB)
+- **Restart Policy**: `unless-stopped`
+
+**Stopping the Container:**
+
+```bash
+# Using Docker Compose
+docker-compose down
+
+# Using Docker directly
+docker stop n8n-user-management-example
+docker rm n8n-user-management-example
+```
+
+**Viewing Logs:**
+
+```bash
+# Using Docker Compose
+docker-compose logs -f
+
+# Using Docker directly
+docker logs -f n8n-user-management-example
+```
+
+**Updating the Application:**
+
+```bash
+# Pull latest changes and rebuild
+git pull
+docker-compose down
+docker-compose up -d --build
+```
+
+### Option 2: Traditional Web Server Deployment
 
 1. **Copy the files to your web server:**
 
@@ -280,6 +350,10 @@ user-management-webapp/
 ├── styles.css          # All styling and responsive design
 ├── app.js              # Application logic and API integration
 ├── config.js           # API configuration
+├── Dockerfile          # Docker image configuration
+├── docker-compose.yml  # Docker Compose configuration
+├── nginx.conf          # Nginx web server configuration
+├── .dockerignore       # Docker build exclusions
 └── README.md           # This file
 ```
 
@@ -319,8 +393,67 @@ Contributions are welcome! Please follow the project's coding standards:
 - Proper documentation
 - Responsive design principles
 
+## Docker Details
+
+### Container Specifications
+
+- **Base Image**: `nginx:alpine` (~23MB compressed)
+- **Exposed Port**: 80 (mapped to 8080 on host)
+- **Health Check**: Automatic health monitoring every 30 seconds
+- **Restart Policy**: Automatically restarts unless manually stopped
+- **Network**: Uses `n8n-network` bridge network for container communication
+
+### Customizing Docker Configuration
+
+**Change Port Mapping:**
+
+Edit `docker-compose.yml`:
+```yaml
+ports:
+  - "3000:80"  # Access on port 3000 instead of 8080
+```
+
+**Connect to Existing n8n Network:**
+
+If you have an existing n8n Docker setup, connect to the same network:
+```yaml
+networks:
+  n8n-network:
+    external: true  # Use existing network
+```
+
+**Add Environment Variables:**
+
+```yaml
+environment:
+  - TZ=America/New_York
+  - CUSTOM_VAR=value
+```
+
+### Building for Different Architectures
+
+The Dockerfile uses `nginx:alpine` which supports multiple architectures:
+
+```bash
+# Build for ARM64 (e.g., Raspberry Pi, Apple Silicon)
+docker buildx build --platform linux/arm64 -t n8n-user-management-example .
+
+# Build for AMD64 (standard x86_64)
+docker buildx build --platform linux/amd64 -t n8n-user-management-example .
+
+# Build multi-platform image
+docker buildx build --platform linux/amd64,linux/arm64 -t n8n-user-management-example .
+```
+
 ## Version History
 
+- **1.1.0** - Docker support added
+  - Dockerfile for containerized deployment
+  - Docker Compose configuration
+  - Nginx configuration for production-ready serving
+  - Health checks and restart policies
+  - Comprehensive Docker documentation
+  
 - **1.0.0** - Initial release with core user management features
   - User creation, viewing, editing, deletion
   - Real-time analytics dashboard
