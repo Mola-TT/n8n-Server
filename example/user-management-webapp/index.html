@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>n8n User Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>n8n User Management</h1>
+            <div class="server-status">
+                <span class="status-indicator" id="serverStatus"></span>
+                <span id="serverStatusText">Checking connection...</span>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- User Creation Form -->
+            <section class="card">
+                <h2>Create New User</h2>
+                <form id="createUserForm">
+                    <div class="form-group">
+                        <label for="userId">User ID</label>
+                        <input type="text" id="userId" name="userId" required placeholder="e.g., user123">
+                        <small>Unique identifier for the user</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="userEmail">Email</label>
+                        <input type="email" id="userEmail" name="userEmail" required placeholder="user@example.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="userName">Full Name</label>
+                        <input type="text" id="userName" name="userName" required placeholder="John Doe">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="userPassword">Password</label>
+                        <input type="password" id="userPassword" name="userPassword" required placeholder="••••••••">
+                        <small>Minimum 8 characters</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="storageQuota">Storage Quota (GB)</label>
+                        <input type="number" id="storageQuota" name="storageQuota" value="10" min="1" max="1000">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Create User</button>
+                </form>
+            </section>
+
+            <!-- User List -->
+            <section class="card">
+                <div class="section-header">
+                    <h2>Active Users</h2>
+                    <button class="btn btn-secondary" id="refreshUsers">
+                        <span class="icon">↻</span> Refresh
+                    </button>
+                </div>
+                
+                <div class="search-box">
+                    <input type="text" id="searchUsers" placeholder="Search users...">
+                </div>
+
+                <div id="usersList" class="users-list">
+                    <div class="loading">Loading users...</div>
+                </div>
+            </section>
+
+            <!-- User Details Modal -->
+            <div id="userModal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h2>User Details</h2>
+                    <div id="userDetails"></div>
+                    
+                    <div class="modal-actions">
+                        <button class="btn btn-warning" id="resetPasswordBtn">Reset Password</button>
+                        <button class="btn btn-danger" id="deleteUserBtn">Delete User</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Dashboard -->
+            <section class="card">
+                <h2>System Analytics</h2>
+                <div class="analytics-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalUsers">0</div>
+                        <div class="stat-label">Total Users</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="activeUsers">0</div>
+                        <div class="stat-label">Active Today</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalStorage">0 GB</div>
+                        <div class="stat-label">Storage Used</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalWorkflows">0</div>
+                        <div class="stat-label">Total Workflows</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toastContainer"></div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+
