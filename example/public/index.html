@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>n8n User Manager</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1 { margin-bottom: 30px; color: #333; }
+    .section { margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 4px; }
+    h2 { margin-bottom: 15px; color: #555; font-size: 18px; }
+    input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    button { padding: 10px 20px; background: #ea4b71; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #d63d5f; }
+    .result { margin-top: 15px; padding: 10px; border-radius: 4px; font-size: 14px; }
+    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .users-list { list-style: none; }
+    .users-list li { padding: 10px; margin: 5px 0; background: white; border-radius: 4px; border: 1px solid #ddd; }
+    iframe { width: 100%; height: 600px; border: 1px solid #ddd; border-radius: 4px; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 n8n User Manager</h1>
+    
+    <div class="section">
+      <h2>Create New User</h2>
+      <input type="email" id="createEmail" placeholder="Email">
+      <input type="password" id="createPassword" placeholder="Password">
+      <input type="text" id="createFirstName" placeholder="First Name">
+      <input type="text" id="createLastName" placeholder="Last Name">
+      <button onclick="createUser()">Create User</button>
+      <div id="createResult"></div>
+    </div>
+
+    <div class="section">
+      <h2>Login Existing User</h2>
+      <input type="email" id="loginEmail" placeholder="Email">
+      <input type="password" id="loginPassword" placeholder="Password">
+      <button onclick="loginUser()">Login</button>
+      <div id="loginResult"></div>
+    </div>
+
+    <div class="section">
+      <h2>Users</h2>
+      <button onclick="listUsers()">Refresh List</button>
+      <ul id="usersList" class="users-list"></ul>
+    </div>
+
+    <div class="section">
+      <h2>n8n Editor (Logged in user)</h2>
+      <input type="email" id="iframeEmail" placeholder="User email">
+      <button onclick="loadN8nIframe()">Load n8n Editor</button>
+      <div id="iframeContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    function showResult(elementId, message, isSuccess) {
+      const el = document.getElementById(elementId);
+      el.className = `result ${isSuccess ? 'success' : 'error'}`;
+      el.textContent = message;
+    }
+
+    async function createUser() {
+      const email = document.getElementById('createEmail').value;
+      const password = document.getElementById('createPassword').value;
+      const firstName = document.getElementById('createFirstName').value;
+      const lastName = document.getElementById('createLastName').value;
+
+      try {
+        const response = await fetch('/api/users/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, firstName, lastName })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          showResult('createResult', `✅ User created: ${email}`, true);
+          listUsers();
+        } else {
+          showResult('createResult', `❌ Error: ${data.error}`, false);
+        }
+      } catch (error) {
+        showResult('createResult', `❌ Error: ${error.message}`, false);
+      }
+    }
+
+    async function loginUser() {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+
+      try {
+        const response = await fetch('/api/users/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          showResult('loginResult', `✅ Logged in as: ${data.user.email}`, true);
+          listUsers();
+        } else {
+          showResult('loginResult', `❌ Error: ${data.error}`, false);
+        }
+      } catch (error) {
+        showResult('loginResult', `❌ Error: ${error.message}`, false);
+      }
+    }
+
+    async function listUsers() {
+      try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        
+        const list = document.getElementById('usersList');
+        if (data.users.length === 0) {
+          list.innerHTML = '<li>No users yet</li>';
+        } else {
+          list.innerHTML = data.users.map(u => 
+            `<li>👤 ${u.firstName} ${u.lastName} (${u.email})</li>`
+          ).join('');
+        }
+      } catch (error) {
+        console.error('Error listing users:', error);
+      }
+    }
+
+    async function loadN8nIframe() {
+      const email = document.getElementById('iframeEmail').value;
+      
+      try {
+        const response = await fetch(`/api/users/${email}/n8n-url`);
+        const data = await response.json();
+        
+        if (data.success) {
+          document.getElementById('iframeContainer').innerHTML = 
+            `<iframe src="${data.n8nUrl}"></iframe>
+             <p style="margin-top: 10px; color: #666; font-size: 12px;">
+               ⚠️ Note: Cookie-based authentication may not work in iframe due to browser security.
+               This is a known limitation with n8n 1.118.2+
+             </p>`;
+        } else {
+          alert(`Error: ${data.error}`);
+        }
+      } catch (error) {
+        alert(`Error: ${error.message}`);
+      }
+    }
+
+    // Load users on page load
+    listUsers();
+  </script>
+</body>
+</html>
+
