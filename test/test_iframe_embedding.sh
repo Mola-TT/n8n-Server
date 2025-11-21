@@ -275,10 +275,20 @@ test_nginx_cors() {
         return 1
     fi
     
-    # Check if WEBAPP_DOMAIN is referenced in CSP
-    if [[ -n "$WEBAPP_DOMAIN" ]]; then
-        if ! grep -q "$WEBAPP_DOMAIN" "$nginx_config"; then
+    # Check if WEBAPP_DOMAIN values are referenced (strip any Windows CR)
+    local cors_primary=$(printf "%s" "${WEBAPP_DOMAIN:-}" | tr -d '\r')
+    local cors_secondary=$(printf "%s" "${WEBAPP_DOMAIN_ALT:-}" | tr -d '\r')
+
+    if [[ -n "$cors_primary" ]]; then
+        if ! grep -Fq "$cors_primary" "$nginx_config"; then
             echo "WEBAPP_DOMAIN not found in Nginx config"
+            return 1
+        fi
+    fi
+
+    if [[ -n "$cors_secondary" ]]; then
+        if ! grep -Fq "$cors_secondary" "$nginx_config"; then
+            echo "WEBAPP_DOMAIN_ALT not found in Nginx config"
             return 1
         fi
     fi
