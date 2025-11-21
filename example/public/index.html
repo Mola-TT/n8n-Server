@@ -65,6 +65,57 @@
       el.textContent = message;
     }
 
+    const fetchOptions = {
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
+    };
+
+    let iframeToken = null;
+    let iframeWindow = null;
+
+    window.addEventListener('message', (event) => {
+      if (event.origin !== window.location.origin) return;
+      const { type, status } = event.data || {};
+
+      if (type === 'IFRAME_READY') {
+        iframeWindow = document.getElementById('n8nFrame')?.contentWindow || event.source;
+        sendIframeToken();
+      } else if (type === 'IFRAME_STATUS') {
+        if (status === 'AUTH_SUCCESS') {
+          console.log('Iframe authenticated as', event.data?.email);
+        } else if (status === 'AUTH_FAILED') {
+          console.warn('Iframe auth failed', event.data?.error);
+        }
+      }
+    });
+
+    function sendIframeToken() {
+      if (iframeWindow && iframeToken) {
+        iframeWindow.postMessage({ type: 'AUTH_TOKEN', token: iframeToken }, window.location.origin);
+      }
+    }
+
+    function updateIframeToken(token) {
+      if (!token) return;
+      iframeToken = token;
+      ensureIframeMounted();
+      sendIframeToken();
+    }
+
+    function ensureIframeMounted() {
+      const container = document.getElementById('iframeContainer');
+      if (document.getElementById('n8nFrame')) {
+        return;
+      }
+      container.innerHTML = `
+        <iframe id="n8nFrame" src="/iframe-wrapper.html"></iframe>
+        <p style="margin-top: 10px; color: #666; font-size: 12px;">
+          Embedded n8n runs via a secure proxy with JWT handoff. Latest valid login is mirrored below.
+        </p>
+      `;
+      iframeWindow = document.getElementById('n8nFrame').contentWindow;
+    }
+
     async function createUser() {
       const email = document.getElementById('createEmail').value;
       const password = document.getElementById('createPassword').value;
@@ -74,7 +125,7 @@
       try {
         const response = await fetch('/api/users/create', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          ...fetchOptions,
           body: JSON.stringify({ email, password, firstName, lastName })
         });
         const data = await response.json();
@@ -82,6 +133,7 @@
         if (data.success) {
           showResult('createResult', `✅ User created: ${email}`, true);
           listUsers();
+          updateIframeToken(data.iframeToken);
         } else {
           showResult('createResult', `❌ Error: ${data.error}`, false);
         }
@@ -97,7 +149,7 @@
       try {
         const response = await fetch('/api/users/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          ...fetchOptions,
           body: JSON.stringify({ email, password })
         });
         const data = await response.json();
@@ -105,6 +157,7 @@
         if (data.success) {
           showResult('loginResult', `✅ Logged in as: ${data.user.email}`, true);
           listUsers();
+          updateIframeToken(data.iframeToken);
         } else {
           showResult('loginResult', `❌ Error: ${data.error}`, false);
         }
@@ -123,7 +176,7 @@
           list.innerHTML = '<li>No users yet</li>';
         } else {
           list.innerHTML = data.users.map(u => 
-            `<li>👤 ${u.firstName} ${u.lastName} (${u.email})</li>`
+            `<li>👤 ${u.firstName ?? ''} ${u.lastName ?? ''} (${u.email})</li>`
           ).join('');
         }
       } catch (error) {
@@ -135,16 +188,13 @@
       const email = document.getElementById('iframeEmail').value;
       
       try {
-        const response = await fetch(`/api/users/${email}/n8n-url`);
+        const response = await fetch(`/api/users/${encodeURIComponent(email)}/n8n-url`, {
+          credentials: 'include'
+        });
         const data = await response.json();
         
         if (data.success) {
-          document.getElementById('iframeContainer').innerHTML = 
-            `<iframe src="${data.n8nUrl}"></iframe>
-             <p style="margin-top: 10px; color: #666; font-size: 12px;">
-               ⚠️ Note: Cookie-based authentication may not work in iframe due to browser security.
-               This is a known limitation with n8n 1.118.2+
-             </p>`;
+          updateIframeToken(data.iframeToken);
         } else {
           alert(`Error: ${data.error}`);
         }
@@ -154,6 +204,7 @@
     }
 
     // Load users on page load
+    ensureIframeMounted();
     listUsers();
   </script>
 </body>
