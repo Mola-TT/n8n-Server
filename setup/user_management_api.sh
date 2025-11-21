@@ -12,11 +12,11 @@ source "$PROJECT_ROOT/lib/utilities.sh"
 
 # Load environment variables
 load_environment() {
-    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
-        source "$PROJECT_ROOT/conf/user.env"
-    fi
     if [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
         source "$PROJECT_ROOT/conf/default.env"
+    fi
+    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
+        source "$PROJECT_ROOT/conf/user.env"
     fi
 }
 
@@ -41,7 +41,7 @@ create_user_provisioning_api() {
     log_info "Creating user provisioning API endpoints..."
     
     # Create user provisioning endpoint
-    cat > /opt/n8n/api/endpoints/user-provisioning.js << 'EOF'
+cat > /opt/n8n/api/endpoints/user-provisioning.js << 'EOF'
 // User Provisioning API
 // REST API for managing user accounts and configurations
 
@@ -54,34 +54,34 @@ const { v4: uuidv4 } = require('uuid');
 
 class UserProvisioningAPI {
     constructor() {
-        this.router = express.Router();
+        this.authRouter = express.Router();
+        this.userRouter = express.Router();
         this.usersPath = '/opt/n8n/users';
         this.configPath = '/opt/n8n/user-configs';
         this.metricsPath = '/opt/n8n/monitoring/metrics';
-        this.setupRoutes();
+        this.setupAuthRoutes();
+        this.setupUserRoutes();
     }
 
-    setupRoutes() {
-        // User management endpoints
-        this.router.post('/users', this.createUser.bind(this));
-        this.router.get('/users', this.listUsers.bind(this));
-        this.router.get('/users/:userId', this.getUser.bind(this));
-        this.router.put('/users/:userId', this.updateUser.bind(this));
-        this.router.delete('/users/:userId', this.deleteUser.bind(this));
-        
-        // User authentication endpoints
-        this.router.post('/auth/login', this.loginUser.bind(this));
-        this.router.post('/auth/logout', this.logoutUser.bind(this));
-        this.router.post('/auth/refresh', this.refreshToken.bind(this));
-        this.router.get('/auth/validate', this.validateToken.bind(this));
-        
-        // User configuration endpoints
-        this.router.get('/users/:userId/config', this.getUserConfig.bind(this));
-        this.router.put('/users/:userId/config', this.updateUserConfig.bind(this));
-        
-        // User metrics endpoints
-        this.router.get('/users/:userId/metrics', this.getUserMetrics.bind(this));
-        this.router.get('/users/:userId/usage', this.getUserUsage.bind(this));
+    setupAuthRoutes() {
+        this.authRouter.post('/login', this.loginUser.bind(this));
+        this.authRouter.post('/logout', this.logoutUser.bind(this));
+        this.authRouter.post('/refresh', this.refreshToken.bind(this));
+        this.authRouter.get('/validate', this.validateToken.bind(this));
+    }
+
+    setupUserRoutes() {
+        this.userRouter.post('/users', this.createUser.bind(this));
+        this.userRouter.get('/users', this.listUsers.bind(this));
+        this.userRouter.get('/users/:userId', this.getUser.bind(this));
+        this.userRouter.put('/users/:userId', this.updateUser.bind(this));
+        this.userRouter.delete('/users/:userId', this.deleteUser.bind(this));
+
+        this.userRouter.get('/users/:userId/config', this.requireOwnUser.bind(this), this.getUserConfig.bind(this));
+        this.userRouter.put('/users/:userId/config', this.requireOwnUser.bind(this), this.updateUserConfig.bind(this));
+
+        this.userRouter.get('/users/:userId/metrics', this.requireOwnUser.bind(this), this.getUserMetrics.bind(this));
+        this.userRouter.get('/users/:userId/usage', this.requireOwnUser.bind(this), this.getUserUsage.bind(this));
     }
 
     // Create new user
@@ -640,8 +640,28 @@ class UserProvisioningAPI {
         }
     }
 
-    getRouter() {
-        return this.router;
+    requireOwnUser(req, res, next) {
+        if (!req.user) {
+            return res.status(401).json({
+                error: 'Authentication required'
+            });
+        }
+
+        if (req.user.role === 'admin' || req.user.userId === req.params.userId) {
+            return next();
+        }
+
+        return res.status(403).json({
+            error: 'Access denied'
+        });
+    }
+
+    getAuthRouter() {
+        return this.authRouter;
+    }
+
+    getUserRouter() {
+        return this.userRouter;
     }
 }
 
@@ -685,9 +705,9 @@ class AnalyticsAPI {
         this.router.get('/reports/system/overview', this.getSystemOverview.bind(this));
         
         // Analytics endpoints
-        this.router.get('/analytics/usage-trends', this.getUsageTrends.bind(this));
-        this.router.get('/analytics/performance', this.getPerformanceAnalytics.bind(this));
-        this.router.get('/analytics/billing', this.getBillingAnalytics.bind(this));
+        this.router.get('/analytics/usage-trends', this.requireAdmin.bind(this), this.getUsageTrends.bind(this));
+        this.router.get('/analytics/performance', this.requireAdmin.bind(this), this.getPerformanceAnalytics.bind(this));
+        this.router.get('/analytics/billing', this.requireAdmin.bind(this), this.getBillingAnalytics.bind(this));
     }
 
     async getAllUserMetrics(req, res) {
@@ -1100,6 +1120,15 @@ class AnalyticsAPI {
         return monday.toISOString().split('T')[0];
     }
 
+    requireAdmin(req, res, next) {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({
+                error: 'Admin privileges required'
+            });
+        }
+        return next();
+    }
+
     getRouter() {
         return this.router;
     }
@@ -1500,43 +1529,25 @@ class UserManagementServer {
         const userAPI = new UserProvisioningAPI();
         
         // Public authentication endpoints
-        this.app.use('/api/auth', userAPI.getRouter());
+        this.app.use('/api/auth', userAPI.getAuthRouter());
         
         // Protected user management endpoints
-        this.app.use('/api/users', 
+        this.app.use('/api',
             authMiddleware.verifyToken.bind(authMiddleware),
-            userAPI.getRouter()
-        );
-        
-        // User configuration endpoints (users can access own data)
-        this.app.use('/api/users/:userId/config',
-            authMiddleware.verifyToken.bind(authMiddleware),
-            authMiddleware.requireOwnUser,
-            userAPI.getRouter()
+            userAPI.getUserRouter()
         );
 
         // Analytics routes (require authentication)
         const analyticsAPI = new AnalyticsAPI();
-        this.app.use('/api/metrics',
+        this.app.use('/api',
             authMiddleware.verifyToken.bind(authMiddleware),
-            analyticsAPI.getRouter()
-        );
-        
-        this.app.use('/api/reports',
-            authMiddleware.verifyToken.bind(authMiddleware),
-            analyticsAPI.getRouter()
-        );
-        
-        this.app.use('/api/analytics',
-            authMiddleware.verifyToken.bind(authMiddleware),
-            authMiddleware.requireRole('admin'),
             analyticsAPI.getRouter()
         );
 
         // Server-to-server API endpoints (API key authentication)
         this.app.use('/api/internal',
             authMiddleware.verifyApiKey,
-            userAPI.getRouter()
+            userAPI.getUserRouter()
         );
 
         // 404 handler

@@ -12,11 +12,11 @@ source "$PROJECT_ROOT/lib/utilities.sh"
 
 # Load environment variables
 load_environment() {
-    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
-        source "$PROJECT_ROOT/conf/user.env"
-    fi
     if [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
         source "$PROJECT_ROOT/conf/default.env"
+    fi
+    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
+        source "$PROJECT_ROOT/conf/user.env"
     fi
     
     # Set environment file path for JWT_SECRET updates

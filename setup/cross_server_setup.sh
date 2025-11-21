@@ -12,11 +12,11 @@ source "$PROJECT_ROOT/lib/utilities.sh"
 
 # Load environment variables
 load_environment() {
-    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
-        source "$PROJECT_ROOT/conf/user.env"
-    fi
     if [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
         source "$PROJECT_ROOT/conf/default.env"
+    fi
+    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
+        source "$PROJECT_ROOT/conf/user.env"
     fi
 }
 
@@ -899,44 +899,56 @@ class SessionManager {
         if (!this.config.encryption.enabled) {
             return JSON.stringify(data);
         }
-        
-        const algorithm = this.config.encryption.algorithm;
+
+        const algorithm = this.config.encryption.algorithm || 'aes-256-gcm';
         const key = Buffer.from(this.config.encryption.key, 'hex');
-        const iv = crypto.randomBytes(16);
-        
-        const cipher = crypto.createCipher(algorithm, key);
-        cipher.setIV(iv);
-        
-        let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-        
-        const authTag = cipher.getAuthTag();
-        
-        return JSON.stringify({
-            encrypted,
-            iv: iv.toString('hex'),
-            authTag: authTag.toString('hex')
-        });
+        const ivLength = algorithm.includes('gcm') ? 12 : 16;
+        const iv = crypto.randomBytes(ivLength);
+
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+        const encrypted = Buffer.concat([
+            cipher.update(JSON.stringify(data), 'utf8'),
+            cipher.final()
+        ]);
+
+        const payload = {
+            encrypted: encrypted.toString('hex'),
+            iv: iv.toString('hex')
+        };
+
+        if (typeof cipher.getAuthTag === 'function') {
+            payload.authTag = cipher.getAuthTag().toString('hex');
+        }
+
+        return JSON.stringify(payload);
     }
 
     decryptData(encryptedData) {
         if (!this.config.encryption.enabled) {
             return JSON.parse(encryptedData);
         }
-        
+
         try {
             const { encrypted, iv, authTag } = JSON.parse(encryptedData);
-            const algorithm = this.config.encryption.algorithm;
+            const algorithm = this.config.encryption.algorithm || 'aes-256-gcm';
             const key = Buffer.from(this.config.encryption.key, 'hex');
-            
-            const decipher = crypto.createDecipher(algorithm, key);
-            decipher.setIV(Buffer.from(iv, 'hex'));
-            decipher.setAuthTag(Buffer.from(authTag, 'hex'));
-            
-            let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-            decrypted += decipher.final('utf8');
-            
-            return JSON.parse(decrypted);
+
+            const decipher = crypto.createDecipheriv(
+                algorithm,
+                key,
+                Buffer.from(iv, 'hex')
+            );
+
+            if (authTag) {
+                decipher.setAuthTag(Buffer.from(authTag, 'hex'));
+            }
+
+            const decrypted = Buffer.concat([
+                decipher.update(Buffer.from(encrypted, 'hex')),
+                decipher.final()
+            ]);
+
+            return JSON.parse(decrypted.toString('utf8'));
         } catch (error) {
             console.error('Failed to decrypt session data:', error);
             return null;
