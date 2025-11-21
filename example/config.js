@@ -1,23 +1,30 @@
 // n8n User Management API Configuration
 // Update these values to match your n8n server setup
 
-const API_CONFIG = {
-    // Base URL for the n8n user management API
-    // Update this to your n8n server's domain or IP address
-    baseUrl: 'https://your-n8n-domain.com/api/v1',
-    
-    // API Key for authentication
-    // This should match the API key configured in your n8n server
-    // IMPORTANT: In production, never expose API keys in client-side code
-    // Consider implementing a backend proxy for API calls
-    apiKey: 'your-api-key-here',
-    
-    // Refresh interval for auto-updating data (in milliseconds)
-    refreshInterval: 30000, // 30 seconds
-    
-    // Enable debug logging
-    debug: false
-};
+(() => {
+    const defaults = {
+        // Base URL for the n8n user management API
+        // Update this to your n8n server's domain or IP address
+        baseUrl: 'https://your-n8n-domain.com/api/v1',
+        
+        // API Key for authentication
+        // This should match the API key configured in your n8n server
+        // IMPORTANT: In production, never expose API keys in client-side code
+        // Consider implementing a backend proxy for API calls
+        apiKey: 'your-api-key-here',
+        
+        // Refresh interval for auto-updating data (in milliseconds)
+        refreshInterval: 30000, // 30 seconds
+        
+        // Enable debug logging
+        debug: false
+    };
+
+    window.API_CONFIG_DEFAULTS = defaults;
+    if (!window.API_CONFIG) {
+        window.API_CONFIG = defaults;
+    }
+})();
 
 // For local development, you can use:
 // API_CONFIG.baseUrl = 'http://localhost:5678/api/v1';

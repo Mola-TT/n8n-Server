@@ -21,27 +21,33 @@ function parseBool(value) {
 }
 
 // API Configuration loaded from environment
-const API_CONFIG = {
-    // Base URL for the n8n user management API
-    baseUrl: getEnvVar('N8N_API_BASE_URL', 'http://localhost:5678/api/v1'),
-    
-    // API Key for authentication
-    apiKey: getEnvVar('N8N_API_KEY', 'your-api-key-here'),
-    
-    // Refresh interval for auto-updating data (in milliseconds)
-    refreshInterval: parseInt(getEnvVar('REFRESH_INTERVAL', '30000')),
-    
-    // Enable debug logging
-    debug: parseBool(getEnvVar('DEBUG_MODE', 'false'))
-};
+(function () {
+    const defaults = window.API_CONFIG_DEFAULTS || window.API_CONFIG || {};
+
+    const config = {
+        // Base URL for the n8n user management API
+        baseUrl: getEnvVar('N8N_API_BASE_URL', defaults.baseUrl || 'http://localhost:5678/api/v1'),
+        
+        // API Key for authentication
+        apiKey: getEnvVar('N8N_API_KEY', defaults.apiKey || 'your-api-key-here'),
+        
+        // Refresh interval for auto-updating data (in milliseconds)
+        refreshInterval: parseInt(getEnvVar('REFRESH_INTERVAL', String(defaults.refreshInterval ?? 30000)), 10),
+        
+        // Enable debug logging
+        debug: parseBool(getEnvVar('DEBUG_MODE', String(defaults.debug ?? false)))
+    };
+
+    window.API_CONFIG = config;
+})();
 
 // Log configuration in debug mode (without exposing API key)
-if (API_CONFIG.debug) {
+if ((window.API_CONFIG && window.API_CONFIG.debug)) {
     console.log('API Configuration loaded:', {
-        baseUrl: API_CONFIG.baseUrl,
-        apiKey: API_CONFIG.apiKey ? '***' + API_CONFIG.apiKey.slice(-4) : 'not set',
-        refreshInterval: API_CONFIG.refreshInterval,
-        debug: API_CONFIG.debug
+        baseUrl: window.API_CONFIG.baseUrl,
+        apiKey: window.API_CONFIG.apiKey ? '***' + window.API_CONFIG.apiKey.slice(-4) : 'not set',
+        refreshInterval: window.API_CONFIG.refreshInterval,
+        debug: window.API_CONFIG.debug
     });
 }
 
