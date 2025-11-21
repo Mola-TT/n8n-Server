@@ -302,7 +302,9 @@ create_multiuser_nginx_config() {
     local config_file="$1"
     
     # Build CSP frame-ancestors based on PRODUCTION flag
-    local csp_frame_base="'self' ${WEBAPP_DOMAIN:-*} ${WEBAPP_DOMAIN_ALT:-*}"
+    local cors_primary="${WEBAPP_DOMAIN:-https://app.example.com}"
+    local cors_secondary="${WEBAPP_DOMAIN_ALT:-https://webapp.example.com}"
+    local csp_frame_base="'self' ${cors_primary} ${cors_secondary}"
     if [[ "${PRODUCTION:-false}" == "false" ]]; then
         # Development mode: include localhost domains
         local csp_frame_dev="${CSP_FRAME_ANCESTORS_DEV:-http://localhost:3000 http://localhost:8080 http://127.0.0.1:3000 http://host.docker.internal:3000}"
@@ -383,17 +385,29 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     
-    # Content Security Policy - DISABLED
-    # n8n manages its own CSP internally. Nginx CSP was causing conflicts with n8n's JavaScript execution.
-    # If you need CSP for iframe embedding, configure it within n8n's settings instead.
-    # set \$csp_default "default-src 'self'";
-    # set \$csp_script "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
-    # set \$csp_style "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com";
-    # set \$csp_img "img-src 'self' data: https:";
-    # set \$csp_font "font-src 'self' https://fonts.gstatic.com";
-    # set \$csp_connect "connect-src 'self' wss: https: ${WEBAPP_DOMAIN:-*}";
-    # set \$csp_frame_ancestors "frame-ancestors $csp_frame_full";
-    # add_header Content-Security-Policy "\$csp_default; \$csp_script; \$csp_style; \$csp_img; \$csp_font; \$csp_connect; \$csp_frame_ancestors;" always;
+    # Content Security Policy tailored for iframe embedding
+    set \$csp_default "default-src 'self'";
+    set \$csp_script "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+    set \$csp_style "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com";
+    set \$csp_img "img-src 'self' data: https:";
+    set \$csp_font "font-src 'self' https://fonts.gstatic.com";
+    set \$csp_connect "connect-src 'self' wss: https: ${cors_primary} ${cors_secondary}";
+    set \$csp_frame_ancestors "frame-ancestors ${csp_frame_full}";
+    add_header Content-Security-Policy "\$csp_default; \$csp_script; \$csp_style; \$csp_img; \$csp_font; \$csp_connect; \$csp_frame_ancestors;" always;
+
+    # CORS headers for embedded web app
+    set \$cors_origin "${cors_primary}";
+    if (\$http_origin = "${cors_secondary}") { set \$cors_origin "\$http_origin"; }
+    if (\$http_origin = "${cors_primary}") { set \$cors_origin "\$http_origin"; }
+    add_header Access-Control-Allow-Origin \$cors_origin always;
+    add_header Access-Control-Allow-Credentials "true" always;
+    add_header Access-Control-Allow-Headers "Authorization, Content-Type, X-Requested-With" always;
+    add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+    add_header Access-Control-Max-Age "86400" always;
+
+    if (\$request_method = OPTIONS) {
+        return 204;
+    }
     
     # Rate limiting (general and per-user)
     limit_req zone=n8n_limit burst=20 nodelay;
