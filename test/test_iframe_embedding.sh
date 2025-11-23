@@ -6,12 +6,12 @@
 source "$(dirname "$0")/../lib/logger.sh"
 source "$(dirname "$0")/../lib/utilities.sh"
 
-# Load environment variables
-if [[ -f "$(dirname "$0")/../conf/user.env" ]]; then
-    source "$(dirname "$0")/../conf/user.env"
-fi
+# Load environment variables (defaults first, then user overrides)
 if [[ -f "$(dirname "$0")/../conf/default.env" ]]; then
     source "$(dirname "$0")/../conf/default.env"
+fi
+if [[ -f "$(dirname "$0")/../conf/user.env" ]]; then
+    source "$(dirname "$0")/../conf/user.env"
 fi
 
 # Test counter
