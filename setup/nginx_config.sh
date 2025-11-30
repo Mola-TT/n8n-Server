@@ -321,9 +321,11 @@ create_multiuser_nginx_config() {
 # Nginx configuration for n8n - Milestone 7 Multi-User
 # Generated automatically by nginx_config.sh with multi-user and iframe support
 
-# Rate limiting zones
-limit_req_zone \$binary_remote_addr zone=n8n_limit:10m rate=10r/m;
-limit_req_zone \$http_x_user_id zone=user_limit:10m rate=30r/m;
+# Rate limiting zones (configurable via environment)
+# NGINX_RATE_LIMIT_GLOBAL: requests per second for general access (default: 50r/s)
+# NGINX_RATE_LIMIT_USER: requests per second per user (default: 100r/s)
+limit_req_zone \$binary_remote_addr zone=n8n_limit:10m rate=${NGINX_RATE_LIMIT_GLOBAL:-50r/s};
+limit_req_zone \$http_x_user_id zone=user_limit:10m rate=${NGINX_RATE_LIMIT_USER:-100r/s};
 
 # Map for user routing
 map \$request_uri \$user_id {
@@ -410,8 +412,9 @@ server {
     }
     
     # Rate limiting (general and per-user)
-    limit_req zone=n8n_limit burst=20 nodelay;
-    limit_req zone=user_limit burst=50 nodelay;
+    # Burst allows initial page load with many assets (~150 files)
+    limit_req zone=n8n_limit burst=${NGINX_RATE_BURST_GLOBAL:-200} nodelay;
+    limit_req zone=user_limit burst=${NGINX_RATE_BURST_USER:-300} nodelay;
     
     # Client settings
     client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE:-100M};
@@ -450,7 +453,7 @@ server {
         proxy_set_header X-User-Path /\$path;
         
         # Per-user rate limiting
-        limit_req zone=user_limit burst=50 nodelay;
+        limit_req zone=user_limit burst=${NGINX_RATE_BURST_USER:-300} nodelay;
         
         proxy_pass http://n8n_backend/\$path\$is_args\$args;
         
@@ -462,8 +465,8 @@ server {
     
     # API endpoints for user management
     location /api/user/ {
-        # API rate limiting
-        limit_req zone=n8n_limit burst=10 nodelay;
+        # API rate limiting (more restrictive for API calls)
+        limit_req zone=n8n_limit burst=${NGINX_RATE_BURST_API:-50} nodelay;
         
         # Add API headers
         proxy_set_header X-API-Request "true";
