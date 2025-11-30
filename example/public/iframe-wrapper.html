@@ -29,6 +29,7 @@
 </head>
 <body>
   <div id="status">Waiting for secure token from parent...</div>
+  <div id="debug" style="padding:5px;background:#ffeb3b;font-size:12px;">DEBUG: v2 - iframe src will be set below</div>
   <iframe id="n8nContent" src=""></iframe>
 
   <script>
@@ -56,11 +57,11 @@
         const data = await response.json();
 
         if (response.ok && data.success) {
-          statusEl.textContent = `Connected as ${data.email}`;
+          statusEl.textContent = `Connected as ${data.email} - Loading n8n...`;
+          document.getElementById('debug').textContent = `DEBUG: Setting src to /n8n/`;
           contentFrame.style.display = 'block';
-          if (!contentFrame.src) {
-            contentFrame.src = '/n8n/';
-          }
+          contentFrame.src = '/n8n/';
+          document.getElementById('debug').textContent = `DEBUG: src is now: ${contentFrame.src}`;
           postStatus('AUTH_SUCCESS', { email: data.email });
         } else {
           const errorMsg = data.error || 'Failed to sync session';
@@ -80,6 +81,10 @@
       if (type === 'AUTH_TOKEN') {
         establishSession(token);
       }
+    });
+
+    contentFrame.addEventListener('load', () => {
+      statusEl.textContent = statusEl.textContent.replace('Loading n8n...', 'n8n loaded');
     });
 
     window.addEventListener('DOMContentLoaded', () => {
