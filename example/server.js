@@ -18,6 +18,15 @@ const ADMIN_EMAIL = process.env.N8N_ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.N8N_ADMIN_PASSWORD;
 const PROXY_COOKIE_NAME = process.env.N8N_PROXY_COOKIE || 'n8n_proxy_session';
 const SESSION_JWT_SECRET = process.env.N8N_IFRAME_JWT_SECRET || 'n8n-dev-iframe-secret';
+const BASIC_AUTH_USER = process.env.N8N_BASIC_AUTH_USER;
+const BASIC_AUTH_PASSWORD = process.env.N8N_BASIC_AUTH_PASSWORD;
+const ADMIN_AUTH = process.env.N8N_ADMIN_AUTH_USER && process.env.N8N_ADMIN_AUTH_PASSWORD ? {
+  username: process.env.N8N_ADMIN_AUTH_USER,
+  password: process.env.N8N_ADMIN_AUTH_PASSWORD
+} : (BASIC_AUTH_USER && BASIC_AUTH_PASSWORD ? {
+  username: BASIC_AUTH_USER,
+  password: BASIC_AUTH_PASSWORD
+} : undefined);
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: 'Lax',
@@ -31,6 +40,14 @@ if (!N8N_API) {
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false
 });
+
+const baseAxiosConfig = {
+  httpsAgent,
+  auth: BASIC_AUTH_USER && BASIC_AUTH_PASSWORD ? {
+    username: BASIC_AUTH_USER,
+    password: BASIC_AUTH_PASSWORD
+  } : undefined
+};
 
 // In-memory user store (for demo only)
 const users = new Map();
@@ -97,15 +114,15 @@ async function getAdminSession() {
     emailOrLdapLoginId: ADMIN_EMAIL,
     password: ADMIN_PASSWORD
   }, {
-    withCredentials: true,
-    httpsAgent
+    ...baseAxiosConfig,
+    withCredentials: true
   });
   
   const cookies = response.headers['set-cookie'];
   return cookies ? cookies.join('; ') : '';
 }
 
-// Create user in n8n
+// Create user in n8n via invitation flow
 app.post('/api/users/create', async (req, res) => {
   try {
     const { email, password, firstName, lastName } = req.body;
@@ -113,25 +130,53 @@ app.post('/api/users/create', async (req, res) => {
     // Get admin session
     const adminCookie = await getAdminSession();
     
-    // Create user in n8n
-    await axios.post(`${N8N_API}/rest/users`, {
+    // Step 1: Create invitation for the user
+    console.log('Creating invitation for:', email);
+    const inviteResponse = await axios.post(`${N8N_API}/rest/invitations`, [{
       email,
-      password,
-      firstName,
-      lastName,
       role: 'global:member'
-    }, {
-      headers: { Cookie: adminCookie },
-      httpsAgent
+    }], {
+      ...baseAxiosConfig,
+      headers: { Cookie: adminCookie }
     });
     
-    // Login as new user to get their session
+    console.log('Invite response:', JSON.stringify(inviteResponse.data, null, 2));
+    
+    // n8n returns: { data: [{ user: { id, email, inviteAcceptUrl }, error: "" }] }
+    const inviteResult = inviteResponse.data?.data?.[0];
+    const invitation = inviteResult?.user;
+    
+    if (!invitation?.id) {
+      console.error('Invalid invitation response:', inviteResponse.data);
+      throw new Error(inviteResult?.error || 'Failed to create invitation - no invitation ID returned');
+    }
+    
+    const inviteAcceptUrl = invitation.inviteAcceptUrl;
+    
+    // Step 2: Accept the invitation to complete user creation
+    // Extract inviterId from URL (format: .../signup?inviterId=xxx&inviteeId=yyy)
+    const inviteUrl = new URL(inviteAcceptUrl);
+    const inviterId = inviteUrl.searchParams.get('inviterId');
+    const inviteeId = invitation.id;
+    
+    console.log('Accepting invitation:', { inviterId, inviteeId });
+    
+    const acceptResponse = await axios.post(`${N8N_API}/rest/invitations/${inviteeId}/accept`, {
+      inviterId,
+      firstName: firstName || email.split('@')[0],
+      lastName: lastName || '',
+      password
+    }, baseAxiosConfig);
+    
+    console.log('Accept response:', JSON.stringify(acceptResponse.data, null, 2));
+    
+    // Step 3: Login as new user to get their session
     const loginResponse = await axios.post(`${N8N_API}/rest/login`, {
       emailOrLdapLoginId: email,
       password: password
     }, {
-      withCredentials: true,
-      httpsAgent
+      ...baseAxiosConfig,
+      withCredentials: true
     });
     
     const userCookie = loginResponse.headers['set-cookie']?.join('; ') || '';
@@ -173,8 +218,8 @@ app.post('/api/users/login', async (req, res) => {
       emailOrLdapLoginId: email,
       password: password
     }, {
-      withCredentials: true,
-      httpsAgent
+      ...baseAxiosConfig,
+      withCredentials: true
     });
     
     const userCookie = response.headers['set-cookie']?.join('; ') || '';
@@ -270,16 +315,30 @@ const proxyMiddleware = createProxyMiddleware({
   target: N8N_API,
   changeOrigin: true,
   ws: true,
-  logLevel: 'silent',
+  logLevel: 'debug',
   secure: false,
   agent: httpsAgent,
   pathRewrite: (pathStr) => pathStr.replace(/^\/n8n/, ''),
   onProxyReq: (proxyReq, req) => {
+    console.log(`[PROXY] ${req.method} ${req.url} -> ${N8N_API}${req.url.replace(/^\/n8n/, '')}`);
     if (req.n8nSession?.n8nCookie) {
       proxyReq.setHeader('Cookie', req.n8nSession.n8nCookie);
     }
+    // Pass through basic auth if configured
+    if (BASIC_AUTH_USER && BASIC_AUTH_PASSWORD) {
+      const auth = Buffer.from(`${BASIC_AUTH_USER}:${BASIC_AUTH_PASSWORD}`).toString('base64');
+      proxyReq.setHeader('Authorization', `Basic ${auth}`);
+    }
   },
   onProxyRes: (proxyRes, req) => {
+    console.log(`[PROXY RES] ${req.url} -> ${proxyRes.statusCode}`);
+    
+    // Remove headers that block iframe embedding
+    delete proxyRes.headers['x-frame-options'];
+    delete proxyRes.headers['content-security-policy'];
+    delete proxyRes.headers['content-security-policy-report-only'];
+    
+    // Update cookies from n8n
     const setCookie = proxyRes.headers['set-cookie'];
     if (setCookie && req.sessionToken) {
       sessionStore.set(req.sessionToken, {
@@ -288,6 +347,10 @@ const proxyMiddleware = createProxyMiddleware({
         lastActive: Date.now()
       });
     }
+  },
+  onError: (err, req, res) => {
+    console.error(`[PROXY ERROR] ${req.url}:`, err.message);
+    res.status(502).json({ error: 'Proxy error', message: err.message });
   }
 });
 
