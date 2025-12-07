@@ -342,17 +342,25 @@ test_https_headers() {
         return 0
     fi
     
-    # Test X-Frame-Options header
+    # Test X-Frame-Options header - should NOT be DENY for iframe embedding
+    # Note: X-Frame-Options may be absent (preferred) or set to SAMEORIGIN/ALLOWALL
+    # CSP frame-ancestors handles security instead
     local frame_header=$(curl -s -k -I "https://localhost:${NGINX_HTTPS_PORT:-443}" 2>/dev/null | grep -i "x-frame-options")
-    if [[ -z "$frame_header" ]]; then
-        echo "X-Frame-Options header not present"
+    if [[ -n "$frame_header" ]] && echo "$frame_header" | grep -qi "DENY"; then
+        echo "X-Frame-Options is set to DENY - iframe embedding blocked"
         return 1
     fi
     
-    # Test CSP header
+    # Test CSP header with frame-ancestors
     local csp_header=$(curl -s -k -I "https://localhost:${NGINX_HTTPS_PORT:-443}" 2>/dev/null | grep -i "content-security-policy")
     if [[ -z "$csp_header" ]]; then
         echo "Content-Security-Policy header not present"
+        return 1
+    fi
+    
+    # Verify CSP includes frame-ancestors
+    if ! echo "$csp_header" | grep -qi "frame-ancestors"; then
+        echo "CSP missing frame-ancestors directive for iframe security"
         return 1
     fi
     
