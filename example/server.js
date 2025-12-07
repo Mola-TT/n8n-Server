@@ -6,13 +6,12 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const https = require('https');
-const path = require('path');
 
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static('public'));
 
+// Configuration
 const N8N_API = process.env.N8N_API_URL;
 const ADMIN_EMAIL = process.env.N8N_ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.N8N_ADMIN_PASSWORD;
@@ -20,18 +19,23 @@ const PROXY_COOKIE_NAME = process.env.N8N_PROXY_COOKIE || 'n8n_proxy_session';
 const SESSION_JWT_SECRET = process.env.N8N_IFRAME_JWT_SECRET || 'n8n-dev-iframe-secret';
 const BASIC_AUTH_USER = process.env.N8N_BASIC_AUTH_USER;
 const BASIC_AUTH_PASSWORD = process.env.N8N_BASIC_AUTH_PASSWORD;
-const ADMIN_AUTH = process.env.N8N_ADMIN_AUTH_USER && process.env.N8N_ADMIN_AUTH_PASSWORD ? {
-  username: process.env.N8N_ADMIN_AUTH_USER,
-  password: process.env.N8N_ADMIN_AUTH_PASSWORD
-} : (BASIC_AUTH_USER && BASIC_AUTH_PASSWORD ? {
-  username: BASIC_AUTH_USER,
-  password: BASIC_AUTH_PASSWORD
-} : undefined);
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: 'Lax',
   secure: process.env.COOKIE_SECURE === 'true'
 };
+
+// Security headers - permissive for iframe embedding
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', 
+    "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
+    "script-src * 'unsafe-inline' 'unsafe-eval'; " +
+    "style-src * 'unsafe-inline'; " +
+    "frame-ancestors *;");
+  next();
+});
+
+app.use(express.static('public'));
 
 if (!N8N_API) {
   throw new Error('N8N_API_URL is required for the proxy demo');
@@ -131,7 +135,6 @@ app.post('/api/users/create', async (req, res) => {
     const adminCookie = await getAdminSession();
     
     // Step 1: Create invitation for the user
-    console.log('Creating invitation for:', email);
     const inviteResponse = await axios.post(`${N8N_API}/rest/invitations`, [{
       email,
       role: 'global:member'
@@ -140,15 +143,45 @@ app.post('/api/users/create', async (req, res) => {
       headers: { Cookie: adminCookie }
     });
     
-    console.log('Invite response:', JSON.stringify(inviteResponse.data, null, 2));
-    
     // n8n returns: { data: [{ user: { id, email, inviteAcceptUrl }, error: "" }] }
     const inviteResult = inviteResponse.data?.data?.[0];
     const invitation = inviteResult?.user;
     
+    // If invitation returns empty, user might already exist - try login instead
     if (!invitation?.id) {
-      console.error('Invalid invitation response:', inviteResponse.data);
-      throw new Error(inviteResult?.error || 'Failed to create invitation - no invitation ID returned');
+      
+      try {
+        const loginResponse = await axios.post(`${N8N_API}/rest/login`, {
+          emailOrLdapLoginId: email,
+          password: password
+        }, {
+          ...baseAxiosConfig,
+          withCredentials: true
+        });
+        
+        const userCookie = loginResponse.headers['set-cookie']?.join('; ') || '';
+        
+        users.set(email, {
+          email,
+          firstName,
+          lastName,
+          n8nCookie: userCookie,
+          n8nData: loginResponse.data
+        });
+
+        const sessionToken = issueSession(email, userCookie, res);
+        
+        return res.json({
+          success: true,
+          message: 'User already exists - logged in successfully',
+          user: loginResponse.data.data || { email, firstName, lastName },
+          iframeUrl: '/iframe-wrapper.html',
+          sessionToken,
+          iframeToken: generateIframeToken(email)
+        });
+      } catch (loginError) {
+        throw new Error('User may already exist with different password, or invitation failed');
+      }
     }
     
     const inviteAcceptUrl = invitation.inviteAcceptUrl;
@@ -159,16 +192,12 @@ app.post('/api/users/create', async (req, res) => {
     const inviterId = inviteUrl.searchParams.get('inviterId');
     const inviteeId = invitation.id;
     
-    console.log('Accepting invitation:', { inviterId, inviteeId });
-    
-    const acceptResponse = await axios.post(`${N8N_API}/rest/invitations/${inviteeId}/accept`, {
+    await axios.post(`${N8N_API}/rest/invitations/${inviteeId}/accept`, {
       inviterId,
       firstName: firstName || email.split('@')[0],
       lastName: lastName || '',
       password
     }, baseAxiosConfig);
-    
-    console.log('Accept response:', JSON.stringify(acceptResponse.data, null, 2));
     
     // Step 3: Login as new user to get their session
     const loginResponse = await axios.post(`${N8N_API}/rest/login`, {
@@ -315,12 +344,11 @@ const proxyMiddleware = createProxyMiddleware({
   target: N8N_API,
   changeOrigin: true,
   ws: true,
-  logLevel: 'debug',
   secure: false,
   agent: httpsAgent,
   pathRewrite: (pathStr) => pathStr.replace(/^\/n8n/, ''),
   onProxyReq: (proxyReq, req) => {
-    console.log(`[PROXY] ${req.method} ${req.url} -> ${N8N_API}${req.url.replace(/^\/n8n/, '')}`);
+    // Inject n8n session cookie
     if (req.n8nSession?.n8nCookie) {
       proxyReq.setHeader('Cookie', req.n8nSession.n8nCookie);
     }
@@ -331,16 +359,21 @@ const proxyMiddleware = createProxyMiddleware({
     }
   },
   onProxyRes: (proxyRes, req) => {
-    console.log(`[PROXY RES] ${req.url} -> ${proxyRes.statusCode}`);
-    
     // Remove headers that block iframe embedding
     delete proxyRes.headers['x-frame-options'];
     delete proxyRes.headers['content-security-policy'];
     delete proxyRes.headers['content-security-policy-report-only'];
     
-    // Update cookies from n8n
+    // Set permissive CSP for iframe
+    proxyRes.headers['content-security-policy'] = 
+      "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
+      "script-src * 'unsafe-inline' 'unsafe-eval'; " +
+      "style-src * 'unsafe-inline';";
+    proxyRes.headers['access-control-allow-origin'] = '*';
+    
+    // Update stored cookie if n8n sends new one
     const setCookie = proxyRes.headers['set-cookie'];
-    if (setCookie && req.sessionToken) {
+    if (setCookie && req.sessionToken && req.n8nSession) {
       sessionStore.set(req.sessionToken, {
         email: req.n8nSession.email,
         n8nCookie: setCookie.join('; '),
@@ -354,7 +387,29 @@ const proxyMiddleware = createProxyMiddleware({
   }
 });
 
+// Protected n8n route (requires session)
 app.use('/n8n', ensureProxySession, proxyMiddleware);
+
+// Catch-all proxy for n8n paths (assets, static, app routes)
+// These paths need session injection but shouldn't block if missing
+const n8nPaths = ['/assets', '/static', '/home', '/workflow', '/credentials', '/executions', '/settings', '/rest', '/signin', '/signup', '/forgot-password'];
+
+app.use((req, res, next) => {
+  const isN8nPath = n8nPaths.some(p => req.path.startsWith(p)) || req.path === '/favicon.ico';
+  if (!isN8nPath) return next();
+  
+  // Try to attach session if available
+  const token = req.cookies[PROXY_COOKIE_NAME];
+  if (token) {
+    const session = sessionStore.get(token);
+    if (session?.n8nCookie) {
+      req.n8nSession = session;
+      req.sessionToken = token;
+    }
+  }
+  
+  return proxyMiddleware(req, res, next);
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
