@@ -318,6 +318,8 @@ const N8N_PATHS = ['/assets', '/static', '/home', '/workflow', '/credentials',
 
 // Proxy handler with session injection
 app.use((req, res, next) => {
+  // Skip proxy for our own API routes
+  if (req.path.startsWith('/api/')) return next();
   if (!N8N_PATHS.some(p => req.path.startsWith(p))) return next();
   
   const token = req.cookies[PROXY_COOKIE_NAME];
