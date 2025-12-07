@@ -70,36 +70,13 @@
       credentials: 'include'
     };
 
-    let iframeToken = null;
-    let iframeWindow = null;
-
-    window.addEventListener('message', (event) => {
-      if (event.origin !== window.location.origin) return;
-      const { type, status } = event.data || {};
-
-      if (type === 'IFRAME_READY') {
-        iframeWindow = document.getElementById('n8nFrame')?.contentWindow || event.source;
-        sendIframeToken();
-      } else if (type === 'IFRAME_STATUS') {
-        if (status === 'AUTH_SUCCESS') {
-          console.log('Iframe authenticated as', event.data?.email);
-        } else if (status === 'AUTH_FAILED') {
-          console.warn('Iframe auth failed', event.data?.error);
-        }
+    function reloadIframe() {
+      const iframe = document.getElementById('n8nFrame');
+      if (iframe) {
+        iframe.src = iframe.src; // Force reload
+      } else {
+        ensureIframeMounted();
       }
-    });
-
-    function sendIframeToken() {
-      if (iframeWindow && iframeToken) {
-        iframeWindow.postMessage({ type: 'AUTH_TOKEN', token: iframeToken }, window.location.origin);
-      }
-    }
-
-    function updateIframeToken(token) {
-      if (!token) return;
-      iframeToken = token;
-      ensureIframeMounted();
-      sendIframeToken();
     }
 
     function ensureIframeMounted() {
@@ -107,13 +84,13 @@
       if (document.getElementById('n8nFrame')) {
         return;
       }
+      // Load n8n directly (session cookie handles auth)
       container.innerHTML = `
-        <iframe id="n8nFrame" src="/iframe-wrapper.html"></iframe>
+        <iframe id="n8nFrame" src="/home/workflows"></iframe>
         <p style="margin-top: 10px; color: #666; font-size: 12px;">
-          Embedded n8n runs via a secure proxy with JWT handoff. Latest valid login is mirrored below.
+          Embedded n8n runs via a secure proxy. Session is shared via cookies.
         </p>
       `;
-      iframeWindow = document.getElementById('n8nFrame').contentWindow;
     }
 
     async function createUser() {
@@ -133,7 +110,7 @@
         if (data.success) {
           showResult('createResult', `✅ User created: ${email}`, true);
           listUsers();
-          updateIframeToken(data.iframeToken);
+          reloadIframe();
         } else {
           showResult('createResult', `❌ Error: ${data.error}`, false);
         }
@@ -157,7 +134,7 @@
         if (data.success) {
           showResult('loginResult', `✅ Logged in as: ${data.user.email}`, true);
           listUsers();
-          updateIframeToken(data.iframeToken);
+          reloadIframe();
         } else {
           showResult('loginResult', `❌ Error: ${data.error}`, false);
         }
@@ -187,6 +164,12 @@
     async function loadN8nIframe() {
       const email = document.getElementById('iframeEmail').value;
       
+      if (!email) {
+        // Just reload the iframe with current session
+        reloadIframe();
+        return;
+      }
+      
       try {
         const response = await fetch(`/api/users/${encodeURIComponent(email)}/n8n-url`, {
           credentials: 'include'
@@ -194,7 +177,7 @@
         const data = await response.json();
         
         if (data.success) {
-          updateIframeToken(data.iframeToken);
+          reloadIframe();
         } else {
           alert(`Error: ${data.error}`);
         }
@@ -204,7 +187,6 @@
     }
 
     // Load users on page load
-    ensureIframeMounted();
     listUsers();
   </script>
 </body>
