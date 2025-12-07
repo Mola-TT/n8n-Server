@@ -149,6 +149,136 @@ app.get('/api/users', (req, res) => {
   res.json({ success: true, users: [] });
 });
 
+// Get current user's usage metrics
+app.get('/api/usage', async (req, res) => {
+  try {
+    const token = req.cookies[PROXY_COOKIE_NAME];
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+    
+    const session = sessionStore.get(token);
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Get user info from n8n
+    const userRes = await axios.get(`${N8N_API}/rest/me`, {
+      ...axiosConfig,
+      headers: { Cookie: session.n8nCookie }
+    });
+    
+    const user = userRes.data.data;
+    const userId = user.id;
+    
+    // Get executions data from n8n
+    const executionsRes = await axios.get(`${N8N_API}/rest/executions`, {
+      ...axiosConfig,
+      headers: { Cookie: session.n8nCookie },
+      params: { limit: 100 }
+    });
+    
+    const executions = executionsRes.data.data || [];
+    
+    // Calculate metrics
+    const totalExecutions = executions.length;
+    const successfulExecutions = executions.filter(e => e.status === 'success').length;
+    const failedExecutions = executions.filter(e => e.status === 'error' || e.status === 'crashed').length;
+    const runningExecutions = executions.filter(e => e.status === 'running').length;
+    
+    // Calculate total execution time
+    let totalExecutionTime = 0;
+    executions.forEach(e => {
+      if (e.startedAt && e.stoppedAt) {
+        totalExecutionTime += new Date(e.stoppedAt) - new Date(e.startedAt);
+      }
+    });
+    
+    // Get workflows count
+    const workflowsRes = await axios.get(`${N8N_API}/rest/workflows`, {
+      ...axiosConfig,
+      headers: { Cookie: session.n8nCookie }
+    });
+    
+    const workflows = workflowsRes.data.data || [];
+    const activeWorkflows = workflows.filter(w => w.active).length;
+    
+    // Group executions by day for chart
+    const executionsByDay = {};
+    executions.forEach(e => {
+      const date = new Date(e.startedAt).toISOString().split('T')[0];
+      if (!executionsByDay[date]) {
+        executionsByDay[date] = { total: 0, success: 0, failed: 0 };
+      }
+      executionsByDay[date].total++;
+      if (e.status === 'success') executionsByDay[date].success++;
+      if (e.status === 'error' || e.status === 'crashed') executionsByDay[date].failed++;
+    });
+    
+    // Recent executions
+    const recentExecutions = executions.slice(0, 10).map(e => ({
+      id: e.id,
+      workflowName: e.workflowData?.name || 'Unknown',
+      status: e.status,
+      startedAt: e.startedAt,
+      stoppedAt: e.stoppedAt,
+      duration: e.startedAt && e.stoppedAt 
+        ? new Date(e.stoppedAt) - new Date(e.startedAt) 
+        : null
+    }));
+    
+    res.json({
+      success: true,
+      user: {
+        id: userId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName
+      },
+      metrics: {
+        executions: {
+          total: totalExecutions,
+          successful: successfulExecutions,
+          failed: failedExecutions,
+          running: runningExecutions,
+          successRate: totalExecutions > 0 
+            ? Math.round((successfulExecutions / totalExecutions) * 100) 
+            : 0
+        },
+        executionTime: {
+          totalMs: totalExecutionTime,
+          totalFormatted: formatDuration(totalExecutionTime),
+          averageMs: totalExecutions > 0 ? Math.round(totalExecutionTime / totalExecutions) : 0
+        },
+        workflows: {
+          total: workflows.length,
+          active: activeWorkflows,
+          inactive: workflows.length - activeWorkflows
+        }
+      },
+      charts: {
+        executionsByDay: Object.entries(executionsByDay)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .slice(-14) // Last 14 days
+          .map(([date, data]) => ({ date, ...data }))
+      },
+      recentExecutions,
+      generatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Usage API error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper function to format duration
+function formatDuration(ms) {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  if (ms < 3600000) return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+  return `${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`;
+}
+
 // Proxy middleware configuration
 const proxyMiddleware = createProxyMiddleware({
   target: N8N_API,
