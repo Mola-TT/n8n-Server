@@ -19,6 +19,9 @@ chmod +x init.sh
 clear
 sudo ./init.sh
 
+# Docker Compose Commands
+docker compose up -d --build webapp; docker compose logs -f webapp   
+
 
 # Remote SSH AI Instruction
 This window is currently connected to a remote server.
