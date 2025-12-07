@@ -162,29 +162,40 @@ app.get('/api/usage', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Session not found' });
     }
     
-    // Get user info from n8n
-    const userRes = await axios.get(`${N8N_API}/rest/me`, {
-      ...axiosConfig,
-      headers: { Cookie: session.n8nCookie }
-    });
+    const headers = { Cookie: session.n8nCookie };
     
-    const user = userRes.data.data;
-    const userId = user.id;
+    // Get user info from n8n - try multiple endpoints for compatibility
+    let user = { id: 'unknown', email: session.email, firstName: '', lastName: '' };
+    try {
+      const userRes = await axios.get(`${N8N_API}/rest/users/me`, { ...axiosConfig, headers });
+      user = userRes.data.data || userRes.data;
+    } catch (e) {
+      try {
+        const userRes = await axios.get(`${N8N_API}/rest/me`, { ...axiosConfig, headers });
+        user = userRes.data.data || userRes.data;
+      } catch (e2) {
+        console.log('Could not fetch user info, using session email');
+      }
+    }
     
     // Get executions data from n8n
-    const executionsRes = await axios.get(`${N8N_API}/rest/executions`, {
-      ...axiosConfig,
-      headers: { Cookie: session.n8nCookie },
-      params: { limit: 100 }
-    });
-    
-    const executions = executionsRes.data.data || [];
+    let executions = [];
+    try {
+      const executionsRes = await axios.get(`${N8N_API}/rest/executions`, {
+        ...axiosConfig,
+        headers,
+        params: { limit: 100 }
+      });
+      executions = executionsRes.data.data || executionsRes.data.results || [];
+    } catch (e) {
+      console.log('Could not fetch executions:', e.message);
+    }
     
     // Calculate metrics
     const totalExecutions = executions.length;
-    const successfulExecutions = executions.filter(e => e.status === 'success').length;
-    const failedExecutions = executions.filter(e => e.status === 'error' || e.status === 'crashed').length;
-    const runningExecutions = executions.filter(e => e.status === 'running').length;
+    const successfulExecutions = executions.filter(e => e.status === 'success' || e.finished === true).length;
+    const failedExecutions = executions.filter(e => e.status === 'error' || e.status === 'crashed' || e.status === 'failed').length;
+    const runningExecutions = executions.filter(e => e.status === 'running' || e.status === 'waiting').length;
     
     // Calculate total execution time
     let totalExecutionTime = 0;
@@ -195,31 +206,34 @@ app.get('/api/usage', async (req, res) => {
     });
     
     // Get workflows count
-    const workflowsRes = await axios.get(`${N8N_API}/rest/workflows`, {
-      ...axiosConfig,
-      headers: { Cookie: session.n8nCookie }
-    });
+    let workflows = [];
+    try {
+      const workflowsRes = await axios.get(`${N8N_API}/rest/workflows`, { ...axiosConfig, headers });
+      workflows = workflowsRes.data.data || workflowsRes.data || [];
+    } catch (e) {
+      console.log('Could not fetch workflows:', e.message);
+    }
     
-    const workflows = workflowsRes.data.data || [];
     const activeWorkflows = workflows.filter(w => w.active).length;
     
     // Group executions by day for chart
     const executionsByDay = {};
     executions.forEach(e => {
+      if (!e.startedAt) return;
       const date = new Date(e.startedAt).toISOString().split('T')[0];
       if (!executionsByDay[date]) {
         executionsByDay[date] = { total: 0, success: 0, failed: 0 };
       }
       executionsByDay[date].total++;
-      if (e.status === 'success') executionsByDay[date].success++;
-      if (e.status === 'error' || e.status === 'crashed') executionsByDay[date].failed++;
+      if (e.status === 'success' || e.finished === true) executionsByDay[date].success++;
+      if (e.status === 'error' || e.status === 'crashed' || e.status === 'failed') executionsByDay[date].failed++;
     });
     
     // Recent executions
     const recentExecutions = executions.slice(0, 10).map(e => ({
       id: e.id,
-      workflowName: e.workflowData?.name || 'Unknown',
-      status: e.status,
+      workflowName: e.workflowData?.name || e.workflowName || 'Unknown',
+      status: e.status || (e.finished ? 'success' : 'unknown'),
       startedAt: e.startedAt,
       stoppedAt: e.stoppedAt,
       duration: e.startedAt && e.stoppedAt 
@@ -230,10 +244,10 @@ app.get('/api/usage', async (req, res) => {
     res.json({
       success: true,
       user: {
-        id: userId,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName
+        id: user.id || 'unknown',
+        email: user.email || session.email,
+        firstName: user.firstName || '',
+        lastName: user.lastName || ''
       },
       metrics: {
         executions: {
