@@ -16,6 +16,8 @@
     .login-form button { padding: 8px 16px; background: white; color: #ea4b71; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
     .login-form button:hover { background: #f8f8f8; }
     .status { font-size: 13px; padding: 4px 12px; background: rgba(255,255,255,0.2); border-radius: 12px; }
+    .usage-link { padding: 8px 14px; background: rgba(255,255,255,0.15); color: white; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500; transition: background 0.2s; }
+    .usage-link:hover { background: rgba(255,255,255,0.25); }
     .main { height: calc(100vh - 56px); }
     iframe { width: 100%; height: 100%; border: none; }
     .error { background: #fee; color: #c00; padding: 12px; text-align: center; }
@@ -29,6 +31,7 @@
       <input type="password" id="password" placeholder="Password" required>
       <button type="submit">Login</button>
     </form>
+    <a href="/usage.html" class="usage-link" id="usageLink" style="display: none;">📊 Usage</a>
     <span class="status" id="status">Not logged in</span>
   </div>
   <div class="main">
@@ -55,6 +58,7 @@
         if (data.success) {
           status.textContent = `Logged in as ${data.user?.email || email}`;
           document.getElementById('n8n').src = '/home/workflows';
+          document.getElementById('usageLink').style.display = 'inline';
         } else {
           status.textContent = `Error: ${data.error}`;
         }
