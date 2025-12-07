@@ -256,7 +256,7 @@ app.post('/api/users/login', async (req, res) => {
     console.log(`[LOGIN] n8n set-cookie headers:`, setCookieHeaders);
     
     const userCookie = setCookieHeaders?.join('; ') || '';
-    console.log(`[LOGIN] Storing cookie for ${email}: ${userCookie.substring(0, 80)}...`);
+    console.log(`[LOGIN] Storing cookie: ${userCookie.substring(0, 100)}...`);
     
     users.set(email, {
       email,
@@ -356,10 +356,10 @@ const proxyMiddleware = createProxyMiddleware({
   onProxyReq: (proxyReq, req) => {
     // Inject n8n session cookie
     if (req.n8nSession?.n8nCookie) {
-      console.log(`[PROXY REQ] Injecting cookie for ${req.n8nSession.email}: ${req.n8nSession.n8nCookie.substring(0, 60)}...`);
+      console.log(`[PROXY REQ] ${req.path} - Injecting cookie for ${req.n8nSession.email}`);
       proxyReq.setHeader('Cookie', req.n8nSession.n8nCookie);
     } else {
-      console.log(`[PROXY REQ] No session to inject for ${req.path}`);
+      console.log(`[PROXY REQ] ${req.path} - No session to inject`);
     }
     // Pass through basic auth if configured
     if (BASIC_AUTH_USER && BASIC_AUTH_PASSWORD) {
@@ -385,7 +385,7 @@ const proxyMiddleware = createProxyMiddleware({
     // Update stored cookie if n8n sends new one
     const setCookie = proxyRes.headers['set-cookie'];
     if (setCookie) {
-      console.log(`[PROXY RES] n8n set-cookie:`, setCookie[0]?.substring(0, 80));
+      console.log(`[PROXY RES] n8n set-cookie:`, setCookie[0]?.substring(0, 60));
       if (req.sessionToken && req.n8nSession) {
         sessionStore.set(req.sessionToken, {
           email: req.n8nSession.email,
@@ -414,19 +414,19 @@ app.use((req, res, next) => {
   
   // Try to attach session if available
   const token = req.cookies[PROXY_COOKIE_NAME];
-  console.log(`[PROXY] ${req.method} ${req.path} - Cookie token: ${token ? token.substring(0, 8) + '...' : 'NONE'}`);
+  console.log(`[PROXY] ${req.method} ${req.path} - Cookie: ${token ? token.substring(0, 8) + '...' : 'NONE'}`);
   
   if (token) {
     const session = sessionStore.get(token);
     if (session?.n8nCookie) {
-      console.log(`[PROXY] Session found for ${session.email}, cookie: ${session.n8nCookie.substring(0, 50)}...`);
+      console.log(`[PROXY] Session found for ${session.email}`);
       req.n8nSession = session;
       req.sessionToken = token;
     } else {
-      console.log(`[PROXY] No session found for token`);
+      console.log(`[PROXY] No session in store for token`);
     }
   } else {
-    console.log(`[PROXY] Available cookies:`, Object.keys(req.cookies));
+    console.log(`[PROXY] All cookies:`, Object.keys(req.cookies));
   }
   
   return proxyMiddleware(req, res, next);
