@@ -362,18 +362,19 @@ const proxyMiddleware = createProxyMiddleware({
   pathRewrite: (pathStr) => pathStr.replace(/^\/n8n/, ''),
   onProxyReq: (proxyReq, req) => {
     console.log(`[PROXY REQ] ${req.method} ${req.path}`);
-    // Inject n8n session cookie
-    if (req.n8nSession?.n8nCookie) {
-      console.log(`[PROXY REQ] Injecting cookie: ${req.n8nSession.n8nCookie.substring(0, 60)}...`);
+    // Log what cookie header we're sending
+    const cookieHeader = proxyReq.getHeader('Cookie') || req.headers['cookie'];
+    console.log(`[PROXY REQ] Cookie being sent: ${cookieHeader ? cookieHeader.substring(0, 60) + '...' : 'NONE'}`);
+    
+    // Ensure cookie is set on proxyReq (may already be from req.headers)
+    if (req.n8nSession?.n8nCookie && !proxyReq.getHeader('Cookie')) {
       proxyReq.setHeader('Cookie', req.n8nSession.n8nCookie);
-    } else {
-      console.log(`[PROXY REQ] No n8nSession or cookie to inject`);
     }
+    
     // Pass through basic auth if configured
     if (BASIC_AUTH_USER && BASIC_AUTH_PASSWORD) {
       const auth = Buffer.from(`${BASIC_AUTH_USER}:${BASIC_AUTH_PASSWORD}`).toString('base64');
       proxyReq.setHeader('Authorization', `Basic ${auth}`);
-      console.log(`[PROXY REQ] Added Basic Auth header`);
     }
   },
   onProxyRes: (proxyRes, req) => {
@@ -429,10 +430,12 @@ app.use((req, res, next) => {
   if (token) {
     const session = sessionStore.get(token);
     if (session?.n8nCookie) {
-      console.log(`[PROXY] Session found for ${session.email}, n8nCookie length: ${session.n8nCookie.length}`);
-      console.log(`[PROXY] Will inject: ${session.n8nCookie.substring(0, 80)}...`);
+      console.log(`[PROXY] Session found for ${session.email}, injecting cookie`);
       req.n8nSession = session;
       req.sessionToken = token;
+      // Set cookie header directly on request object
+      req.headers['cookie'] = session.n8nCookie;
+      console.log(`[PROXY] Set req.headers.cookie: ${session.n8nCookie.substring(0, 60)}...`);
     } else {
       console.log(`[PROXY] No session in store for token, session:`, session);
     }
