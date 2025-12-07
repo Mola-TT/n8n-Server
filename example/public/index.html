@@ -3,192 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>n8n User Manager</title>
+  <title>n8n Embedded Demo</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    h1 { margin-bottom: 30px; color: #333; }
-    .section { margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 4px; }
-    h2 { margin-bottom: 15px; color: #555; font-size: 18px; }
-    input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
-    button { padding: 10px 20px; background: #ea4b71; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
-    button:hover { background: #d63d5f; }
-    .result { margin-top: 15px; padding: 10px; border-radius: 4px; font-size: 14px; }
-    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .users-list { list-style: none; }
-    .users-list li { padding: 10px; margin: 5px 0; background: white; border-radius: 4px; border: 1px solid #ddd; }
-    iframe { width: 100%; height: 600px; border: 1px solid #ddd; border-radius: 4px; margin-top: 15px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .header { background: #ea4b71; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    .header h1 { font-size: 20px; font-weight: 500; }
+    .login-form { display: flex; gap: 12px; align-items: center; margin-left: auto; }
+    .login-form input { padding: 8px 12px; border: none; border-radius: 4px; font-size: 14px; }
+    .login-form input[type="email"] { width: 200px; }
+    .login-form input[type="password"] { width: 140px; }
+    .login-form button { padding: 8px 16px; background: white; color: #ea4b71; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
+    .login-form button:hover { background: #f8f8f8; }
+    .status { font-size: 13px; padding: 4px 12px; background: rgba(255,255,255,0.2); border-radius: 12px; }
+    .main { height: calc(100vh - 56px); }
+    iframe { width: 100%; height: 100%; border: none; }
+    .error { background: #fee; color: #c00; padding: 12px; text-align: center; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🔧 n8n User Manager</h1>
-    
-    <div class="section">
-      <h2>Create New User</h2>
-      <input type="email" id="createEmail" placeholder="Email">
-      <input type="password" id="createPassword" placeholder="Password">
-      <input type="text" id="createFirstName" placeholder="First Name">
-      <input type="text" id="createLastName" placeholder="Last Name">
-      <button onclick="createUser()">Create User</button>
-      <div id="createResult"></div>
-    </div>
-
-    <div class="section">
-      <h2>Login Existing User</h2>
-      <input type="email" id="loginEmail" placeholder="Email">
-      <input type="password" id="loginPassword" placeholder="Password">
-      <button onclick="loginUser()">Login</button>
-      <div id="loginResult"></div>
-    </div>
-
-    <div class="section">
-      <h2>Users</h2>
-      <button onclick="listUsers()">Refresh List</button>
-      <ul id="usersList" class="users-list"></ul>
-    </div>
-
-    <div class="section">
-      <h2>n8n Editor (Logged in user)</h2>
-      <input type="email" id="iframeEmail" placeholder="User email">
-      <button onclick="loadN8nIframe()">Load n8n Editor</button>
-      <div id="iframeContainer"></div>
-    </div>
+  <div class="header">
+    <h1>n8n Embedded</h1>
+    <form class="login-form" onsubmit="login(event)">
+      <input type="email" id="email" placeholder="Email" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+    <span class="status" id="status">Not logged in</span>
+  </div>
+  <div class="main">
+    <iframe id="n8n" src="about:blank"></iframe>
   </div>
 
   <script>
-    function showResult(elementId, message, isSuccess) {
-      const el = document.getElementById(elementId);
-      el.className = `result ${isSuccess ? 'success' : 'error'}`;
-      el.textContent = message;
-    }
-
-    const fetchOptions = {
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include'
-    };
-
-    function reloadIframe() {
-      const iframe = document.getElementById('n8nFrame');
-      if (iframe) {
-        iframe.src = iframe.src; // Force reload
-      } else {
-        ensureIframeMounted();
-      }
-    }
-
-    function ensureIframeMounted() {
-      const container = document.getElementById('iframeContainer');
-      if (document.getElementById('n8nFrame')) {
-        return;
-      }
-      // Load n8n directly (session cookie handles auth)
-      container.innerHTML = `
-        <iframe id="n8nFrame" src="/home/workflows"></iframe>
-        <p style="margin-top: 10px; color: #666; font-size: 12px;">
-          Embedded n8n runs via a secure proxy. Session is shared via cookies.
-        </p>
-      `;
-    }
-
-    async function createUser() {
-      const email = document.getElementById('createEmail').value;
-      const password = document.getElementById('createPassword').value;
-      const firstName = document.getElementById('createFirstName').value;
-      const lastName = document.getElementById('createLastName').value;
-
+    async function login(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const status = document.getElementById('status');
+      
       try {
-        const response = await fetch('/api/users/create', {
+        status.textContent = 'Logging in...';
+        const res = await fetch('/api/users/login', {
           method: 'POST',
-          ...fetchOptions,
-          body: JSON.stringify({ email, password, firstName, lastName })
-        });
-        const data = await response.json();
-        
-        if (data.success) {
-          showResult('createResult', `✅ User created: ${email}`, true);
-          listUsers();
-          reloadIframe();
-        } else {
-          showResult('createResult', `❌ Error: ${data.error}`, false);
-        }
-      } catch (error) {
-        showResult('createResult', `❌ Error: ${error.message}`, false);
-      }
-    }
-
-    async function loginUser() {
-      const email = document.getElementById('loginEmail').value;
-      const password = document.getElementById('loginPassword').value;
-
-      try {
-        const response = await fetch('/api/users/login', {
-          method: 'POST',
-          ...fetchOptions,
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ email, password })
         });
-        const data = await response.json();
+        const data = await res.json();
         
         if (data.success) {
-          showResult('loginResult', `✅ Logged in as: ${data.user.email}`, true);
-          listUsers();
-          reloadIframe();
+          status.textContent = `Logged in as ${data.user?.email || email}`;
+          document.getElementById('n8n').src = '/home/workflows';
         } else {
-          showResult('loginResult', `❌ Error: ${data.error}`, false);
+          status.textContent = `Error: ${data.error}`;
         }
-      } catch (error) {
-        showResult('loginResult', `❌ Error: ${error.message}`, false);
+      } catch (err) {
+        status.textContent = `Error: ${err.message}`;
       }
     }
-
-    async function listUsers() {
-      try {
-        const response = await fetch('/api/users');
-        const data = await response.json();
-        
-        const list = document.getElementById('usersList');
-        if (data.users.length === 0) {
-          list.innerHTML = '<li>No users yet</li>';
-        } else {
-          list.innerHTML = data.users.map(u => 
-            `<li>👤 ${u.firstName ?? ''} ${u.lastName ?? ''} (${u.email})</li>`
-          ).join('');
-        }
-      } catch (error) {
-        console.error('Error listing users:', error);
-      }
-    }
-
-    async function loadN8nIframe() {
-      const email = document.getElementById('iframeEmail').value;
-      
-      if (!email) {
-        // Just reload the iframe with current session
-        reloadIframe();
-        return;
-      }
-      
-      try {
-        const response = await fetch(`/api/users/${encodeURIComponent(email)}/n8n-url`, {
-          credentials: 'include'
-        });
-        const data = await response.json();
-        
-        if (data.success) {
-          reloadIframe();
-        } else {
-          alert(`Error: ${data.error}`);
-        }
-      } catch (error) {
-        alert(`Error: ${error.message}`);
-      }
-    }
-
-    // Load users on page load
-    listUsers();
   </script>
 </body>
 </html>
-

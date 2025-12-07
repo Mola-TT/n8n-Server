@@ -1,7 +1,7 @@
 {
-  "name": "n8n-user-manager",
+  "name": "n8n-iframe-proxy-example",
   "version": "1.0.0",
-  "description": "Simple n8n user management demo",
+  "description": "Example proxy server for embedding n8n in an iframe",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,8 +12,6 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "http-proxy-middleware": "^3.0.0",
-    "jsonwebtoken": "^9.0.2",
     "uuid": "^9.0.1"
   }
 }
-

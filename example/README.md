@@ -1,57 +1,68 @@
-# n8n User Manager - Simple Demo
+# n8n Iframe Embedding Example
 
-A minimal web app demonstrating n8n user management via API.
+This example demonstrates how to embed n8n in an iframe within your web application, with automatic session management handled by a proxy server.
 
-## Setup
+## Architecture
 
-1. **Copy environment file:**
+```
+Browser → Your Proxy Server → n8n Server (with Nginx)
+         (this example)      (your n8n installation)
+```
+
+The proxy server:
+1. Authenticates users via n8n's API
+2. Stores session cookies securely (server-side)
+3. Proxies all n8n requests, injecting the session cookie
+4. Strips headers that would block iframe embedding
+
+Security is handled by:
+- n8n server's Nginx configuration (rate limiting, CORS, CSP)
+- Proxy server's httpOnly session cookies
+- n8n's built-in authentication
+
+## Quick Start
+
+1. Copy the environment template:
    ```bash
-   cp .env.example .env
+   cp env.template .env
    ```
 
-2. **Edit `.env` with your n8n server details:**
+2. Edit `.env` with your n8n server details:
    ```env
    N8N_API_URL=https://your-n8n-server.com
    N8N_ADMIN_EMAIL=admin@example.com
-   N8N_ADMIN_PASSWORD=your-password
-   PORT=3001
+   N8N_ADMIN_PASSWORD=your-admin-password
    ```
 
-3. **Start with Docker:**
+3. Run with Docker:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
-4. **Open browser:**
-   ```
-   http://localhost:3001
-   ```
+4. Open http://localhost:3001 and login with an n8n user account
 
-## Features
+## Configuration
 
-- ✅ Create new n8n users
-- ✅ Login existing users
-- ✅ List all managed users
-- ✅ Load n8n editor in iframe (with limitations)
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `N8N_API_URL` | Yes | URL of your n8n server |
+| `N8N_ADMIN_EMAIL` | Yes | Admin email for user invitation API |
+| `N8N_ADMIN_PASSWORD` | Yes | Admin password |
+| `N8N_BASIC_AUTH_USER` | No | Basic auth user (if n8n uses it) |
+| `N8N_BASIC_AUTH_PASSWORD` | No | Basic auth password |
+| `PORT` | No | Server port (default: 3000) |
 
-## Requirements
+## Production Deployment
 
-Your n8n server must have:
-- `N8N_USER_MANAGEMENT_DISABLED=false`
-- `N8N_BASIC_AUTH_ACTIVE=true` (for admin access)
-- An owner account created
+For production:
+1. Use Redis for session storage (replace the in-memory Map)
+2. Set `COOKIE_SECURE=true` for HTTPS
+3. Configure proper CORS on your n8n server's Nginx
+4. Use a process manager like PM2 or run in Docker
 
-## Limitations
+## Files
 
-- **In-memory storage**: Users are stored in memory (lost on restart)
-- **Iframe embedding**: n8n 1.118.2+ uses cookie-based auth which may not work in cross-origin iframes
-- **Development only**: Not production-ready (no database, no security hardening)
-
-## Note
-
-This is a **minimal demonstration** only. For production use, you would need:
-- Persistent database
-- Proper authentication/authorization
-- Session management
-- Error handling
-- Security hardening
+- `server.js` - Express proxy server
+- `public/index.html` - Simple login UI with embedded n8n iframe
+- `docker-compose.yml` - Docker configuration
+- `env.template` - Environment variable template
