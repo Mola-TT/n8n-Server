@@ -242,6 +242,7 @@ app.post('/api/users/create', async (req, res) => {
 app.post('/api/users/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log(`[LOGIN] Attempting login for ${email}`);
     
     const response = await axios.post(`${N8N_API}/rest/login`, {
       emailOrLdapLoginId: email,
@@ -251,7 +252,11 @@ app.post('/api/users/login', async (req, res) => {
       withCredentials: true
     });
     
-    const userCookie = response.headers['set-cookie']?.join('; ') || '';
+    const setCookieHeaders = response.headers['set-cookie'];
+    console.log(`[LOGIN] n8n set-cookie headers:`, setCookieHeaders);
+    
+    const userCookie = setCookieHeaders?.join('; ') || '';
+    console.log(`[LOGIN] Storing cookie for ${email}: ${userCookie.substring(0, 80)}...`);
     
     users.set(email, {
       email,
@@ -260,6 +265,7 @@ app.post('/api/users/login', async (req, res) => {
     });
 
     const sessionToken = issueSession(email, userCookie, res);
+    console.log(`[LOGIN] Session token issued: ${sessionToken?.substring(0, 8)}...`);
     
     res.json({
       success: true,
@@ -350,7 +356,10 @@ const proxyMiddleware = createProxyMiddleware({
   onProxyReq: (proxyReq, req) => {
     // Inject n8n session cookie
     if (req.n8nSession?.n8nCookie) {
+      console.log(`[PROXY REQ] Injecting cookie for ${req.n8nSession.email}: ${req.n8nSession.n8nCookie.substring(0, 60)}...`);
       proxyReq.setHeader('Cookie', req.n8nSession.n8nCookie);
+    } else {
+      console.log(`[PROXY REQ] No session to inject for ${req.path}`);
     }
     // Pass through basic auth if configured
     if (BASIC_AUTH_USER && BASIC_AUTH_PASSWORD) {
@@ -359,6 +368,8 @@ const proxyMiddleware = createProxyMiddleware({
     }
   },
   onProxyRes: (proxyRes, req) => {
+    console.log(`[PROXY RES] ${req.path} -> ${proxyRes.statusCode}`);
+    
     // Remove headers that block iframe embedding
     delete proxyRes.headers['x-frame-options'];
     delete proxyRes.headers['content-security-policy'];
@@ -373,12 +384,15 @@ const proxyMiddleware = createProxyMiddleware({
     
     // Update stored cookie if n8n sends new one
     const setCookie = proxyRes.headers['set-cookie'];
-    if (setCookie && req.sessionToken && req.n8nSession) {
-      sessionStore.set(req.sessionToken, {
-        email: req.n8nSession.email,
-        n8nCookie: setCookie.join('; '),
-        lastActive: Date.now()
-      });
+    if (setCookie) {
+      console.log(`[PROXY RES] n8n set-cookie:`, setCookie[0]?.substring(0, 80));
+      if (req.sessionToken && req.n8nSession) {
+        sessionStore.set(req.sessionToken, {
+          email: req.n8nSession.email,
+          n8nCookie: setCookie.join('; '),
+          lastActive: Date.now()
+        });
+      }
     }
   },
   onError: (err, req, res) => {
@@ -400,12 +414,19 @@ app.use((req, res, next) => {
   
   // Try to attach session if available
   const token = req.cookies[PROXY_COOKIE_NAME];
+  console.log(`[PROXY] ${req.method} ${req.path} - Cookie token: ${token ? token.substring(0, 8) + '...' : 'NONE'}`);
+  
   if (token) {
     const session = sessionStore.get(token);
     if (session?.n8nCookie) {
+      console.log(`[PROXY] Session found for ${session.email}, cookie: ${session.n8nCookie.substring(0, 50)}...`);
       req.n8nSession = session;
       req.sessionToken = token;
+    } else {
+      console.log(`[PROXY] No session found for token`);
     }
+  } else {
+    console.log(`[PROXY] Available cookies:`, Object.keys(req.cookies));
   }
   
   return proxyMiddleware(req, res, next);
