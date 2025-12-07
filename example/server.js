@@ -218,7 +218,7 @@ app.get('/api/usage', async (req, res) => {
       }
     });
     
-    // Get workflows count
+    // Get workflows with details
     let workflows = [];
     try {
       const workflowsRes = await axios.get(`${N8N_API}/rest/workflows`, { ...axiosConfig, headers });
@@ -238,6 +238,21 @@ app.get('/api/usage', async (req, res) => {
     }
     
     const activeWorkflows = workflows.filter(w => w.active).length;
+    const totalNodes = workflows.reduce((sum, w) => sum + (w.nodes?.length || 0), 0);
+    
+    // Get credentials count
+    let credentialsCount = 0;
+    try {
+      const credRes = await axios.get(`${N8N_API}/rest/credentials`, { ...axiosConfig, headers });
+      const credData = credRes.data;
+      if (Array.isArray(credData)) {
+        credentialsCount = credData.length;
+      } else if (Array.isArray(credData.data)) {
+        credentialsCount = credData.data.length;
+      }
+    } catch (e) {
+      console.log('Could not fetch credentials:', e.message);
+    }
     
     // Group executions by day for chart
     const executionsByDay = {};
@@ -245,12 +260,35 @@ app.get('/api/usage', async (req, res) => {
       if (!e.startedAt) return;
       const date = new Date(e.startedAt).toISOString().split('T')[0];
       if (!executionsByDay[date]) {
-        executionsByDay[date] = { total: 0, success: 0, failed: 0 };
+        executionsByDay[date] = { total: 0, success: 0, failed: 0, duration: 0 };
       }
       executionsByDay[date].total++;
       if (e.status === 'success' || e.finished === true) executionsByDay[date].success++;
       if (e.status === 'error' || e.status === 'crashed' || e.status === 'failed') executionsByDay[date].failed++;
+      if (e.startedAt && e.stoppedAt) {
+        executionsByDay[date].duration += new Date(e.stoppedAt) - new Date(e.startedAt);
+      }
     });
+    
+    // Group executions by hour for activity heatmap
+    const executionsByHour = Array(24).fill(0);
+    executions.forEach(e => {
+      if (e.startedAt) {
+        const hour = new Date(e.startedAt).getHours();
+        executionsByHour[hour]++;
+      }
+    });
+    
+    // Calculate performance metrics
+    const executionTimes = executions
+      .filter(e => e.startedAt && e.stoppedAt)
+      .map(e => new Date(e.stoppedAt) - new Date(e.startedAt));
+    
+    const avgExecutionTime = executionTimes.length > 0 
+      ? executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length 
+      : 0;
+    const minExecutionTime = executionTimes.length > 0 ? Math.min(...executionTimes) : 0;
+    const maxExecutionTime = executionTimes.length > 0 ? Math.max(...executionTimes) : 0;
     
     // Recent executions
     const recentExecutions = executions.slice(0, 10).map(e => ({
@@ -261,8 +299,55 @@ app.get('/api/usage', async (req, res) => {
       stoppedAt: e.stoppedAt,
       duration: e.startedAt && e.stoppedAt 
         ? new Date(e.stoppedAt) - new Date(e.startedAt) 
-        : null
+        : null,
+      mode: e.mode || 'manual'
     }));
+    
+    // Top workflows by execution count
+    const workflowExecutionCounts = {};
+    executions.forEach(e => {
+      const name = e.workflowData?.name || e.workflowName || 'Unknown';
+      workflowExecutionCounts[name] = (workflowExecutionCounts[name] || 0) + 1;
+    });
+    const topWorkflows = Object.entries(workflowExecutionCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+    
+    // Simulated quotas (these would come from user config in production)
+    const quotas = {
+      storage: { used: 256 * 1024 * 1024, limit: 1024 * 1024 * 1024 }, // 256MB / 1GB
+      workflows: { used: workflows.length, limit: 100 },
+      executions: { used: totalExecutions, limit: 10000 },
+      credentials: { used: credentialsCount, limit: 50 }
+    };
+    
+    // Simulated storage breakdown
+    const storageBreakdown = {
+      workflows: Math.floor(quotas.storage.used * 0.3),
+      files: Math.floor(quotas.storage.used * 0.45),
+      logs: Math.floor(quotas.storage.used * 0.15),
+      temp: Math.floor(quotas.storage.used * 0.1)
+    };
+    
+    // Calculate billing estimates (example rates)
+    const billingRates = {
+      perExecution: 0.001, // $0.001 per execution
+      perGBStorage: 0.10,  // $0.10 per GB per month
+      perComputeHour: 0.05 // $0.05 per compute hour
+    };
+    
+    const computeHours = totalExecutionTime / (1000 * 60 * 60);
+    const storageGB = quotas.storage.used / (1024 * 1024 * 1024);
+    
+    const billing = {
+      executions: { count: totalExecutions, cost: totalExecutions * billingRates.perExecution },
+      storage: { gb: storageGB, cost: storageGB * billingRates.perGBStorage },
+      compute: { hours: computeHours, cost: computeHours * billingRates.perComputeHour },
+      total: (totalExecutions * billingRates.perExecution) + 
+             (storageGB * billingRates.perGBStorage) + 
+             (computeHours * billingRates.perComputeHour)
+    };
     
     res.json({
       success: true,
@@ -270,7 +355,9 @@ app.get('/api/usage', async (req, res) => {
         id: user.id || 'unknown',
         email: user.email || session.email,
         firstName: user.firstName || '',
-        lastName: user.lastName || ''
+        lastName: user.lastName || '',
+        role: user.role || 'member',
+        createdAt: user.createdAt
       },
       metrics: {
         executions: {
@@ -285,19 +372,48 @@ app.get('/api/usage', async (req, res) => {
         executionTime: {
           totalMs: totalExecutionTime,
           totalFormatted: formatDuration(totalExecutionTime),
-          averageMs: totalExecutions > 0 ? Math.round(totalExecutionTime / totalExecutions) : 0
+          averageMs: Math.round(avgExecutionTime),
+          averageFormatted: formatDuration(avgExecutionTime),
+          minMs: minExecutionTime,
+          maxMs: maxExecutionTime
         },
         workflows: {
           total: workflows.length,
           active: activeWorkflows,
-          inactive: workflows.length - activeWorkflows
+          inactive: workflows.length - activeWorkflows,
+          totalNodes
+        },
+        credentials: credentialsCount
+      },
+      quotas,
+      storage: {
+        used: quotas.storage.used,
+        limit: quotas.storage.limit,
+        usedFormatted: formatBytes(quotas.storage.used),
+        limitFormatted: formatBytes(quotas.storage.limit),
+        percentage: Math.round((quotas.storage.used / quotas.storage.limit) * 100),
+        breakdown: {
+          workflows: { bytes: storageBreakdown.workflows, formatted: formatBytes(storageBreakdown.workflows) },
+          files: { bytes: storageBreakdown.files, formatted: formatBytes(storageBreakdown.files) },
+          logs: { bytes: storageBreakdown.logs, formatted: formatBytes(storageBreakdown.logs) },
+          temp: { bytes: storageBreakdown.temp, formatted: formatBytes(storageBreakdown.temp) }
         }
       },
+      performance: {
+        avgExecutionTime: Math.round(avgExecutionTime),
+        minExecutionTime,
+        maxExecutionTime,
+        successRate: totalExecutions > 0 ? Math.round((successfulExecutions / totalExecutions) * 100) : 0,
+        failureRate: totalExecutions > 0 ? Math.round((failedExecutions / totalExecutions) * 100) : 0
+      },
+      billing,
       charts: {
         executionsByDay: Object.entries(executionsByDay)
           .sort((a, b) => a[0].localeCompare(b[0]))
-          .slice(-14) // Last 14 days
-          .map(([date, data]) => ({ date, ...data }))
+          .slice(-14)
+          .map(([date, data]) => ({ date, ...data })),
+        executionsByHour,
+        topWorkflows
       },
       recentExecutions,
       generatedAt: new Date().toISOString()
@@ -310,10 +426,19 @@ app.get('/api/usage', async (req, res) => {
 
 // Helper function to format duration
 function formatDuration(ms) {
-  if (ms < 1000) return `${ms}ms`;
+  if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
   if (ms < 3600000) return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
   return `${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`;
+}
+
+// Helper function to format bytes
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // Proxy middleware configuration
