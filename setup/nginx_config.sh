@@ -333,10 +333,10 @@ map \$request_uri \$user_id {
     default "";
 }
 
-# Map for iframe embedding detection
+# Map for iframe embedding - default allows embedding (CSP frame-ancestors handles security)
 map \$http_x_frame_options \$iframe_allowed {
-    default "DENY";
-    "ALLOWALL" "ALLOWALL";
+    default "";
+    "DENY" "DENY";
     "SAMEORIGIN" "SAMEORIGIN";
 }
 
