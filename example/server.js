@@ -53,6 +53,14 @@ const baseAxiosConfig = {
   } : undefined
 };
 
+// Parse Set-Cookie headers to extract just name=value pairs for Cookie header
+function parseSetCookies(setCookieHeaders) {
+  if (!setCookieHeaders || !Array.isArray(setCookieHeaders)) return '';
+  return setCookieHeaders
+    .map(cookie => cookie.split(';')[0]) // Get just "name=value" before first semicolon
+    .join('; ');
+}
+
 // In-memory user store (for demo only)
 const users = new Map();
 const sessionStore = new Map(); // token -> { email, n8nCookie, lastActive }
@@ -122,8 +130,7 @@ async function getAdminSession() {
     withCredentials: true
   });
   
-  const cookies = response.headers['set-cookie'];
-  return cookies ? cookies.join('; ') : '';
+  return parseSetCookies(response.headers['set-cookie']);
 }
 
 // Create user in n8n via invitation flow
@@ -159,7 +166,7 @@ app.post('/api/users/create', async (req, res) => {
           withCredentials: true
         });
         
-        const userCookie = loginResponse.headers['set-cookie']?.join('; ') || '';
+        const userCookie = parseSetCookies(loginResponse.headers['set-cookie']);
         
         users.set(email, {
           email,
@@ -208,7 +215,7 @@ app.post('/api/users/create', async (req, res) => {
       withCredentials: true
     });
     
-    const userCookie = loginResponse.headers['set-cookie']?.join('; ') || '';
+    const userCookie = parseSetCookies(loginResponse.headers['set-cookie']);
     
     // Store user info
     users.set(email, {
@@ -255,8 +262,8 @@ app.post('/api/users/login', async (req, res) => {
     const setCookieHeaders = response.headers['set-cookie'];
     console.log(`[LOGIN] n8n set-cookie headers:`, setCookieHeaders);
     
-    const userCookie = setCookieHeaders?.join('; ') || '';
-    console.log(`[LOGIN] Storing cookie: ${userCookie.substring(0, 100)}...`);
+    const userCookie = parseSetCookies(setCookieHeaders);
+    console.log(`[LOGIN] Parsed cookie for injection: ${userCookie}`);
     
     users.set(email, {
       email,
@@ -385,11 +392,12 @@ const proxyMiddleware = createProxyMiddleware({
     // Update stored cookie if n8n sends new one
     const setCookie = proxyRes.headers['set-cookie'];
     if (setCookie) {
-      console.log(`[PROXY RES] n8n set-cookie:`, setCookie[0]?.substring(0, 60));
+      const parsedCookie = parseSetCookies(setCookie);
+      console.log(`[PROXY RES] n8n set-cookie (parsed):`, parsedCookie);
       if (req.sessionToken && req.n8nSession) {
         sessionStore.set(req.sessionToken, {
           email: req.n8nSession.email,
-          n8nCookie: setCookie.join('; '),
+          n8nCookie: parsedCookie,
           lastActive: Date.now()
         });
       }
