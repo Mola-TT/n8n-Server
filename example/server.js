@@ -186,7 +186,20 @@ app.get('/api/usage', async (req, res) => {
         headers,
         params: { limit: 100 }
       });
-      executions = executionsRes.data.data || executionsRes.data.results || [];
+      const execData = executionsRes.data;
+      // Handle different n8n API response formats
+      if (Array.isArray(execData)) {
+        executions = execData;
+      } else if (Array.isArray(execData.data)) {
+        executions = execData.data;
+      } else if (Array.isArray(execData.results)) {
+        executions = execData.results;
+      } else if (execData.data && Array.isArray(execData.data.results)) {
+        executions = execData.data.results;
+      } else {
+        console.log('Unexpected executions format:', JSON.stringify(execData).slice(0, 200));
+        executions = [];
+      }
     } catch (e) {
       console.log('Could not fetch executions:', e.message);
     }
@@ -209,7 +222,17 @@ app.get('/api/usage', async (req, res) => {
     let workflows = [];
     try {
       const workflowsRes = await axios.get(`${N8N_API}/rest/workflows`, { ...axiosConfig, headers });
-      workflows = workflowsRes.data.data || workflowsRes.data || [];
+      const wfData = workflowsRes.data;
+      if (Array.isArray(wfData)) {
+        workflows = wfData;
+      } else if (Array.isArray(wfData.data)) {
+        workflows = wfData.data;
+      } else if (wfData.data && Array.isArray(wfData.data.workflows)) {
+        workflows = wfData.data.workflows;
+      } else {
+        console.log('Unexpected workflows format:', JSON.stringify(wfData).slice(0, 200));
+        workflows = [];
+      }
     } catch (e) {
       console.log('Could not fetch workflows:', e.message);
     }
