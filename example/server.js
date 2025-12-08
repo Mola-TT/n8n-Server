@@ -314,23 +314,45 @@ app.get('/api/usage', async (req, res) => {
       .slice(0, 5)
       .map(([name, count]) => ({ name, count }));
     
-    // Simulated quotas (these would come from user config in production)
+    // Get actual statistics from n8n API
+    let settings = {};
+    try {
+      const settingsRes = await axios.get(`${N8N_API}/rest/settings`, { ...axiosConfig, headers });
+      settings = settingsRes.data || {};
+    } catch (e) {
+      console.log('Could not fetch settings:', e.message);
+    }
+
+    // Calculate actual storage from workflow data sizes (approximate)
+    let totalWorkflowSize = 0;
+    workflows.forEach(w => {
+      // Estimate workflow size based on nodes and connections
+      const nodeCount = w.nodes?.length || 0;
+      const connectionCount = Object.keys(w.connections || {}).length;
+      totalWorkflowSize += (nodeCount * 500) + (connectionCount * 100) + 1000; // bytes estimate
+    });
+
+    // Real quotas based on actual API data
     const quotas = {
-      storage: { used: 256 * 1024 * 1024, limit: 1024 * 1024 * 1024 }, // 256MB / 1GB
-      workflows: { used: workflows.length, limit: 100 },
-      executions: { used: totalExecutions, limit: 10000 },
-      credentials: { used: credentialsCount, limit: 50 }
+      storage: { 
+        used: totalWorkflowSize, 
+        limit: 1024 * 1024 * 1024, // 1GB default limit
+        available: false // n8n API doesn't expose real storage
+      },
+      workflows: { used: workflows.length, limit: settings.enterprise?.workflowLimit || 100 },
+      executions: { used: totalExecutions, limit: settings.enterprise?.executionLimit || 10000 },
+      credentials: { used: credentialsCount, limit: settings.enterprise?.credentialLimit || 50 }
     };
     
-    // Simulated storage breakdown
+    // Calculate storage breakdown from real data
     const storageBreakdown = {
-      workflows: Math.floor(quotas.storage.used * 0.3),
-      files: Math.floor(quotas.storage.used * 0.45),
-      logs: Math.floor(quotas.storage.used * 0.15),
-      temp: Math.floor(quotas.storage.used * 0.1)
+      workflows: totalWorkflowSize,
+      files: 0, // Would need file system access
+      logs: 0,  // Would need file system access
+      temp: 0   // Would need file system access
     };
     
-    // Calculate billing estimates (example rates)
+    // Calculate billing estimates based on real execution data
     const billingRates = {
       perExecution: 0.001, // $0.001 per execution
       perGBStorage: 0.10,  // $0.10 per GB per month
@@ -338,7 +360,7 @@ app.get('/api/usage', async (req, res) => {
     };
     
     const computeHours = totalExecutionTime / (1000 * 60 * 60);
-    const storageGB = quotas.storage.used / (1024 * 1024 * 1024);
+    const storageGB = totalWorkflowSize / (1024 * 1024 * 1024);
     
     const billing = {
       executions: { count: totalExecutions, cost: totalExecutions * billingRates.perExecution },
@@ -387,16 +409,17 @@ app.get('/api/usage', async (req, res) => {
       },
       quotas,
       storage: {
-        used: quotas.storage.used,
+        used: totalWorkflowSize,
         limit: quotas.storage.limit,
-        usedFormatted: formatBytes(quotas.storage.used),
+        usedFormatted: formatBytes(totalWorkflowSize),
         limitFormatted: formatBytes(quotas.storage.limit),
-        percentage: Math.round((quotas.storage.used / quotas.storage.limit) * 100),
+        percentage: Math.round((totalWorkflowSize / quotas.storage.limit) * 100),
+        isEstimate: true, // Storage is estimated from workflow data, not actual file system
         breakdown: {
           workflows: { bytes: storageBreakdown.workflows, formatted: formatBytes(storageBreakdown.workflows) },
-          files: { bytes: storageBreakdown.files, formatted: formatBytes(storageBreakdown.files) },
-          logs: { bytes: storageBreakdown.logs, formatted: formatBytes(storageBreakdown.logs) },
-          temp: { bytes: storageBreakdown.temp, formatted: formatBytes(storageBreakdown.temp) }
+          files: { bytes: storageBreakdown.files, formatted: formatBytes(storageBreakdown.files), notAvailable: true },
+          logs: { bytes: storageBreakdown.logs, formatted: formatBytes(storageBreakdown.logs), notAvailable: true },
+          temp: { bytes: storageBreakdown.temp, formatted: formatBytes(storageBreakdown.temp), notAvailable: true }
         }
       },
       performance: {
