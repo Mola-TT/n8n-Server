@@ -82,6 +82,7 @@ class UserProvisioningAPI {
 
         this.userRouter.get('/users/:userId/metrics', this.requireOwnUser.bind(this), this.getUserMetrics.bind(this));
         this.userRouter.get('/users/:userId/usage', this.requireOwnUser.bind(this), this.getUserUsage.bind(this));
+        this.userRouter.get('/users/:userId/storage', this.requireOwnUser.bind(this), this.getUserStorage.bind(this));
     }
 
     // Create new user
@@ -634,6 +635,57 @@ class UserProvisioningAPI {
 
         } catch (error) {
             console.error('Error getting user usage:', error);
+            res.status(500).json({
+                error: 'Internal server error'
+            });
+        }
+    }
+
+    // Get user storage metrics
+    async getUserStorage(req, res) {
+        try {
+            const { userId } = req.params;
+            const storagePath = path.join(this.metricsPath, `${userId}_storage.json`);
+            
+            try {
+                const storageData = await fs.readFile(storagePath, 'utf8');
+                const storage = JSON.parse(storageData);
+                
+                res.json(storage);
+            } catch (error) {
+                // If no storage file exists, calculate from user directory
+                const userPath = path.join(this.usersPath, userId);
+                
+                try {
+                    await fs.access(userPath);
+                    
+                    // Return empty storage data structure
+                    res.json({
+                        userId,
+                        timestamp: new Date().toISOString(),
+                        storage: {
+                            totalBytes: 0,
+                            totalHuman: '0 B',
+                            quotaBytes: 1073741824, // 1GB default
+                            quotaHuman: '1 GB',
+                            usagePercent: 0,
+                            breakdown: {
+                                workflows: { bytes: 0, human: '0 B' },
+                                files: { bytes: 0, human: '0 B' },
+                                logs: { bytes: 0, human: '0 B' },
+                                temp: { bytes: 0, human: '0 B' }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    res.status(404).json({
+                        error: 'User storage data not found'
+                    });
+                }
+            }
+
+        } catch (error) {
+            console.error('Error getting user storage:', error);
             res.status(500).json({
                 error: 'Internal server error'
             });
