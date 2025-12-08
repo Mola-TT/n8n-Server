@@ -754,11 +754,11 @@
             <div class="card-body">
               <div class="gauge-container">
                 <div class="gauge-header">
-                  <span class="gauge-label">💾 Storage</span>
-                  <span class="gauge-value">${storage.usedFormatted} / ${storage.limitFormatted}</span>
+                  <span class="gauge-label">💾 Storage ${storage.isEstimate ? '(est.)' : ''}</span>
+                  <span class="gauge-value">${storage.usedFormatted}</span>
                 </div>
                 <div class="gauge-bar">
-                  <div class="gauge-fill ${getGaugeClass(storage.percentage)}" style="width: ${storage.percentage}%"></div>
+                  <div class="gauge-fill ${getGaugeClass(storage.percentage)}" style="width: ${Math.min(storage.percentage, 100)}%"></div>
                 </div>
               </div>
               <div class="gauge-container">
@@ -796,17 +796,10 @@
             <div class="card-header">
               <div>
                 <h3 class="card-title">Storage Breakdown</h3>
-                <div class="card-subtitle">${storage.usedFormatted} used of ${storage.limitFormatted}</div>
+                <div class="card-subtitle">${storage.isEstimate ? 'Estimated from workflow data' : storage.usedFormatted + ' used'}</div>
               </div>
             </div>
             <div class="card-body">
-              <div class="storage-item">
-                <div class="storage-icon" style="background: var(--info-soft)">📁</div>
-                <div class="storage-info">
-                  <div class="storage-name">Files</div>
-                  <div class="storage-size">${storage.breakdown.files.formatted}</div>
-                </div>
-              </div>
               <div class="storage-item">
                 <div class="storage-icon" style="background: var(--purple-soft)">⚙️</div>
                 <div class="storage-info">
@@ -815,17 +808,24 @@
                 </div>
               </div>
               <div class="storage-item">
+                <div class="storage-icon" style="background: var(--info-soft)">📁</div>
+                <div class="storage-info">
+                  <div class="storage-name">Files</div>
+                  <div class="storage-size">${storage.breakdown.files.notAvailable ? 'N/A (requires server access)' : storage.breakdown.files.formatted}</div>
+                </div>
+              </div>
+              <div class="storage-item">
                 <div class="storage-icon" style="background: var(--warning-soft)">📝</div>
                 <div class="storage-info">
                   <div class="storage-name">Logs</div>
-                  <div class="storage-size">${storage.breakdown.logs.formatted}</div>
+                  <div class="storage-size">${storage.breakdown.logs.notAvailable ? 'N/A (requires server access)' : storage.breakdown.logs.formatted}</div>
                 </div>
               </div>
               <div class="storage-item">
                 <div class="storage-icon" style="background: var(--accent-soft)">🗑️</div>
                 <div class="storage-info">
                   <div class="storage-name">Temp Files</div>
-                  <div class="storage-size">${storage.breakdown.temp.formatted}</div>
+                  <div class="storage-size">${storage.breakdown.temp.notAvailable ? 'N/A (requires server access)' : storage.breakdown.temp.formatted}</div>
                 </div>
               </div>
             </div>
