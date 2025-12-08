@@ -23,6 +23,8 @@ const ADMIN_PASSWORD = process.env.N8N_ADMIN_PASSWORD;
 const PROXY_COOKIE_NAME = process.env.N8N_PROXY_COOKIE || 'n8n_proxy_session';
 const BASIC_AUTH_USER = process.env.N8N_BASIC_AUTH_USER;
 const BASIC_AUTH_PASSWORD = process.env.N8N_BASIC_AUTH_PASSWORD;
+const USER_MGMT_API_URL = process.env.USER_MGMT_API_URL;
+const USER_MGMT_API_KEY = process.env.USER_MGMT_API_KEY;
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -332,24 +334,63 @@ app.get('/api/usage', async (req, res) => {
       totalWorkflowSize += (nodeCount * 500) + (connectionCount * 100) + 1000; // bytes estimate
     });
 
-    // Real quotas based on actual API data
+    // Try to fetch real storage metrics from User Management API
+    let serverStorage = null;
+    let serverMetrics = null;
+    if (USER_MGMT_API_URL && USER_MGMT_API_KEY) {
+      try {
+        const userId = user.id || 'default';
+        const apiHeaders = { 'X-API-Key': USER_MGMT_API_KEY };
+        
+        // Fetch storage metrics
+        const storageRes = await axios.get(
+          `${USER_MGMT_API_URL}/api/internal/users/${userId}/storage`,
+          { headers: apiHeaders, timeout: 5000 }
+        ).catch(() => null);
+        
+        if (storageRes?.data) {
+          serverStorage = storageRes.data;
+        }
+        
+        // Fetch user metrics
+        const metricsRes = await axios.get(
+          `${USER_MGMT_API_URL}/api/internal/users/${userId}/metrics`,
+          { headers: apiHeaders, timeout: 5000 }
+        ).catch(() => null);
+        
+        if (metricsRes?.data) {
+          serverMetrics = metricsRes.data;
+        }
+        
+        console.log('Fetched metrics from User Management API');
+      } catch (e) {
+        console.log('Could not fetch from User Management API:', e.message);
+      }
+    }
+
+    // Real quotas based on actual API data or server metrics
     const quotas = {
       storage: { 
-        used: totalWorkflowSize, 
-        limit: 1024 * 1024 * 1024, // 1GB default limit
-        available: false // n8n API doesn't expose real storage
+        used: serverStorage?.storage?.totalBytes || totalWorkflowSize, 
+        limit: serverStorage?.storage?.quotaBytes || 1024 * 1024 * 1024,
+        available: !!serverStorage
       },
       workflows: { used: workflows.length, limit: settings.enterprise?.workflowLimit || 100 },
       executions: { used: totalExecutions, limit: settings.enterprise?.executionLimit || 10000 },
       credentials: { used: credentialsCount, limit: settings.enterprise?.credentialLimit || 50 }
     };
     
-    // Calculate storage breakdown from real data
-    const storageBreakdown = {
+    // Calculate storage breakdown from real data or server metrics
+    const storageBreakdown = serverStorage?.storage?.breakdown ? {
+      workflows: serverStorage.storage.breakdown.workflows?.bytes || totalWorkflowSize,
+      files: serverStorage.storage.breakdown.files?.bytes || 0,
+      logs: serverStorage.storage.breakdown.logs?.bytes || 0,
+      temp: serverStorage.storage.breakdown.temp?.bytes || 0
+    } : {
       workflows: totalWorkflowSize,
-      files: 0, // Would need file system access
-      logs: 0,  // Would need file system access
-      temp: 0   // Would need file system access
+      files: 0,
+      logs: 0,
+      temp: 0
     };
     
     // Calculate billing estimates based on real execution data
@@ -360,7 +401,7 @@ app.get('/api/usage', async (req, res) => {
     };
     
     const computeHours = totalExecutionTime / (1000 * 60 * 60);
-    const storageGB = totalWorkflowSize / (1024 * 1024 * 1024);
+    const storageGB = quotas.storage.used / (1024 * 1024 * 1024);
     
     const billing = {
       executions: { count: totalExecutions, cost: totalExecutions * billingRates.perExecution },
@@ -409,17 +450,18 @@ app.get('/api/usage', async (req, res) => {
       },
       quotas,
       storage: {
-        used: totalWorkflowSize,
+        used: quotas.storage.used,
         limit: quotas.storage.limit,
-        usedFormatted: formatBytes(totalWorkflowSize),
+        usedFormatted: formatBytes(quotas.storage.used),
         limitFormatted: formatBytes(quotas.storage.limit),
-        percentage: Math.round((totalWorkflowSize / quotas.storage.limit) * 100),
-        isEstimate: true, // Storage is estimated from workflow data, not actual file system
+        percentage: Math.round((quotas.storage.used / quotas.storage.limit) * 100),
+        isEstimate: !serverStorage, // True if data is estimated, false if from server API
+        fromServer: !!serverStorage,
         breakdown: {
           workflows: { bytes: storageBreakdown.workflows, formatted: formatBytes(storageBreakdown.workflows) },
-          files: { bytes: storageBreakdown.files, formatted: formatBytes(storageBreakdown.files), notAvailable: true },
-          logs: { bytes: storageBreakdown.logs, formatted: formatBytes(storageBreakdown.logs), notAvailable: true },
-          temp: { bytes: storageBreakdown.temp, formatted: formatBytes(storageBreakdown.temp), notAvailable: true }
+          files: { bytes: storageBreakdown.files, formatted: formatBytes(storageBreakdown.files), notAvailable: !serverStorage },
+          logs: { bytes: storageBreakdown.logs, formatted: formatBytes(storageBreakdown.logs), notAvailable: !serverStorage },
+          temp: { bytes: storageBreakdown.temp, formatted: formatBytes(storageBreakdown.temp), notAvailable: !serverStorage }
         }
       },
       performance: {
