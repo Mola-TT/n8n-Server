@@ -316,26 +316,26 @@ install_package_with_retry() {
 derive_webapp_urls() {
     local protocol="${1:-http}"
     
-    if [[ -z "${WEBAPP_DOMAIN}" && -n "${WEBAPP_SERVER_IP}" ]]; then
+    if [[ -z "${WEBAPP_DOMAIN:-}" && -n "${WEBAPP_SERVER_IP:-}" ]]; then
         local port="${WEBAPP_SERVER_PORT:-3001}"
         WEBAPP_DOMAIN="${protocol}://${WEBAPP_SERVER_IP}:${port}"
         export WEBAPP_DOMAIN
         log_debug "WEBAPP_DOMAIN derived: ${WEBAPP_DOMAIN}"
     fi
     
-    if [[ -z "${WEBAPP_WEBHOOK_URL}" && -n "${WEBAPP_DOMAIN}" ]]; then
+    if [[ -z "${WEBAPP_WEBHOOK_URL:-}" && -n "${WEBAPP_DOMAIN:-}" ]]; then
         WEBAPP_WEBHOOK_URL="${WEBAPP_DOMAIN}/webhooks/n8n"
         export WEBAPP_WEBHOOK_URL
         log_debug "WEBAPP_WEBHOOK_URL derived: ${WEBAPP_WEBHOOK_URL}"
     fi
     
-    if [[ -z "${WEBAPP_UPLOAD_URL}" && -n "${WEBAPP_DOMAIN}" ]]; then
+    if [[ -z "${WEBAPP_UPLOAD_URL:-}" && -n "${WEBAPP_DOMAIN:-}" ]]; then
         WEBAPP_UPLOAD_URL="${WEBAPP_DOMAIN}/api/upload"
         export WEBAPP_UPLOAD_URL
         log_debug "WEBAPP_UPLOAD_URL derived: ${WEBAPP_UPLOAD_URL}"
     fi
     
-    if [[ -z "${WEBAPP_DOWNLOAD_URL}" && -n "${WEBAPP_DOMAIN}" ]]; then
+    if [[ -z "${WEBAPP_DOWNLOAD_URL:-}" && -n "${WEBAPP_DOMAIN:-}" ]]; then
         WEBAPP_DOWNLOAD_URL="${WEBAPP_DOMAIN}/api/download"
         export WEBAPP_DOWNLOAD_URL
         log_debug "WEBAPP_DOWNLOAD_URL derived: ${WEBAPP_DOWNLOAD_URL}"
