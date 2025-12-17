@@ -285,6 +285,8 @@ create_nginx_configuration() {
     else
         source "$script_dir/../conf/default.env"
     fi
+    # Derive WEBAPP_* URLs from WEBAPP_SERVER_IP if not set
+    derive_webapp_urls "http"
     
     local config_file="/etc/nginx/sites-available/n8n"
     

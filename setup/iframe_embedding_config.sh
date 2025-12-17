@@ -18,6 +18,8 @@ load_environment() {
     if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
         source "$PROJECT_ROOT/conf/user.env"
     fi
+    # Derive WEBAPP_* URLs from WEBAPP_SERVER_IP if not set
+    derive_webapp_urls "http"
 }
 
 # Configure CORS policies
