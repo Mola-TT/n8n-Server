@@ -47,7 +47,7 @@ Security is handled by:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `N8N_API_URL` | Yes | URL of your n8n server (e.g., `https://45.76.151.204`) |
+| `N8N_API_URL` | Yes | URL of your n8n server (e.g., `https://YOUR_N8N_SERVER_IP`) |
 | `N8N_ADMIN_EMAIL` | Yes | Admin email for user invitation API |
 | `N8N_ADMIN_PASSWORD` | Yes | Admin password |
 

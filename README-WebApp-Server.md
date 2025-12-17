@@ -87,7 +87,7 @@ Create a `.env` file in your web app root:
 # =============================================================================
 
 # n8n Server
-N8N_SERVER_IP="45.76.151.204"              # Your n8n server IP
+N8N_SERVER_IP="YOUR_N8N_SERVER_IP"              # Your n8n server IP
 N8N_SERVER_DOMAIN="n8n.example.com"           # Your n8n domain
 # Auto-derived: N8N_WEBHOOK_URL, N8N_EDITOR_BASE_URL
 

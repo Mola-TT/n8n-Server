@@ -196,7 +196,7 @@ Create `.env.development`:
 # =============================================================================
 
 # n8n Server (Remote)
-N8N_SERVER_IP="45.76.151.204"
+N8N_SERVER_IP="YOUR_N8N_SERVER_IP"
 N8N_SERVER_DOMAIN="n8n.example.com"
 # Auto-derived: N8N_WEBHOOK_URL, N8N_EDITOR_BASE_URL
 
