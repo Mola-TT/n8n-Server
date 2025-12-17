@@ -796,36 +796,36 @@
             <div class="card-header">
               <div>
                 <h3 class="card-title">Storage Breakdown</h3>
-                <div class="card-subtitle">${storage.isEstimate ? 'Estimated from workflow data' : storage.usedFormatted + ' used'}</div>
+                <div class="card-subtitle">${storage.isEstimate ? 'Estimated from execution data' : storage.usedFormatted + ' used'}</div>
               </div>
             </div>
             <div class="card-body">
               <div class="storage-item">
                 <div class="storage-icon" style="background: var(--purple-soft)">⚙️</div>
                 <div class="storage-info">
-                  <div class="storage-name">Workflows</div>
+                  <div class="storage-name">Workflows${storage.breakdown.workflows.isEstimate ? ' <span style="color: var(--text-muted); font-size: 11px;">(est.)</span>' : ''}</div>
                   <div class="storage-size">${storage.breakdown.workflows.formatted}</div>
                 </div>
               </div>
               <div class="storage-item">
                 <div class="storage-icon" style="background: var(--info-soft)">📁</div>
                 <div class="storage-info">
-                  <div class="storage-name">Files</div>
-                  <div class="storage-size">${storage.breakdown.files.notAvailable ? 'N/A (requires server access)' : storage.breakdown.files.formatted}</div>
+                  <div class="storage-name">Files${storage.breakdown.files.isEstimate ? ' <span style="color: var(--text-muted); font-size: 11px;">(est.)</span>' : ''}</div>
+                  <div class="storage-size">${storage.breakdown.files.formatted}</div>
                 </div>
               </div>
               <div class="storage-item">
                 <div class="storage-icon" style="background: var(--warning-soft)">📝</div>
                 <div class="storage-info">
-                  <div class="storage-name">Logs</div>
-                  <div class="storage-size">${storage.breakdown.logs.notAvailable ? 'N/A (requires server access)' : storage.breakdown.logs.formatted}</div>
+                  <div class="storage-name">Logs${storage.breakdown.logs.isEstimate ? ' <span style="color: var(--text-muted); font-size: 11px;">(est.)</span>' : ''}</div>
+                  <div class="storage-size">${storage.breakdown.logs.formatted}</div>
                 </div>
               </div>
               <div class="storage-item">
                 <div class="storage-icon" style="background: var(--accent-soft)">🗑️</div>
                 <div class="storage-info">
-                  <div class="storage-name">Temp Files</div>
-                  <div class="storage-size">${storage.breakdown.temp.notAvailable ? 'N/A (requires server access)' : storage.breakdown.temp.formatted}</div>
+                  <div class="storage-name">Temp Files${storage.breakdown.temp.isEstimate ? ' <span style="color: var(--text-muted); font-size: 11px;">(est.)</span>' : ''}</div>
+                  <div class="storage-size">${storage.breakdown.temp.formatted}</div>
                 </div>
               </div>
             </div>

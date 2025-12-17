@@ -334,6 +334,24 @@ app.get('/api/usage', async (req, res) => {
       totalWorkflowSize += (nodeCount * 500) + (connectionCount * 100) + 1000; // bytes estimate
     });
 
+    // Estimate file storage based on execution patterns
+    // Each execution with file nodes generates ~5KB average, binary files ~50KB
+    const fileNodeExecutions = executions.filter(e => 
+      e.workflowData?.nodes?.some(n => 
+        ['n8n-nodes-base.readBinaryFile', 'n8n-nodes-base.writeBinaryFile', 
+         'n8n-nodes-base.spreadsheetFile', 'n8n-nodes-base.moveFile'].includes(n.type)
+      )
+    ).length;
+    const estimatedFileStorage = fileNodeExecutions * 50000; // ~50KB per file operation
+
+    // Estimate log storage based on execution history
+    // Each execution generates ~2KB of log data on average
+    const estimatedLogStorage = totalExecutions * 2000;
+
+    // Estimate temp files based on recent failed/running executions
+    // Failed executions may leave temp files (~10KB each)
+    const estimatedTempStorage = (failedExecutions + runningExecutions) * 10000;
+
     // Try to fetch real storage metrics from User Management API
     let serverStorage = null;
     let serverMetrics = null;
@@ -368,19 +386,7 @@ app.get('/api/usage', async (req, res) => {
       }
     }
 
-    // Real quotas based on actual API data or server metrics
-    const quotas = {
-      storage: { 
-        used: serverStorage?.storage?.totalBytes || totalWorkflowSize, 
-        limit: serverStorage?.storage?.quotaBytes || 1024 * 1024 * 1024,
-        available: !!serverStorage
-      },
-      workflows: { used: workflows.length, limit: settings.enterprise?.workflowLimit || 100 },
-      executions: { used: totalExecutions, limit: settings.enterprise?.executionLimit || 10000 },
-      credentials: { used: credentialsCount, limit: settings.enterprise?.credentialLimit || 50 }
-    };
-    
-    // Calculate storage breakdown from real data or server metrics
+    // Calculate storage breakdown - use server data if available, otherwise use estimates
     const storageBreakdown = serverStorage?.storage?.breakdown ? {
       workflows: serverStorage.storage.breakdown.workflows?.bytes || totalWorkflowSize,
       files: serverStorage.storage.breakdown.files?.bytes || 0,
@@ -388,9 +394,25 @@ app.get('/api/usage', async (req, res) => {
       temp: serverStorage.storage.breakdown.temp?.bytes || 0
     } : {
       workflows: totalWorkflowSize,
-      files: 0,
-      logs: 0,
-      temp: 0
+      files: estimatedFileStorage,
+      logs: estimatedLogStorage,
+      temp: estimatedTempStorage
+    };
+
+    // Calculate total estimated storage
+    const totalEstimatedStorage = serverStorage?.storage?.totalBytes || 
+      (totalWorkflowSize + estimatedFileStorage + estimatedLogStorage + estimatedTempStorage);
+
+    // Real quotas based on actual API data or server metrics
+    const quotas = {
+      storage: { 
+        used: totalEstimatedStorage, 
+        limit: serverStorage?.storage?.quotaBytes || 1024 * 1024 * 1024,
+        available: !!serverStorage
+      },
+      workflows: { used: workflows.length, limit: settings.enterprise?.workflowLimit || 100 },
+      executions: { used: totalExecutions, limit: settings.enterprise?.executionLimit || 10000 },
+      credentials: { used: credentialsCount, limit: settings.enterprise?.credentialLimit || 50 }
     };
     
     // Calculate billing estimates based on real execution data
@@ -458,10 +480,10 @@ app.get('/api/usage', async (req, res) => {
         isEstimate: !serverStorage, // True if data is estimated, false if from server API
         fromServer: !!serverStorage,
         breakdown: {
-          workflows: { bytes: storageBreakdown.workflows, formatted: formatBytes(storageBreakdown.workflows) },
-          files: { bytes: storageBreakdown.files, formatted: formatBytes(storageBreakdown.files), notAvailable: !serverStorage },
-          logs: { bytes: storageBreakdown.logs, formatted: formatBytes(storageBreakdown.logs), notAvailable: !serverStorage },
-          temp: { bytes: storageBreakdown.temp, formatted: formatBytes(storageBreakdown.temp), notAvailable: !serverStorage }
+          workflows: { bytes: storageBreakdown.workflows, formatted: formatBytes(storageBreakdown.workflows), isEstimate: !serverStorage },
+          files: { bytes: storageBreakdown.files, formatted: formatBytes(storageBreakdown.files), isEstimate: !serverStorage },
+          logs: { bytes: storageBreakdown.logs, formatted: formatBytes(storageBreakdown.logs), isEstimate: !serverStorage },
+          temp: { bytes: storageBreakdown.temp, formatted: formatBytes(storageBreakdown.temp), isEstimate: !serverStorage }
         }
       },
       performance: {
