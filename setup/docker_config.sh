@@ -1435,6 +1435,17 @@ create_environment_file() {
         log_info "n8n HTTP mode: SSL certificates not required (Nginx handles SSL termination)"
     fi
     
+    # Derive N8N_WEBHOOK_URL and N8N_EDITOR_BASE_URL from N8N_SERVER_IP if not explicitly set
+    if [[ -z "${N8N_WEBHOOK_URL}" && -n "${N8N_SERVER_IP}" ]]; then
+        N8N_WEBHOOK_URL="https://${N8N_SERVER_IP}"
+        log_info "N8N_WEBHOOK_URL derived from N8N_SERVER_IP: ${N8N_WEBHOOK_URL}"
+    fi
+    
+    if [[ -z "${N8N_EDITOR_BASE_URL}" && -n "${N8N_SERVER_IP}" ]]; then
+        N8N_EDITOR_BASE_URL="https://${N8N_SERVER_IP}"
+        log_info "N8N_EDITOR_BASE_URL derived from N8N_SERVER_IP: ${N8N_EDITOR_BASE_URL}"
+    fi
+    
     # Create the Docker environment file using loaded variables
     cat > "$env_file" << EOF
 # ==============================================================================
