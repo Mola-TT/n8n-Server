@@ -82,21 +82,30 @@ python-dotenv==1.0.0
 Create a `.env` file in your web app root:
 
 ```bash
-# Frontend Configuration (Next.js)
+# =============================================================================
+# SERVER ADDRESSES (Only 3 addresses required - URLs auto-derived)
+# =============================================================================
+
+# n8n Server
+N8N_SERVER_IP="45.76.151.204"              # Your n8n server IP
+N8N_SERVER_DOMAIN="n8n.example.com"           # Your n8n domain
+# Auto-derived: N8N_WEBHOOK_URL, N8N_EDITOR_BASE_URL
+
+# Web App Server (this server)
+WEBAPP_SERVER_IP="YOUR_WEBAPP_IP"
+WEBAPP_SERVER_PORT="3001"
+# Auto-derived: WEBAPP_DOMAIN, WEBAPP_WEBHOOK_URL, WEBAPP_UPLOAD_URL, WEBAPP_DOWNLOAD_URL
+
+# =============================================================================
+# FRONTEND CONFIGURATION (Next.js)
+# =============================================================================
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_N8N_URL=https://n8n.example.com
 NEXT_PUBLIC_WEBAPP_URL=https://app.example.com
 
-# Backend Configuration (FastAPI)
-FAST_API_PORT=8000
-WEB_APP_DOMAIN=https://app.example.com
-
-# n8n Server Configuration
-N8N_SERVER_URL=https://n8n.example.com
-N8N_API_URL=https://n8n.example.com/api
-N8N_WEBHOOK_URL=https://n8n.example.com/webhook
-
-# Authentication
+# =============================================================================
+# AUTHENTICATION
+# =============================================================================
 JWT_SECRET=your-super-secure-jwt-secret-here
 JWT_EXPIRES_IN=24h
 
@@ -104,14 +113,16 @@ JWT_EXPIRES_IN=24h
 N8N_API_KEY=your-n8n-api-key-here
 N8N_WEBHOOK_SECRET=your-webhook-secret-here
 
-# Database (your existing web app database)
+# =============================================================================
+# DATABASE (your existing web app database)
+# =============================================================================
 DATABASE_URL=postgresql://user:password@localhost:5432/webapp_db
 
-# Security
+# =============================================================================
+# SECURITY
+# =============================================================================
 CORS_ORIGIN=https://n8n.example.com
 IFRAME_ALLOWED_ORIGINS=https://n8n.example.com
-
-# SSL Configuration
 SSL_CERT_PATH=/etc/ssl/certs/webapp.crt
 SSL_KEY_PATH=/etc/ssl/private/webapp.key
 ```

@@ -191,17 +191,30 @@ Create `.env.development`:
 # LOCAL DEVELOPMENT CONFIGURATION
 # =============================================================================
 
-# Application URLs
+# =============================================================================
+# SERVER ADDRESSES (Only 3 addresses - URLs auto-derived)
+# =============================================================================
+
+# n8n Server (Remote)
+N8N_SERVER_IP="45.76.151.204"
+N8N_SERVER_DOMAIN="n8n.example.com"
+# Auto-derived: N8N_WEBHOOK_URL, N8N_EDITOR_BASE_URL
+
+# Web App Server (Local)
+WEBAPP_SERVER_IP="localhost"
+WEBAPP_SERVER_PORT="3000"
+# Auto-derived: WEBAPP_DOMAIN, WEBAPP_WEBHOOK_URL, etc.
+
+# =============================================================================
+# APPLICATION URLS
+# =============================================================================
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_N8N_URL=https://n8n.example.com
 NEXT_PUBLIC_WEBAPP_URL=http://localhost:3000
 
-# n8n Server Configuration (Remote)
-N8N_SERVER_URL=https://n8n.example.com
-N8N_API_URL=https://n8n.example.com/api
-N8N_WEBHOOK_URL=https://n8n.example.com/webhook
-
-# Authentication
+# =============================================================================
+# AUTHENTICATION
+# =============================================================================
 JWT_SECRET=your-super-secure-local-development-jwt-secret-here
 JWT_EXPIRES_IN=24h
 
@@ -209,19 +222,19 @@ JWT_EXPIRES_IN=24h
 N8N_API_KEY=your-n8n-api-key-from-server
 N8N_WEBHOOK_SECRET=your-webhook-secret-from-server
 
-# Local Database
+# =============================================================================
+# LOCAL SERVICES
+# =============================================================================
 DATABASE_URL=postgresql://dev_user:dev_pass@db:5432/webapp_dev
 REDIS_URL=redis://redis:6379/0
 
-# CORS Configuration
+# =============================================================================
+# DEVELOPMENT SETTINGS
+# =============================================================================
 CORS_ORIGINS=http://localhost:3000,http://localhost:80,https://n8n.example.com
-
-# Development Settings
 ENVIRONMENT=development
 DEBUG=true
 LOG_LEVEL=debug
-
-# SSL Configuration (development uses HTTP)
 SSL_ENABLED=false
 ```
 

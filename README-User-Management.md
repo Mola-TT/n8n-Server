@@ -414,22 +414,41 @@ const limiter = rateLimit({
 ## Configuration
 
 ### Environment Variables
+
 ```bash
-# JWT Configuration
+# =============================================================================
+# SERVER ADDRESSES (Only 3 addresses - URLs auto-derived)
+# =============================================================================
+N8N_SERVER_IP="YOUR_N8N_SERVER_IP"
+N8N_SERVER_DOMAIN="your-domain.com"
+DB_HOST="your-postgres-host.example.com"
+DB_PORT="5432"
+WEBAPP_SERVER_IP="YOUR_WEBAPP_SERVER_IP"
+WEBAPP_SERVER_PORT="3001"
+
+# =============================================================================
+# JWT CONFIGURATION
+# =============================================================================
 JWT_SECRET=your-secure-secret-key
 JWT_EXPIRES_IN=24h
 
-# API Configuration
+# =============================================================================
+# API CONFIGURATION
+# =============================================================================
 API_PORT=3000
 API_HOST=localhost
 ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 
-# User Management
+# =============================================================================
+# USER MANAGEMENT
+# =============================================================================
 MAX_USERS=1000
 DEFAULT_USER_QUOTA_STORAGE=1GB
 DEFAULT_USER_QUOTA_WORKFLOWS=100
 
-# Monitoring
+# =============================================================================
+# MONITORING
+# =============================================================================
 METRICS_RETENTION_DAYS=90
 CLEANUP_INACTIVE_DAYS=90
 ```

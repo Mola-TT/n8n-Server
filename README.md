@@ -58,6 +58,28 @@ Ubuntu scripts for initializing an n8n server. The scripts are developed on Wind
 
 ## Configuration
 
+### Quick Setup - Only 3 Addresses Required
+
+```bash
+# conf/user.env - The only settings you MUST configure:
+
+# --- n8n Server (this server) ---
+N8N_SERVER_IP="YOUR_N8N_SERVER_IP"
+N8N_SERVER_DOMAIN="your-domain.com"
+
+# --- PostgreSQL Database Server ---
+DB_HOST="your-postgres-host.example.com"
+DB_PORT="5432"
+
+# --- Web Application Server ---
+WEBAPP_SERVER_IP="YOUR_WEBAPP_SERVER_IP"
+WEBAPP_SERVER_PORT="3001"
+```
+
+All other URLs (like `N8N_WEBHOOK_URL`, `WEBAPP_DOMAIN`, etc.) are **automatically derived** from these base addresses.
+
+### Configuration Files
+
 - **Default settings**: `conf/default.env` - Contains default values for all configuration
 - **User overrides**: `conf/user.env` - Optional file for user-specific settings (copy from template)
 - **Environment loading**: The script automatically loads default settings first, then overrides with user settings if available

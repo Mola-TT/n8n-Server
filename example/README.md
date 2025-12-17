@@ -43,14 +43,23 @@ Security is handled by:
 
 ## Configuration
 
+### Required Settings
+
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `N8N_API_URL` | Yes | URL of your n8n server |
+| `N8N_API_URL` | Yes | URL of your n8n server (e.g., `https://45.76.151.204`) |
 | `N8N_ADMIN_EMAIL` | Yes | Admin email for user invitation API |
 | `N8N_ADMIN_PASSWORD` | Yes | Admin password |
-| `N8N_BASIC_AUTH_USER` | No | Basic auth user (if n8n uses it) |
-| `N8N_BASIC_AUTH_PASSWORD` | No | Basic auth password |
-| `PORT` | No | Server port (default: 3000) |
+
+### Optional Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `N8N_BASIC_AUTH_USER` | - | Basic auth user (if n8n uses it) |
+| `N8N_BASIC_AUTH_PASSWORD` | - | Basic auth password |
+| `PORT` | 3000 | Server port |
+| `USER_MGMT_API_URL` | - | User Management API URL for storage metrics |
+| `USER_MGMT_API_KEY` | - | API key for User Management API |
 
 ## Production Deployment
 
