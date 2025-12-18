@@ -254,6 +254,26 @@ run_milestone_7_tests() {
         milestone_7_failed=$((milestone_7_failed + 1))
     fi
     
+    # Performance Metrics Tests
+    log_info "Running Performance Metrics Tests..."
+    if (source "$PROJECT_DIR/test/test_performance_metrics.sh" && main); then
+        log_pass "Performance Metrics Tests: PASSED"
+        milestone_7_passed=$((milestone_7_passed + 1))
+    else
+        log_error "Performance Metrics Tests: FAILED"
+        milestone_7_failed=$((milestone_7_failed + 1))
+    fi
+    
+    # User Scaling Tests
+    log_info "Running User Scaling Tests..."
+    if (source "$PROJECT_DIR/test/test_user_scaling.sh" && main); then
+        log_pass "User Scaling Tests: PASSED"
+        milestone_7_passed=$((milestone_7_passed + 1))
+    else
+        log_error "User Scaling Tests: FAILED"
+        milestone_7_failed=$((milestone_7_failed + 1))
+    fi
+    
     # Milestone 7 Summary
     local milestone_7_total=$((milestone_7_passed + milestone_7_failed))
     echo ""
