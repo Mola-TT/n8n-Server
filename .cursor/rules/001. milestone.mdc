@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Milestone
 
-## Milestone 7 (Current)
+## Milestone 7 (Completed)
 - Create `multi_user_config.sh` under setup folder that:
   - Implements multi-user n8n architecture with isolated user directories
   - Creates per-user folder structure under `/opt/n8n/users/[user_id]/`
