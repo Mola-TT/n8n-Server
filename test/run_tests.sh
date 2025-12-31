@@ -288,6 +288,43 @@ run_milestone_7_tests() {
     return $milestone_7_failed
 }
 
+# ==============================================================================
+# Milestone 8 Tests - Backup System
+# ==============================================================================
+
+run_milestone_8_tests() {
+    echo ""
+    echo "================================================================================"
+    echo "MILESTONE 8 Tests (Backup System):"
+    echo "================================================================================"
+    
+    local milestone_8_passed=0
+    local milestone_8_failed=0
+    
+    # Backup System Tests
+    log_info "Running Backup System Tests..."
+    if (source "$PROJECT_DIR/test/test_backup.sh" && run_backup_tests); then
+        log_pass "Backup System Tests: PASSED"
+        milestone_8_passed=$((milestone_8_passed + 1))
+    else
+        log_error "Backup System Tests: FAILED"
+        milestone_8_failed=$((milestone_8_failed + 1))
+    fi
+    
+    # Milestone 8 Summary
+    local milestone_8_total=$((milestone_8_passed + milestone_8_failed))
+    echo ""
+    echo "================================================================================"
+    log_info "Milestone 8 Summary: $milestone_8_passed/$milestone_8_total test suites passed"
+    
+    # Update global counters
+    TESTS_RUN=$((TESTS_RUN + milestone_8_total))
+    TESTS_PASSED=$((TESTS_PASSED + milestone_8_passed))
+    TESTS_FAILED=$((TESTS_FAILED + milestone_8_failed))
+    
+    return $milestone_8_failed
+}
+
 # Main test execution
 main() {
     log_info "Starting n8n server initialization tests..."
@@ -420,6 +457,9 @@ main() {
     
     # Run Milestone 7 Tests
     run_milestone_7_tests
+    
+    # Run Milestone 8 Tests
+    run_milestone_8_tests
     
     # Print summary
     echo "================================================================================"

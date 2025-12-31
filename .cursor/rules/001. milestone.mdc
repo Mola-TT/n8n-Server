@@ -5,6 +5,74 @@ alwaysApply: true
 ---
 # Milestone
 
+## Milestone 8 (Current)
+- Create `backup_config.sh` under setup folder that:
+  - Implements automated n8n data backups (workflows, credentials, encryption keys)
+  - Backs up user files directory (`/opt/n8n/files/`)
+  - Backs up per-user data directories (`/opt/n8n/users/`)
+  - Backs up Docker configuration and environment files
+  - Backs up SSL certificates and nginx configuration
+  - Configured rotational backup strategy with daily, weekly, and monthly retention
+  - Implements backup compression (tar.gz) to minimize storage requirements
+  - Configures secure backup storage with proper permissions
+  - Creates email notifications for backup success/failure
+  - Implements backup verification to ensure data integrity
+  - Adds backup encryption options for sensitive data (GPG)
+  - Supports both local and remote backup destinations (S3, SFTP)
+  - Backs up Redis data for queue persistence
+- Create backup management scripts under `/opt/n8n/scripts/`:
+  - `backup_now.sh` - Manual trigger for immediate backup
+  - `list_backups.sh` - List available backup points with sizes and dates
+  - `restore_backup.sh` - Restore n8n from specific backup point
+  - `verify_backup.sh` - Verify backup integrity and completeness
+  - `cleanup_backups.sh` - Manage backup retention and cleanup old backups
+- Implement automatic backup cleanup:
+  - Schedule automated cleanup via systemd timer (runs after backup job)
+  - Apply retention policies: keep X daily, Y weekly, Z monthly backups
+  - Implement storage threshold cleanup (auto-delete oldest when disk usage > threshold)
+  - Verify backup count before cleanup (never delete if below minimum retention)
+  - Log all cleanup actions with backup names, sizes, and reasons
+  - Send email summary of deleted backups
+  - Support dry-run mode to preview cleanup without deletion
+  - Clean up both local and remote backups based on policies
+- Create comprehensive test script (`test_backup.sh`) to validate:
+  - Backup creation for all n8n data directories
+  - Backup scheduling via cron/systemd timers
+  - Backup rotation and retention policies
+  - Backup compression and encryption
+  - Backup restoration process with service stop/start
+  - Docker volume backup and restore
+  - Email notifications for backup events
+  - Remote backup upload (if configured)
+  - Automatic cleanup execution and scheduling
+  - Retention policy enforcement (daily/weekly/monthly)
+  - Storage threshold cleanup trigger
+  - Minimum backup preservation (never delete below MIN_KEEP)
+  - Cleanup dry-run mode verification
+- Update environment configuration:
+  - Add backup-specific settings to default.env and user.env.template
+  - Add BACKUP_SCHEDULE (cron format for backup job)
+  - Add BACKUP_CLEANUP_SCHEDULE (cron format for cleanup job)
+  - Add BACKUP_RETENTION_DAILY, BACKUP_RETENTION_WEEKLY, BACKUP_RETENTION_MONTHLY
+  - Add BACKUP_MIN_KEEP (minimum backups to always retain)
+  - Add BACKUP_STORAGE_THRESHOLD (percentage, trigger cleanup when exceeded)
+  - Add BACKUP_LOCATION (local path)
+  - Add BACKUP_REMOTE_ENABLED, BACKUP_REMOTE_TYPE (s3/sftp)
+  - Add BACKUP_ENCRYPTION_ENABLED, BACKUP_ENCRYPTION_KEY
+  - Add BACKUP_EMAIL_NOTIFY (true/false)
+- Implement backup monitoring:
+  - Add Netdata dashboard for backup status and history
+  - Create backup health checks (last successful backup age)
+  - Implement backup size and growth trend monitoring
+  - Add backup failure alerting via email
+  - Monitor backup storage space usage
+- Create backup documentation (`README-Backup.md`):
+  - Document backup strategy and retention policies
+  - Provide restore procedures for different scenarios
+  - Include disaster recovery guidelines
+  - Document backup verification process
+  - Provide troubleshooting guide for backup issues
+
 ## Milestone 7 (Completed)
 - Create `multi_user_config.sh` under setup folder that:
   - Implements multi-user n8n architecture with isolated user directories

@@ -75,6 +75,9 @@ source "$SETUP_DIR/user_monitoring.sh"
 source "$SETUP_DIR/cross_server_setup.sh"
 source "$SETUP_DIR/user_management_api.sh"
 
+# Source backup configuration (Milestone 8)
+source "$SETUP_DIR/backup_config.sh"
+
 # Display init banner with enhanced logging
 display_banner() {
     if command -v log_section >/dev/null 2>&1; then
@@ -249,6 +252,17 @@ main() {
     log_info "Note: Multi-user functionality with iframe embedding and monitoring will be configured"
     setup_multiuser_n8n
     
+    # Set up backup system (Milestone 8)
+    echo "================================================================================"
+    echo "MILESTONE 8: Backup System Setup"
+    echo "================================================================================"
+    log_info "Note: Automated backup system with retention policies will be configured"
+    if [[ "${BACKUP_ENABLED:-true}" == "true" ]]; then
+        configure_backup
+    else
+        log_info "Backup system is disabled (BACKUP_ENABLED=false)"
+    fi
+    
     # Print setup summary
     echo "================================================================================"
     echo "SETUP SUMMARY"
@@ -264,6 +278,7 @@ main() {
     log_info "✓ SSL certificate management: SUCCESS"
     log_info "✓ Dynamic hardware optimization: SUCCESS"
     log_info "✓ Multi-user n8n configuration: SUCCESS"
+    log_info "✓ Backup system: SUCCESS"
     echo "================================================================================"
     
     log_info "Initialization COMPLETE"
