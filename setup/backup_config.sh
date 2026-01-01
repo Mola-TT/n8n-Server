@@ -1235,16 +1235,16 @@ WantedBy=timers.target
 EOF
 
     # Reload systemd and enable timers
-    systemctl daemon-reload
-    systemctl enable n8n-backup.timer
-    systemctl enable n8n-backup-cleanup.timer
-    systemctl enable n8n-backup-weekly.timer
-    systemctl enable n8n-backup-monthly.timer
+    systemctl daemon-reload >/dev/null 2>&1
+    systemctl enable n8n-backup.timer >/dev/null 2>&1
+    systemctl enable n8n-backup-cleanup.timer >/dev/null 2>&1
+    systemctl enable n8n-backup-weekly.timer >/dev/null 2>&1
+    systemctl enable n8n-backup-monthly.timer >/dev/null 2>&1
     
-    systemctl start n8n-backup.timer
-    systemctl start n8n-backup-cleanup.timer
-    systemctl start n8n-backup-weekly.timer
-    systemctl start n8n-backup-monthly.timer
+    systemctl start n8n-backup.timer >/dev/null 2>&1
+    systemctl start n8n-backup-cleanup.timer >/dev/null 2>&1
+    systemctl start n8n-backup-weekly.timer >/dev/null 2>&1
+    systemctl start n8n-backup-monthly.timer >/dev/null 2>&1
     
     log_info "Systemd timers configured and enabled"
 }
