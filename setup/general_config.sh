@@ -340,8 +340,53 @@ set_timezone() {
     export TIMEZONE="$timezone"  # Set TIMEZONE for backward compatibility
 }
 
+# Configure hostname to prevent "sudo: unable to resolve host" warnings
+configure_hostname() {
+    local new_hostname="${SERVER_HOSTNAME:-n8n-server}"
+    local current_hostname=$(hostname)
+    
+    log_info "Configuring hostname..."
+    
+    # Set the new hostname
+    if [ "$current_hostname" != "$new_hostname" ]; then
+        hostnamectl set-hostname "$new_hostname" 2>/dev/null || {
+            echo "$new_hostname" > /etc/hostname
+        }
+        log_info "Hostname changed from '$current_hostname' to '$new_hostname'"
+    else
+        log_info "Hostname already set to '$new_hostname'"
+    fi
+    
+    # Ensure hostname is in /etc/hosts to prevent sudo warnings
+    if ! grep -q "127.0.0.1.*$new_hostname" /etc/hosts 2>/dev/null; then
+        # Check if there's already a 127.0.0.1 line we can modify
+        if grep -q "^127.0.0.1" /etc/hosts; then
+            # Add hostname to existing 127.0.0.1 line if not already there
+            sed -i "/^127.0.0.1/ s/$/ $new_hostname/" /etc/hosts
+        else
+            # Add new line
+            echo "127.0.0.1 $new_hostname" >> /etc/hosts
+        fi
+        log_info "Added '$new_hostname' to /etc/hosts"
+    else
+        log_info "Hostname '$new_hostname' already in /etc/hosts"
+    fi
+    
+    # Also ensure 127.0.1.1 has the hostname (Ubuntu convention)
+    if ! grep -q "127.0.1.1.*$new_hostname" /etc/hosts 2>/dev/null; then
+        if grep -q "^127.0.1.1" /etc/hosts; then
+            sed -i "/^127.0.1.1/ s/$/ $new_hostname/" /etc/hosts
+        else
+            echo "127.0.1.1 $new_hostname" >> /etc/hosts
+        fi
+    fi
+    
+    export SERVER_HOSTNAME="$new_hostname"
+}
+
 # Export functions
 export -f update_system
 export -f set_timezone
+export -f configure_hostname
 export -f apt_install_with_retry
-export -f apt_update_with_retry 
+export -f apt_update_with_retry

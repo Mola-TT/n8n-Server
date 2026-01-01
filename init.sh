@@ -188,6 +188,9 @@ main() {
     set_timezone
     log_info "Set system timezone to ${SERVER_TIMEZONE:-UTC}"
 
+    # Configure hostname to prevent sudo warnings
+    configure_hostname
+
     # Make all scripts executable first
     make_scripts_executable
 
@@ -270,6 +273,7 @@ main() {
     log_info "✓ Script permissions: SUCCESS"
     log_info "✓ System update: SUCCESS"
     log_info "✓ Timezone configuration: SUCCESS"
+    log_info "✓ Hostname configuration: SUCCESS"
     log_info "✓ Environment loading: SUCCESS"
     log_info "✓ Docker infrastructure: SUCCESS"
     log_info "✓ Docker containers: STARTED"
