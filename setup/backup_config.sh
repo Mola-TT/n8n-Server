@@ -104,8 +104,18 @@ setup_backup_directories() {
     ensure_directory "$BACKUP_BASE_DIR/manual" "750"
     ensure_directory "$BACKUP_BASE_DIR/temp" "750"
     
-    # Create state directory
+    # Create state directory and initial state file
     ensure_directory "$(dirname "$BACKUP_STATE_FILE")" "755"
+    if [ ! -f "$BACKUP_STATE_FILE" ]; then
+        cat > "$BACKUP_STATE_FILE" << EOF
+last_backup_time=none
+last_backup_type=none
+last_backup_file=none
+last_backup_size=0
+last_backup_status=initialized
+EOF
+        chmod 644 "$BACKUP_STATE_FILE"
+    fi
     
     # Create log directory
     ensure_directory "$(dirname "$BACKUP_LOG_FILE")" "755"

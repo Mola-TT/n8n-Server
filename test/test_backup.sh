@@ -36,14 +36,14 @@ run_test() {
     local test_name="$1"
     local test_function="$2"
     
-    echo -n "  Testing $test_name... "
+    log_info "Running test: $test_name"
     
     if $test_function >/dev/null 2>&1; then
-        echo "PASS"
+        log_pass "✓ $test_name"
         TESTS_PASSED=$((TESTS_PASSED + 1))
         return 0
     else
-        echo "FAIL"
+        log_error "✗ $test_name"
         TESTS_FAILED=$((TESTS_FAILED + 1))
         return 1
     fi
@@ -53,19 +53,19 @@ run_test_verbose() {
     local test_name="$1"
     local test_function="$2"
     
-    echo -n "  Testing $test_name... "
+    log_info "Running test: $test_name"
     
     local output
     output=$($test_function 2>&1)
     local result=$?
     
     if [ $result -eq 0 ]; then
-        echo "PASS"
+        log_pass "✓ $test_name"
         TESTS_PASSED=$((TESTS_PASSED + 1))
         return 0
     else
-        echo "FAIL"
-        echo "    Output: $output"
+        log_error "✗ $test_name"
+        log_error "  Output: $output"
         TESTS_FAILED=$((TESTS_FAILED + 1))
         return 1
     fi
@@ -381,9 +381,7 @@ test_docker_directory_exists() {
 run_backup_tests() {
     log_section "Backup System Tests"
     
-    echo ""
-    echo "Backup Directory Structure Tests"
-    echo "--------------------------------"
+    log_subsection "Backup Directory Structure Tests"
     run_test "Backup base directory exists" test_backup_base_directory_exists
     run_test "Daily backup directory exists" test_backup_daily_directory_exists
     run_test "Weekly backup directory exists" test_backup_weekly_directory_exists
@@ -391,9 +389,7 @@ run_backup_tests() {
     run_test "Manual backup directory exists" test_backup_manual_directory_exists
     run_test "Backup directory permissions" test_backup_directory_permissions
     
-    echo ""
-    echo "Backup Scripts Tests"
-    echo "--------------------"
+    log_subsection "Backup Scripts Tests"
     run_test "backup_now.sh exists" test_backup_now_script_exists
     run_test "backup_now.sh executable" test_backup_now_script_executable
     run_test "list_backups.sh exists" test_list_backups_script_exists
@@ -405,9 +401,7 @@ run_backup_tests() {
     run_test "cleanup_backups.sh exists" test_cleanup_backups_script_exists
     run_test "cleanup_backups.sh executable" test_cleanup_backups_script_executable
     
-    echo ""
-    echo "Systemd Timer Tests"
-    echo "-------------------"
+    log_subsection "Systemd Timer Tests"
     run_test "Backup service exists" test_backup_service_exists
     run_test "Backup timer exists" test_backup_timer_exists
     run_test "Backup timer enabled" test_backup_timer_enabled
@@ -417,22 +411,16 @@ run_backup_tests() {
     run_test "Weekly backup timer exists" test_weekly_backup_timer_exists
     run_test "Monthly backup timer exists" test_monthly_backup_timer_exists
     
-    echo ""
-    echo "Backup Listing Tests"
-    echo "--------------------"
+    log_subsection "Backup Listing Tests"
     run_test "list_backups.sh runs" test_list_backups_script_runs
     run_test "List shows summary" test_list_backups_shows_summary
     run_test "List type filter works" test_list_backups_type_filter
     
-    echo ""
-    echo "Backup Verification Tests"
-    echo "-------------------------"
+    log_subsection "Backup Verification Tests"
     run_test "verify_backup.sh runs" test_verify_backup_script_runs
     run_test "Backup archive integrity" test_backup_archive_integrity
     
-    echo ""
-    echo "Cleanup Configuration Tests"
-    echo "---------------------------"
+    log_subsection "Cleanup Configuration Tests"
     run_test "Cleanup dry-run works" test_cleanup_dry_run
     run_test "Cleanup respects min keep" test_cleanup_respects_min_keep
     run_test "Retention policy daily" test_retention_policy_daily
@@ -441,43 +429,31 @@ run_backup_tests() {
     run_test "Min keep setting valid" test_min_keep_setting
     run_test "Storage threshold valid" test_storage_threshold_setting
     
-    echo ""
-    echo "Restore Tests (Dry Run)"
-    echo "-----------------------"
+    log_subsection "Restore Tests (Dry Run)"
     run_test "Restore help available" test_restore_help_available
     run_test "Restore dry-run option" test_restore_dry_run_option
     
-    echo ""
-    echo "Log and State Tests"
-    echo "-------------------"
+    log_subsection "Log and State Tests"
     run_test "Backup log file exists" test_backup_log_file_exists
     run_test "Backup log writable" test_backup_log_writable
     run_test "Backup state file exists" test_backup_state_file_updated
     
-    echo ""
-    echo "Environment Configuration Tests"
-    echo "--------------------------------"
+    log_subsection "Environment Configuration Tests"
     run_test "Backup location configured" test_backup_location_configured
     run_test "Backup enabled setting" test_backup_enabled_setting
     run_test "Email notify setting" test_email_notify_setting
     run_test "Encryption setting valid" test_encryption_setting
     
-    echo ""
-    echo "Integration Tests"
-    echo "-----------------"
+    log_subsection "Integration Tests"
     run_test "n8n data directory exists" test_n8n_data_directory_exists
     run_test "n8n home directory exists" test_n8n_home_directory_exists
     run_test "Docker directory exists" test_docker_directory_exists
     
     # Summary
-    echo ""
-    echo "============================================================"
-    echo "Backup Test Results"
-    echo "============================================================"
-    echo "Passed: $TESTS_PASSED"
-    echo "Failed: $TESTS_FAILED"
-    echo "Total:  $((TESTS_PASSED + TESTS_FAILED))"
-    echo ""
+    log_subsection "Backup Test Results"
+    log_info "Total tests: $((TESTS_PASSED + TESTS_FAILED))"
+    log_info "Passed: $TESTS_PASSED"
+    log_info "Failed: $TESTS_FAILED"
     
     if [ $TESTS_FAILED -eq 0 ]; then
         log_pass "All backup tests passed!"
