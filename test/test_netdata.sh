@@ -261,8 +261,8 @@ test_netdata_health_alerts_configured() {
     local health_api_response=$(curl -s --connect-timeout 5 \
         "http://127.0.0.1:${NETDATA_PORT:-19999}/api/v1/alarms?all" 2>/dev/null)
     
-    # Check if our custom alerts are present
-    echo "$health_api_response" | grep -q "cpu_usage_high\|ram_usage_high\|disk_space_usage_high\|load_average_high" 2>/dev/null
+    # Check if our custom alerts are present (note: disk_usage_high not disk_space_usage_high)
+    echo "$health_api_response" | grep -q "cpu_usage_high\|ram_usage_high\|disk_usage_high\|load_average_high" 2>/dev/null
 }
 
 # ==============================================================================
