@@ -1239,7 +1239,7 @@ EOF
     log_info "Systemd timers configured and enabled"
 }
 
-setup_netdata_monitoring() {
+setup_netdata_backup_monitoring() {
     log_info "Setting up Netdata backup monitoring..."
     
     # Create Netdata custom chart for backup monitoring
@@ -1387,9 +1387,9 @@ configure_backup() {
     # Setup automated backups
     setup_systemd_timers
     
-    # Setup monitoring
+    # Setup backup monitoring in Netdata
     if [ "${NETDATA_ENABLED:-true}" = "true" ]; then
-        setup_netdata_monitoring
+        setup_netdata_backup_monitoring
     fi
     
     log_info "Backup configuration completed successfully"
