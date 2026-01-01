@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Milestone
 
-## Milestone 8 (Current)
+## Milestone 8 (Completed)
 - Create `backup_config.sh` under setup folder that:
   - Implements automated n8n data backups (workflows, credentials, encryption keys)
   - Backs up user files directory (`/opt/n8n/files/`)
