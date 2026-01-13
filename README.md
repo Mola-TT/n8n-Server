@@ -38,21 +38,30 @@ Ubuntu scripts for initializing an n8n server. The scripts are developed on Wind
 │   ├── iframe_embedding_config.sh    # Iframe embedding configuration
 │   ├── user_monitoring.sh            # User monitoring and analytics
 │   ├── user_management_api.sh        # User management API server
-│   └── cross_server_setup.sh         # Cross-server communication
+│   ├── cross_server_setup.sh         # Cross-server communication
+│   └── backup_config.sh              # Automated backup system
 ├── test/
 │   ├── run_tests.sh                  # Test runner for validation
 │   ├── test_docker.sh                # Docker infrastructure tests
-│   ├── test_nginx.sh                 # Nginx configuration tests
+│   ├── test_n8n.sh                   # n8n application tests
 │   ├── test_netdata.sh               # Monitoring system tests
 │   ├── test_ssl_renewal.sh           # SSL certificate tests
 │   ├── test_dynamic_optimization.sh  # Optimization system tests
+│   ├── test_dynamic_optimization_integration.sh  # Integration tests
+│   ├── test_email_notification.sh    # Email notification tests
+│   ├── test_hardware_change_detector.sh  # Hardware detection tests
 │   ├── test_multi_user.sh            # Multi-user system tests
 │   ├── test_iframe_embedding.sh      # Iframe integration tests
 │   ├── test_user_monitoring.sh       # User monitoring tests
 │   ├── test_user_api.sh              # User management API tests
-│   └── test_cross_server.sh          # Cross-server communication tests
+│   ├── test_user_scaling.sh          # User scaling tests
+│   ├── test_performance_metrics.sh   # Performance metrics tests
+│   ├── test_cross_server.sh          # Cross-server communication tests
+│   └── test_backup.sh                # Backup system tests
 ├── README.md                         # Main project documentation
+├── README-Backup.md                  # Backup system documentation
 ├── README-User-Management.md         # User management and API documentation
+├── README-Docker-Development.md      # Local Docker development guide
 └── README-WebApp-Server.md           # Web app server integration guide
 ```
 
@@ -84,7 +93,7 @@ All other URLs (like `N8N_WEBHOOK_URL`, `WEBAPP_DOMAIN`, etc.) are **automatical
 - **User overrides**: `conf/user.env` - Optional file for user-specific settings (copy from template)
 - **Environment loading**: The script automatically loads default settings first, then overrides with user settings if available
 
-## Current Features (Milestone 7)
+## Current Features (Milestone 8)
 
 ### Core Infrastructure (Milestones 1-6)
 - ✅ Silent Ubuntu server updates and system configuration
@@ -109,6 +118,21 @@ All other URLs (like `N8N_WEBHOOK_URL`, `WEBAPP_DOMAIN`, etc.) are **automatical
 - ✅ Storage usage monitoring with quota enforcement
 - ✅ Automated cleanup and maintenance for inactive users
 
+### Backup System (Milestone 8)
+- ✅ Automated daily, weekly, and monthly backups via systemd timers
+- ✅ Comprehensive backup of n8n data, workflows, credentials, and encryption keys
+- ✅ User files and per-user data directory backups
+- ✅ Docker configuration and Redis data backups
+- ✅ Rotational retention policies (configurable daily/weekly/monthly)
+- ✅ Backup compression (tar.gz) to minimize storage
+- ✅ Optional GPG encryption for sensitive data
+- ✅ Optional remote backup to S3 or SFTP
+- ✅ Email notifications for backup success/failure
+- ✅ Backup verification and integrity checking
+- ✅ Automatic cleanup based on retention policies
+- ✅ Storage threshold monitoring and emergency cleanup
+- ✅ Manual backup and restore scripts
+
 ## Usage
 
 The `init.sh` script:
@@ -120,8 +144,10 @@ The `init.sh` script:
 
 ## Documentation
 
+- **[README-Backup.md](README-Backup.md)** - Backup strategy, retention policies, restore procedures, and disaster recovery
 - **[README-User-Management.md](README-User-Management.md)** - Comprehensive guide for JWT authentication, user management, folder structure, monitoring, and API endpoints
 - **[README-WebApp-Server.md](README-WebApp-Server.md)** - Integration guide for web application servers and iframe embedding
+- **[README-Docker-Development.md](README-Docker-Development.md)** - Local Docker development setup for Next.js + FastAPI integration
 
 ## Development Notes
 

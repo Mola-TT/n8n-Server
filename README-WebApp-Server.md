@@ -1252,5 +1252,5 @@ This integration guide will be updated as new features are added to the n8n mult
 
 ---
 
-**Last Updated**: December 2024  
-**Version**: 1.0.0
+**Last Updated**: January 2026  
+**Version**: 1.1.0
