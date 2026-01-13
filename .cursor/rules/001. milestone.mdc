@@ -5,6 +5,95 @@ alwaysApply: true
 ---
 # Milestone
 
+## Milestone 9 (Planned)
+- Create `security_config.sh` under setup folder that:
+  - Implements fail2ban for automated IP blocking based on attack patterns
+  - Configures SSH brute-force protection with configurable ban times
+  - Protects Nginx authentication endpoints (n8n login, Netdata login)
+  - Protects n8n webhook endpoints from abuse and scanning
+  - Implements user agent filtering to block malicious bots and scanners
+  - Adds request pattern blocking for common web exploits (SQL injection, XSS probes)
+  - Configures enhanced rate limiting with burst protection per endpoint type
+  - Implements IP whitelist management for trusted sources (webapp server, known IPs)
+  - Enhances SSL/TLS configuration with modern cipher suites and protocols
+  - Adds HSTS preload and additional security headers
+  - Configures automated security incident alerting via email
+  - Implements security audit logging for all authentication attempts
+- Create `geo_blocking.sh` under setup folder that (optional feature):
+  - Implements GeoIP database integration for country-based blocking
+  - Creates configurable country blocklist/allowlist
+  - Uses ipset for efficient IP range management
+  - Configures systemd service for persistent geo-blocking rules
+  - Supports automatic GeoIP database updates
+  - Provides bypass mechanism for webhook endpoints if needed
+- Enhanced fail2ban configuration:
+  - SSH protection with progressive ban times (repeat offenders banned longer)
+  - Nginx authentication failure detection (401/403 responses)
+  - Custom filter for n8n webhook abuse (excessive 404s, scanning patterns)
+  - Custom filter for bad bots and vulnerability scanners
+  - Custom filter for User Management API brute-force attempts
+  - Email notifications for all ban events
+  - Configurable ban times, retry limits, and find times per jail
+  - Whitelist support for webapp server IP and trusted sources
+- Advanced Nginx security hardening:
+  - Enhanced security headers (X-Frame-Options, CSP, X-Content-Type-Options, Referrer-Policy)
+  - Request method restrictions (block TRACE, TRACK, etc.)
+  - Request size limits per endpoint type
+  - User agent blacklist for known bad bots and scanners
+  - Query string filtering for SQL injection patterns
+  - Path traversal attack blocking
+  - Rate limiting tiers: global, per-IP, per-endpoint
+  - Separate rate limits for webhooks vs UI vs API
+  - Connection limits per IP
+  - Slowloris attack mitigation
+- Webhook-specific security:
+  - Rate limiting for webhook endpoints to prevent abuse
+  - Optional webhook authentication token validation
+  - Request body size limits for webhook payloads
+  - Logging of all webhook access for security audit
+  - Protection against webhook enumeration/scanning
+- Security monitoring and alerting:
+  - Create `/opt/n8n/scripts/security_monitor.sh` for continuous monitoring
+  - Detect suspicious patterns: repeated auth failures, scanning activity
+  - Monitor fail2ban ban statistics and trends
+  - Track blocked request patterns and sources
+  - Email alerts for security incidents (configurable thresholds)
+  - Integration with Netdata for security metrics visualization
+  - Daily/weekly security summary reports
+- Create comprehensive test script (`test_security.sh`) to validate:
+  - fail2ban installation and jail configuration
+  - SSH brute-force protection (simulated attacks)
+  - Nginx authentication failure banning
+  - Rate limiting effectiveness
+  - Security header presence and correctness
+  - IP whitelist functionality
+  - Geo-blocking rules (if enabled)
+  - Email notification delivery for security events
+  - Security monitoring script functionality
+- Update environment configuration:
+  - Add SECURITY_ENABLED (master toggle for security features)
+  - Add FAIL2BAN_ENABLED, FAIL2BAN_BANTIME, FAIL2BAN_MAXRETRY
+  - Add FAIL2BAN_EMAIL_NOTIFY (true/false)
+  - Add GEO_BLOCKING_ENABLED, GEO_BLOCK_COUNTRIES (comma-separated)
+  - Add SECURITY_WHITELIST_IPS (comma-separated trusted IPs)
+  - Add RATE_LIMIT_WEBHOOK, RATE_LIMIT_API, RATE_LIMIT_UI
+  - Add SECURITY_ALERT_THRESHOLD (number of incidents before alert)
+  - Add SECURITY_REPORT_SCHEDULE (cron format for summary reports)
+- Create security documentation (`README-Security.md`):
+  - Document security architecture and defense layers
+  - Explain fail2ban configuration and customization
+  - Provide geo-blocking setup and country list management
+  - Document rate limiting configuration per endpoint
+  - Include security monitoring and alerting setup
+  - Provide incident response procedures
+  - Document IP whitelist management
+  - Include troubleshooting guide for false positives
+- Update init.sh integration:
+  - Add security configuration to initialization process
+  - Implement graceful fallback if security setup fails
+  - Add security status to setup completion report
+  - Ensure security services start after core services
+
 ## Milestone 8 (Completed)
 - Create `backup_config.sh` under setup folder that:
   - Implements automated n8n data backups (workflows, credentials, encryption keys)
