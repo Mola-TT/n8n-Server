@@ -125,16 +125,16 @@ Different rate limits are applied per endpoint type:
 
 | Zone | Default Rate | Purpose |
 |------|--------------|---------|
-| webhook_limit | 30r/m | Webhook endpoints |
-| api_limit | 60r/m | API endpoints |
+| webhook_limit | 10r/s | Webhook endpoints |
+| api_limit | 30r/s | API endpoints |
 | ui_limit | 100r/s | UI/page loads |
 | login_limit | 5r/m | Login attempts |
 
 Configure in `conf/user.env`:
 
 ```bash
-RATE_LIMIT_WEBHOOK="30r/m"
-RATE_LIMIT_API="60r/m"
+RATE_LIMIT_WEBHOOK="10r/s"
+RATE_LIMIT_API="30r/s"
 RATE_LIMIT_UI="100r/s"
 ```
 
@@ -295,7 +295,7 @@ If legitimate users are being rate limited:
 2. Increase limits in `conf/user.env`:
    ```bash
    RATE_LIMIT_UI="200r/s"
-   RATE_LIMIT_API="120r/m"
+   RATE_LIMIT_API="60r/s"
    ```
 3. Reload nginx: `sudo systemctl reload nginx`
 
@@ -350,8 +350,8 @@ Tests validate:
 | FAIL2BAN_FINDTIME | 600 | Time window (seconds) |
 | FAIL2BAN_EMAIL_NOTIFY | true | Email on ban events |
 | SECURITY_WHITELIST_IPS | "" | Comma-separated trusted IPs |
-| RATE_LIMIT_WEBHOOK | 30r/m | Webhook rate limit |
-| RATE_LIMIT_API | 60r/m | API rate limit |
+| RATE_LIMIT_WEBHOOK | 10r/s | Webhook rate limit |
+| RATE_LIMIT_API | 30r/s | API rate limit |
 | RATE_LIMIT_UI | 100r/s | UI rate limit |
 | GEO_BLOCKING_ENABLED | false | Enable geo-blocking |
 | GEO_BLOCK_COUNTRIES | "" | Countries to block |
