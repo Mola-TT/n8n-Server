@@ -279,8 +279,47 @@ EOF
     return 0
 }
 
+ensure_log_files_exist() {
+    log_info "Ensuring required log files exist for fail2ban..."
+    
+    # Create nginx log directory if missing
+    mkdir -p /var/log/nginx
+    
+    # Touch log files that fail2ban monitors (fail2ban fails if logs don't exist)
+    local log_files=(
+        "/var/log/nginx/n8n_access.log"
+        "/var/log/nginx/access.log"
+        "/var/log/nginx/error.log"
+        "/var/log/nginx/webhook_access.log"
+    )
+    
+    for log_file in "${log_files[@]}"; do
+        if [[ ! -f "$log_file" ]]; then
+            touch "$log_file"
+            chmod 644 "$log_file"
+            log_debug "Created log file: $log_file"
+        fi
+    done
+    
+    # Ensure auth.log exists (for SSH jail)
+    if [[ ! -f "/var/log/auth.log" ]]; then
+        touch /var/log/auth.log
+        chmod 640 /var/log/auth.log
+    fi
+}
+
 start_fail2ban() {
     log_info "Starting fail2ban service..."
+    
+    # Ensure log files exist before starting fail2ban
+    ensure_log_files_exist
+    
+    # Test fail2ban configuration first
+    if ! fail2ban-client -t &>/dev/null; then
+        log_warn "fail2ban configuration has issues, checking details..."
+        fail2ban-client -t 2>&1 | head -20
+        log_warn "Attempting to start anyway..."
+    fi
     
     # Enable and start fail2ban
     if execute_silently "systemctl enable fail2ban"; then
@@ -294,6 +333,8 @@ start_fail2ban() {
         log_info "fail2ban service started successfully"
     else
         log_error "Failed to start fail2ban service"
+        # Show why it failed
+        journalctl -u fail2ban -n 10 --no-pager 2>/dev/null || true
         return 1
     fi
     
@@ -307,6 +348,7 @@ start_fail2ban() {
         log_info "Active jails: $jails"
     else
         log_error "fail2ban is not running"
+        journalctl -u fail2ban -n 20 --no-pager 2>/dev/null || true
         return 1
     fi
     
@@ -359,16 +401,17 @@ large_client_header_buffers 4 16k;
 
 # Connection limits per IP
 limit_conn_zone $binary_remote_addr zone=conn_limit_per_ip:10m;
-limit_conn conn_limit_per_ip 50;
 
-# Block common exploits
-set $block_common_exploits 0;
-if ($query_string ~ "(<|%3C).*script.*(>|%3E)") { set $block_common_exploits 1; }
-if ($query_string ~ "GLOBALS(=|\[|\%[0-9A-Z]{0,2})") { set $block_common_exploits 1; }
-if ($query_string ~ "_REQUEST(=|\[|\%[0-9A-Z]{0,2})") { set $block_common_exploits 1; }
-if ($query_string ~ "proc/self/environ") { set $block_common_exploits 1; }
-if ($query_string ~ "mosConfig_[a-zA-Z_]{1,21}(=|\%3D)") { set $block_common_exploits 1; }
-if ($query_string ~ "base64_(en|de)code\(.*\)") { set $block_common_exploits 1; }
+# Map for common exploit detection (map is allowed in http context)
+map $query_string $block_common_exploits {
+    default 0;
+    ~*(<|%3C).*script.*(>|%3E) 1;
+    ~*GLOBALS(=|\[|\%[0-9A-Z]{0,2}) 1;
+    ~*_REQUEST(=|\[|\%[0-9A-Z]{0,2}) 1;
+    ~*proc/self/environ 1;
+    ~*mosConfig_[a-zA-Z_]{1,21}(=|\%3D) 1;
+    ~*base64_(en|de)code\(.*\) 1;
+}
 EOF
 
     log_info "Nginx security configuration created: $security_conf"
