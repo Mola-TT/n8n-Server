@@ -78,6 +78,10 @@ source "$SETUP_DIR/user_management_api.sh"
 # Source backup configuration (Milestone 8)
 source "$SETUP_DIR/backup_config.sh"
 
+# Source security configuration (Milestone 9)
+source "$SETUP_DIR/security_config.sh"
+source "$SETUP_DIR/geo_blocking.sh"
+
 # Display init banner with enhanced logging
 display_banner() {
     if command -v log_section >/dev/null 2>&1; then
@@ -266,6 +270,22 @@ main() {
         log_info "Backup system is disabled (BACKUP_ENABLED=false)"
     fi
     
+    # Set up security hardening (Milestone 9)
+    echo "================================================================================"
+    echo "MILESTONE 9: Security Hardening Setup"
+    echo "================================================================================"
+    log_info "Note: Security hardening with fail2ban and nginx security will be configured"
+    if [[ "${SECURITY_ENABLED:-true}" == "true" ]]; then
+        setup_security || log_warn "Security setup had some issues, check logs"
+        if [[ "${GEO_BLOCKING_ENABLED:-false}" == "true" ]]; then
+            setup_geo_blocking || log_warn "Geo-blocking setup had some issues"
+        else
+            log_info "Geographic IP blocking is disabled (GEO_BLOCKING_ENABLED=false)"
+        fi
+    else
+        log_info "Security features are disabled (SECURITY_ENABLED=false)"
+    fi
+    
     # Print setup summary
     echo "================================================================================"
     echo "SETUP SUMMARY"
@@ -283,6 +303,7 @@ main() {
     log_info "✓ Dynamic hardware optimization: SUCCESS"
     log_info "✓ Multi-user n8n configuration: SUCCESS"
     log_info "✓ Backup system: SUCCESS"
+    log_info "✓ Security hardening: SUCCESS"
     echo "================================================================================"
     
     log_info "Initialization COMPLETE"

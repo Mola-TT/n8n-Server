@@ -39,7 +39,9 @@ Ubuntu scripts for initializing an n8n server. The scripts are developed on Wind
 │   ├── user_monitoring.sh            # User monitoring and analytics
 │   ├── user_management_api.sh        # User management API server
 │   ├── cross_server_setup.sh         # Cross-server communication
-│   └── backup_config.sh              # Automated backup system
+│   ├── backup_config.sh              # Automated backup system
+│   ├── security_config.sh            # Security hardening (fail2ban, etc.)
+│   └── geo_blocking.sh               # Geographic IP blocking (optional)
 ├── test/
 │   ├── run_tests.sh                  # Test runner for validation
 │   ├── test_docker.sh                # Docker infrastructure tests
@@ -57,9 +59,11 @@ Ubuntu scripts for initializing an n8n server. The scripts are developed on Wind
 │   ├── test_user_scaling.sh          # User scaling tests
 │   ├── test_performance_metrics.sh   # Performance metrics tests
 │   ├── test_cross_server.sh          # Cross-server communication tests
-│   └── test_backup.sh                # Backup system tests
+│   ├── test_backup.sh                # Backup system tests
+│   └── test_security.sh              # Security hardening tests
 ├── README.md                         # Main project documentation
 ├── README-Backup.md                  # Backup system documentation
+├── README-Security.md                # Security hardening documentation
 ├── README-User-Management.md         # User management and API documentation
 ├── README-Docker-Development.md      # Local Docker development guide
 └── README-WebApp-Server.md           # Web app server integration guide
@@ -93,7 +97,7 @@ All other URLs (like `N8N_WEBHOOK_URL`, `WEBAPP_DOMAIN`, etc.) are **automatical
 - **User overrides**: `conf/user.env` - Optional file for user-specific settings (copy from template)
 - **Environment loading**: The script automatically loads default settings first, then overrides with user settings if available
 
-## Current Features (Milestone 8)
+## Current Features (Milestone 9)
 
 ### Core Infrastructure (Milestones 1-6)
 - ✅ Silent Ubuntu server updates and system configuration
@@ -133,6 +137,20 @@ All other URLs (like `N8N_WEBHOOK_URL`, `WEBAPP_DOMAIN`, etc.) are **automatical
 - ✅ Storage threshold monitoring and emergency cleanup
 - ✅ Manual backup and restore scripts
 
+### Security Hardening (Milestone 9)
+- ✅ fail2ban protection for SSH, Nginx, and API endpoints
+- ✅ Custom fail2ban filters for n8n-specific attack patterns
+- ✅ Nginx security headers and request filtering
+- ✅ Rate limiting per endpoint type (webhooks, API, UI)
+- ✅ Bad bot and vulnerability scanner blocking
+- ✅ IP whitelist management for trusted sources
+- ✅ Security monitoring with automated alerting
+- ✅ Daily security reports via email
+- ✅ Optional geographic IP blocking by country
+- ✅ Webhook abuse and scanning protection
+- ✅ Login brute-force protection
+- ✅ Security audit logging
+
 ## Usage
 
 The `init.sh` script:
@@ -145,6 +163,7 @@ The `init.sh` script:
 ## Documentation
 
 - **[README-Backup.md](README-Backup.md)** - Backup strategy, retention policies, restore procedures, and disaster recovery
+- **[README-Security.md](README-Security.md)** - Security hardening, fail2ban configuration, rate limiting, and geo-blocking
 - **[README-User-Management.md](README-User-Management.md)** - Comprehensive guide for JWT authentication, user management, folder structure, monitoring, and API endpoints
 - **[README-WebApp-Server.md](README-WebApp-Server.md)** - Integration guide for web application servers and iframe embedding
 - **[README-Docker-Development.md](README-Docker-Development.md)** - Local Docker development setup for Next.js + FastAPI integration

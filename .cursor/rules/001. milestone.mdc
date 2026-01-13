@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # Milestone
 
-## Milestone 9 (Planned)
+## Milestone 9 (Completed)
 - Create `security_config.sh` under setup folder that:
   - Implements fail2ban for automated IP blocking based on attack patterns
   - Configures SSH brute-force protection with configurable ban times
