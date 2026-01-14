@@ -287,6 +287,21 @@ test_geo_management_script_exists() {
 }
 
 test_ipset_installed() {
+    # ipset is only required when geo-blocking is enabled
+    # Check if geo-blocking is enabled in environment
+    if [[ -f "$PROJECT_ROOT/conf/user.env" ]]; then
+        source "$PROJECT_ROOT/conf/user.env" 2>/dev/null
+    fi
+    if [[ -f "$PROJECT_ROOT/conf/default.env" ]]; then
+        source "$PROJECT_ROOT/conf/default.env" 2>/dev/null
+    fi
+    
+    # If geo-blocking is disabled, test passes (ipset not required)
+    if [[ "${GEO_BLOCKING_ENABLED:-false}" != "true" ]]; then
+        return 0
+    fi
+    
+    # If geo-blocking is enabled, ipset must be installed
     command -v ipset &>/dev/null
 }
 
