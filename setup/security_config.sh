@@ -403,14 +403,16 @@ large_client_header_buffers 4 16k;
 limit_conn_zone $binary_remote_addr zone=conn_limit_per_ip:10m;
 
 # Map for common exploit detection (map is allowed in http context)
+# Using simplified patterns that are Nginx-safe
 map $query_string $block_common_exploits {
     default 0;
-    ~*(<|%3C).*script.*(>|%3E) 1;
-    ~*GLOBALS(=|\[|\%[0-9A-Z]{0,2}) 1;
-    ~*_REQUEST(=|\[|\%[0-9A-Z]{0,2}) 1;
+    ~*script 1;
+    ~*%3Cscript 1;
+    ~*GLOBALS= 1;
+    ~*_REQUEST= 1;
     ~*proc/self/environ 1;
-    ~*mosConfig_[a-zA-Z_]{1,21}(=|\%3D) 1;
-    ~*base64_(en|de)code\(.*\) 1;
+    ~*base64_encode 1;
+    ~*base64_decode 1;
 }
 EOF
 
@@ -486,8 +488,8 @@ map $request_uri $suspicious_request {
     ~*config\.php 1;
     ~*\.sql 1;
     
-    # Path traversal
-    ~*\.\./\.\. 1;
+    # Path traversal attempts
+    ~*\.\./ 1;
     ~*%2e%2e 1;
 }
 EOF
