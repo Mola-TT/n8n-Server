@@ -325,6 +325,40 @@ run_milestone_8_tests() {
     return $milestone_8_failed
 }
 
+# Run Milestone 9 Tests (Security Hardening)
+run_milestone_9_tests() {
+    echo ""
+    echo "================================================================================"
+    echo "MILESTONE 9 Tests (Security Hardening):"
+    echo "================================================================================"
+    
+    local milestone_9_passed=0
+    local milestone_9_failed=0
+    
+    # Security Tests
+    log_info "Running Security Hardening Tests..."
+    if (source "$PROJECT_DIR/test/test_security.sh" && run_all_tests); then
+        log_pass "Security Hardening Tests: PASSED"
+        milestone_9_passed=$((milestone_9_passed + 1))
+    else
+        log_error "Security Hardening Tests: FAILED"
+        milestone_9_failed=$((milestone_9_failed + 1))
+    fi
+    
+    # Milestone 9 Summary
+    local milestone_9_total=$((milestone_9_passed + milestone_9_failed))
+    echo ""
+    echo "================================================================================"
+    log_info "Milestone 9 Summary: $milestone_9_passed/$milestone_9_total test suites passed"
+    
+    # Update global counters
+    TESTS_RUN=$((TESTS_RUN + milestone_9_total))
+    TESTS_PASSED=$((TESTS_PASSED + milestone_9_passed))
+    TESTS_FAILED=$((TESTS_FAILED + milestone_9_failed))
+    
+    return $milestone_9_failed
+}
+
 # Main test execution
 main() {
     log_info "Starting n8n server initialization tests..."
@@ -460,6 +494,9 @@ main() {
     
     # Run Milestone 8 Tests
     run_milestone_8_tests
+    
+    # Run Milestone 9 Tests
+    run_milestone_9_tests
     
     # Print summary
     echo "================================================================================"

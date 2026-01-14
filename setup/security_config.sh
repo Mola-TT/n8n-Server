@@ -189,7 +189,7 @@ EOF
 # Bad bots and vulnerability scanner filter for n8n
 [Definition]
 failregex = ^<HOST> .* "(GET|POST|HEAD)" .* (sqlmap|nikto|nessus|nmap|masscan|ZmEu|w3af|Acunetix|havij|Netsparker)
-            ^<HOST> .* "(GET|POST)" .*(\.\./|\.\.\\|%2e%2e|%252e%252e)
+            ^<HOST> .* "(GET|POST)" .*(\.\./|\.\.\\|%%2e%%2e|%%252e%%252e)
             ^<HOST> .* "(GET|POST)" .*(union.*select|select.*from|insert.*into|drop.*table|update.*set)
             ^<HOST> .* "(GET|POST)" .*(<script|javascript:|vbscript:|onclick=|onerror=)
             ^<HOST> .* "(GET|POST)" .*/wp-(admin|content|includes|login)
