@@ -151,6 +151,40 @@ All other URLs (like `N8N_WEBHOOK_URL`, `WEBAPP_DOMAIN`, etc.) are **automatical
 - ✅ Login brute-force protection
 - ✅ Security audit logging
 
+## Production Readiness Checklist
+
+Before deploying to production, ensure you have completed these steps:
+
+### Required Configuration
+- [ ] Set `PRODUCTION=true` in `conf/user.env`
+- [ ] Configure real domain: `N8N_SERVER_DOMAIN="your-domain.com"`
+- [ ] Set up DNS records pointing to your server IP
+- [ ] Generate secure secrets: `openssl rand -base64 32`
+  - `JWT_SECRET`
+  - `N8N_IFRAME_JWT_SECRET`
+- [ ] Change all default passwords:
+  - `N8N_BASIC_AUTH_PASSWORD`
+  - `DB_PASSWORD`
+  - `NETDATA_NGINX_AUTH_PASSWORD`
+  - `SMTP_PASSWORD`
+- [ ] Configure real SMTP settings for email notifications
+- [ ] Set `SECURITY_WHITELIST_IPS` to your webapp server IP
+
+### Recommended Configuration
+- [ ] Configure remote backups: `BACKUP_REMOTE_ENABLED=true` (S3 or SFTP)
+- [ ] Enable backup encryption: `BACKUP_ENCRYPTION_ENABLED=true`
+- [ ] Review rate limits for expected traffic volume
+- [ ] Set up external PostgreSQL backup strategy (database is external)
+- [ ] Consider enabling geo-blocking: `GEO_BLOCKING_ENABLED=true`
+
+### Post-Deployment Verification
+- [ ] Verify SSL certificate is valid: `curl -I https://your-domain.com`
+- [ ] Test n8n login and workflow execution
+- [ ] Verify backup creation: `/opt/n8n/scripts/backup_now.sh --type manual`
+- [ ] Test email notifications work
+- [ ] Review security logs: `tail -f /var/log/n8n_security.log`
+- [ ] Check fail2ban status: `fail2ban-client status`
+
 ## Usage
 
 The `init.sh` script:
