@@ -185,6 +185,61 @@ Before deploying to production, ensure you have completed these steps:
 - [ ] Review security logs: `tail -f /var/log/n8n_security.log`
 - [ ] Check fail2ban status: `fail2ban-client status`
 
+## Maintenance & Updates
+
+### Updating n8n
+
+```bash
+# Create backup before updating
+/opt/n8n/scripts/backup_now.sh --type manual
+
+# Update n8n to latest version
+/opt/n8n/scripts/update.sh
+
+# Or manually:
+cd /opt/n8n/docker
+docker-compose pull
+docker-compose down
+docker-compose up -d
+docker image prune -f
+```
+
+**Scheduled n8n updates** (optional - add to cron):
+```bash
+# Weekly update every Sunday at 4 AM (after backups)
+echo "0 4 * * 0 root /opt/n8n/scripts/update.sh >> /opt/n8n/logs/update.log 2>&1" | sudo tee /etc/cron.d/n8n-update
+```
+
+### Updating Ubuntu
+
+**Security updates (recommended - automatic):**
+```bash
+# Enable unattended security upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades
+```
+
+**Full system updates (manual during maintenance window):**
+```bash
+sudo apt update && sudo apt upgrade -y
+
+# If kernel was updated, schedule a reboot
+sudo reboot
+```
+
+### Update Best Practices
+
+| Component | Frequency | Approach |
+|-----------|-----------|----------|
+| n8n | Weekly or on-demand | Via update script after backup |
+| Ubuntu Security | Daily | Unattended upgrades (automatic) |
+| Ubuntu Full | Monthly | Manual during maintenance window |
+| Kernel/Reboot | As needed | After backup, during low-traffic |
+
+**Before any major update:**
+1. Create backup: `/opt/n8n/scripts/backup_now.sh --type manual`
+2. Check [n8n release notes](https://github.com/n8n-io/n8n/releases) for breaking changes
+3. Test in staging environment if possible
+
 ## Usage
 
 The `init.sh` script:
